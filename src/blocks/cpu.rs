@@ -95,7 +95,7 @@ pub async fn run(
         // TODO (maybe) add per-core info
         let values = map! {
             "freq" => Value::from_float(freq_avg).hertz(),
-            "utilization" => Value::from_float(utilization_avg * 100.).percents(),
+            "utilization" => Value::from_integer((utilization_avg * 100.) as i64).percents(),
             "barchart" => Value::from_string(barchart),
         };
         text.set_text(format.render(&values)?);

@@ -110,8 +110,9 @@ pub async fn run_block(
                         }
                     }
                 }
-                BlockEvent::Signal(_signal) => {
+                BlockEvent::Signal(signal) => {
                     // TODO handle signals
+                    eprintln!("got signal: {:?}", signal);
                 }
             }
             // Reciever might be droped -- but we don't care
