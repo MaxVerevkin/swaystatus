@@ -13,7 +13,7 @@ use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
 use crate::protocol::i3bar_event::MouseButton;
 use crate::widgets::text::TextWidget;
-use crate::widgets::I3BarWidget;
+use crate::widgets::{I3BarWidget, State};
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
@@ -112,13 +112,30 @@ pub async fn run(
         text_mem.set_text(format.0.render(&values)?);
         text_swap.set_text(format.1.render(&values)?);
 
-        let widgets = match memtype {
-            Memtype::Memory => vec![text_mem.get_data()],
-            Memtype::Swap => vec![text_swap.get_data()],
+        let text = match memtype {
+            Memtype::Memory => &mut text_mem,
+            Memtype::Swap => &mut text_swap,
         };
 
+        // TODO make it configurable
+        text.set_state(match memtype {
+            Memtype::Memory => match mem_used / mem_total * 100. {
+                x if x > 95.0 => State::Critical,
+                x if x > 80.0 => State::Warning,
+                _ => State::Idle,
+            },
+            Memtype::Swap => match swap_used / swap_total * 100. {
+                x if x > 95.0 => State::Critical,
+                x if x > 80.0 => State::Warning,
+                _ => State::Idle,
+            },
+        });
+
         message_sender
-            .send(BlockMessage { id, widgets })
+            .send(BlockMessage {
+                id,
+                widgets: vec![text.get_data()],
+            })
             .await
             .internal_error("memory", "failed to send message")?;
 
