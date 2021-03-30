@@ -120,7 +120,7 @@ pub async fn run(
         message_sender
             .send(BlockMessage { id, widgets })
             .await
-            .internal_error("time block", "failed to send message")?;
+            .internal_error("memory", "failed to send message")?;
 
         tokio::select! {
             _ = tokio::time::sleep(interval) =>(),

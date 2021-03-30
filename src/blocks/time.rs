@@ -53,7 +53,7 @@ pub async fn run(
                 widgets: vec![text.get_data()],
             })
             .await
-            .internal_error("time block", "failed to send message")?;
+            .internal_error("time", "failed to send message")?;
 
         tokio::time::sleep(interval).await;
     }

@@ -83,7 +83,7 @@ pub async fn run(
                 widgets: vec![text.get_data()],
             })
             .await
-            .internal_error("time block", "failed to send message")?;
+            .internal_error("sway_kbd", "failed to send message")?;
 
         // Wait for new event
         if let Some(event) = events.next().await {
