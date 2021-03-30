@@ -71,6 +71,8 @@ impl TextWidget {
     pub fn set_text(&mut self, content: String) {
         if content.is_empty() {
             self.spacing = Spacing::Hidden;
+        } else {
+            self.spacing = Spacing::Normal;
         }
         self.content = Some(content);
         self.update();

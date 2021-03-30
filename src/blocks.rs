@@ -1,3 +1,4 @@
+pub mod cpu;
 pub mod memory;
 pub mod sway_kbd;
 pub mod temperature;
@@ -22,6 +23,7 @@ pub enum BlockType {
     Memory,
     SwayKbd,
     Temperature,
+    Cpu,
 }
 
 #[derive(Debug)]
@@ -128,5 +130,6 @@ pub async fn run_block(
         BlockType::Temperature => {
             temperature::run(id, block_config, shared_config, message_tx, events_rx).await
         }
+        BlockType::Cpu => cpu::run(id, block_config, shared_config, message_tx, events_rx).await,
     }
 }

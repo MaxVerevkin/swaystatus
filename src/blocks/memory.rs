@@ -159,7 +159,6 @@ struct Memstate {
 }
 
 impl Memstate {
-    // TODO make async
     async fn new() -> Result<Self> {
         let mut file = BufReader::new(
             File::open("/proc/meminfo")
