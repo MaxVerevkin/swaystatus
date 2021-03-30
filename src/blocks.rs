@@ -51,7 +51,7 @@ pub struct CommonConfig {
 
 impl CommonConfig {
     pub fn new(from: &mut Value) -> Result<Self> {
-        const FIELDS: &'static [&'static str] = &[
+        const FIELDS: &[&str] = &[
             "on_click",
             "on_right_click",
             "theme_overrides",
