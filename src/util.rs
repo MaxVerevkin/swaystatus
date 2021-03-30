@@ -4,18 +4,12 @@ use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::prelude::v1::String;
 use std::process::Command;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use serde::de::DeserializeOwned;
 
 use crate::errors::*;
 
 pub const USR_SHARE_PATH: &str = "/usr/share/swaystatus";
-
-pub fn pseudo_uuid() -> usize {
-    static ID: AtomicUsize = AtomicUsize::new(usize::MAX);
-    ID.fetch_sub(1, Ordering::SeqCst)
-}
 
 /// Tries to find a file in standard locations:
 /// - Fist try to find a file by full path

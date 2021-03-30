@@ -1,5 +1,4 @@
-use crate::blocks::BlockMessage;
-pub use std::error::Error as StdError;
+use std::error::Error as StdError;
 use std::fmt;
 
 pub use self::Error::{BlockError, ConfigurationError, InternalError};

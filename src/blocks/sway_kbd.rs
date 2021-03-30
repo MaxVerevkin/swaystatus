@@ -68,7 +68,7 @@ pub async fn run(
 
     loop {
         let layout_mapped = if let Some(ref mappings) = block_config.mappings {
-            mappings.get(&layout).unwrap_or_else(|| &layout).to_string()
+            mappings.get(&layout).unwrap_or(&layout).to_string()
         } else {
             layout.clone()
         };

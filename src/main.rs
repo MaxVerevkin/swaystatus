@@ -122,7 +122,7 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
     let config_path = match config {
         Some(config_path) => std::path::PathBuf::from(config_path),
         None => util::find_file("config.toml", None, None)
-            .unwrap_or_else(|| util::xdg_config_home().join("i3status-rust/config.toml")),
+            .unwrap_or_else(|| util::xdg_config_home().join("swaystatus/config.toml")),
     };
     let config: Config = deserialize_file(&config_path)?;
     let shared_config = SharedConfig::new(&config);
@@ -139,17 +139,14 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
         let message_sender = message_sender.clone();
         let id = blocks_tasks.len();
 
-        blocks_tasks.push(tokio::spawn(async move {
-            run_block(
-                id,
-                block_type,
-                block_config,
-                shared_config,
-                message_sender,
-                events_reciever,
-            )
-            .await
-        }));
+        blocks_tasks.push(tokio::spawn(run_block(
+            id,
+            block_type,
+            block_config,
+            shared_config,
+            message_sender,
+            events_reciever,
+        )));
     }
     let mut rendered: Vec<Vec<I3BarBlock>> = blocks_events
         .iter()

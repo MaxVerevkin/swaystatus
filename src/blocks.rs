@@ -94,11 +94,7 @@ pub async fn run_block(
 
     let (evets_tx, events_rx) = mpsc::channel(64);
     tokio::task::spawn(async move {
-        loop {
-            let event = match events_reciever.recv().await {
-                Some(e) => e,
-                None => break,
-            };
+        while let Some(event) = events_reciever.recv().await {
             match event {
                 BlockEvent::I3Bar(click) => {
                     if let Some(ref on_click) = on_click {
