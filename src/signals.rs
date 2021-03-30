@@ -1,4 +1,3 @@
-use crate::errors::*;
 use tokio::sync::mpsc;
 
 use futures::stream::StreamExt;
@@ -32,34 +31,6 @@ pub async fn process_signals(sender: mpsc::Sender<Signal>) {
             })
             .await
             .unwrap();
-    }
-}
-
-pub fn convert_to_valid_signal(signal: i32) -> Result<i32> {
-    let sigmin;
-    let sigmax;
-    unsafe {
-        sigmin = __libc_current_sigrtmin();
-        sigmax = __libc_current_sigrtmax();
-    }
-    if signal < 0 || signal > sigmax - sigmin {
-        //NOTE If some important information is encoded in the third field of this error this might
-        //need to be added
-        Err(Error::ConfigurationError(
-            format!(
-            "A provided signal was out of bounds. An allowed signal needs to be between {} and {}",
-            0,
-            sigmax - sigmin
-        ),
-            format!(
-                "Provided signal is {} which is not between {} and {}",
-                signal,
-                0,
-                sigmax - sigmin
-            ),
-        ))
-    } else {
-        Ok(signal + sigmin)
     }
 }
 
