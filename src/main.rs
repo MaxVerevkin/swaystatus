@@ -29,8 +29,16 @@ use crate::util::deserialize_file;
 use crate::widgets::text::TextWidget;
 use crate::widgets::{I3BarWidget, State};
 
-#[tokio::main]
-pub async fn main() {
+fn main() {
+    tokio::runtime::Builder::new_current_thread()
+        .max_blocking_threads(3)
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(_main());
+}
+
+pub async fn _main() {
     let ver = if env!("GIT_COMMIT_HASH").is_empty() || env!("GIT_COMMIT_DATE").is_empty() {
         env!("CARGO_PKG_VERSION").to_string()
     } else {

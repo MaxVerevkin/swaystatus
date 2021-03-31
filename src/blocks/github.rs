@@ -1,6 +1,5 @@
 use reqwest::header;
 use serde::de::Deserialize;
-use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
