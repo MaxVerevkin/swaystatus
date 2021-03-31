@@ -148,6 +148,8 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
             events_reciever,
         )));
     }
+
+    // TODO first wait for all the blocks to send their widgets and then print
     let mut rendered: Vec<Vec<I3BarBlock>> = blocks_events
         .iter()
         .map(|_| vec![I3BarBlock::default()])

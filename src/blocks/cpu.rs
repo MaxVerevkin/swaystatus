@@ -175,8 +175,8 @@ impl CpuTime {
     }
 
     fn utilization(&self, old: Self) -> f64 {
-        let elapsed = (self.idle + self.non_idle) - (old.idle + old.non_idle);
-        ((self.non_idle - old.non_idle) as f64 / elapsed as f64).clamp(0., 1.)
+        let elapsed = (self.idle + self.non_idle) as f64 - (old.idle + old.non_idle) as f64;
+        ((self.non_idle - old.non_idle) as f64 / elapsed).clamp(0., 1.)
     }
 }
 
