@@ -62,30 +62,19 @@ pub async fn run(
         .header(header::USER_AGENT, "swaystatus");
 
     loop {
-        // Send request
-        let result = request
-            .try_clone()
-            .block_error("github", "failed to clone request")?
-            .send()
-            .await
-            .block_error("github", "failed to send request")?
-            .text()
-            .await
-            .block_error("github", "failed to get responce")?;
-        // Convert to JSON
-        let notifications: Vec<serde_json::Value> =
-            serde_json::from_str(&result).block_error("github", "invalid responce")?;
-        let total = notifications.len();
+        let total = get_total(&request).await;
 
-        let values = map! {
-            "total" => Value::from_integer(total as i64),
-        };
-        text.set_text(format.render(&values)?);
+        text.set_text(match total {
+            Some(total) => format.render(&map! {
+                "total" => Value::from_integer(total as i64),
+            })?,
+            None => "x".to_string(),
+        });
 
         message_sender
             .send(BlockMessage {
                 id,
-                widgets: if total == 0 && block_config.hide {
+                widgets: if total == Some(0) && block_config.hide {
                     vec![]
                 } else {
                     vec![text.get_data()]
@@ -96,4 +85,13 @@ pub async fn run(
 
         tokio::time::sleep(interval).await;
     }
+}
+
+async fn get_total(request: &reqwest::RequestBuilder) -> Option<i64> {
+    // Send request
+    let result = request.try_clone()?.send().await.ok()?.text().await.ok()?;
+    // Convert to JSON
+    let notifications: Vec<serde_json::Value> = serde_json::from_str(&result).ok()?;
+    // The total number of notifications is just the length of a list
+    Some(notifications.len() as i64)
 }
