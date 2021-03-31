@@ -4,7 +4,6 @@ mod blocks;
 mod config;
 mod errors;
 mod formatting;
-//mod http;
 mod icons;
 mod protocol;
 mod signals;
