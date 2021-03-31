@@ -12,27 +12,29 @@ signal-hook = "0.3.7"
 swayipc-async = "2.0.0-alpha.3"
 nix = "0.20.0"
 futures = "0.3.13"
-async-process = "1.0.2"
 chrono = "0.4.19"
 version = "1.0.125"
 serde = "1.0.125"
 serde_derive = "1.0.125"
 serde_json = "1.0.64"
 toml = "0.5.8"
+#curl = "0.4"
+reqwest = "0.11.2"
+
+# 159
 
 [dependencies.tokio]
 version = "1.0"
 features = [
   "fs",
-  "io-util",
+  #"io-util",
   "io-std",
   "macros",
-  "net",
-  "parking_lot",
+  #"net",
+  #"parking_lot",
   "process",
-  "rt",
   "rt-multi-thread",
-  "signal",
+  #"signal",
   "sync",
   "time",
 ]
@@ -40,3 +42,6 @@ features = [
 [dependencies.signal-hook-tokio]
 version = "0.3.0"
 features = ["futures-v0_3"]
+
+[profile.release]
+lto = 'fat'

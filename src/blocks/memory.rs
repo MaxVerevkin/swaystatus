@@ -58,7 +58,7 @@ pub async fn run(
     mut events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
     let block_config =
-        MemoryConfig::deserialize(block_config).configuration_error("failed to parse config")?;
+        MemoryConfig::deserialize(block_config).block_error("memory", "failed to parse config")?;
 
     let format = (
         FormatTemplate::from_string(&block_config.format_mem)?,

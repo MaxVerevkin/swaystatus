@@ -1,0 +1,100 @@
+use reqwest::header;
+use serde::de::Deserialize;
+use std::collections::HashMap;
+use std::time::Duration;
+use tokio::sync::mpsc;
+
+use super::{BlockEvent, BlockMessage};
+use crate::config::SharedConfig;
+use crate::errors::*;
+use crate::formatting::{value::Value, FormatTemplate};
+use crate::widgets::text::TextWidget;
+use crate::widgets::I3BarWidget;
+
+#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct GithubConfig {
+    /// Update interval in seconds
+    #[serde(default = "default_interval")]
+    pub interval: u64,
+
+    #[serde(default = "default_format")]
+    pub format: String,
+
+    // A GitHub personal access token with the "notifications" scope is requried
+    pub token: String,
+
+    // Hide this block if the total count of notifications is zero
+    #[serde(default = "default_hide")]
+    pub hide: bool,
+}
+
+fn default_interval() -> u64 {
+    30
+}
+fn default_format() -> String {
+    "{total:1}".to_string()
+}
+fn default_hide() -> bool {
+    true
+}
+
+pub async fn run(
+    id: usize,
+    block_config: toml::Value,
+    shared_config: SharedConfig,
+    message_sender: mpsc::Sender<BlockMessage>,
+    events_reciever: mpsc::Receiver<BlockEvent>,
+) -> Result<()> {
+    // Drop the reciever if we don't what to recieve events
+    drop(events_reciever);
+
+    let block_config =
+        GithubConfig::deserialize(block_config).block_error("github", "failed to parse config")?;
+    let interval = Duration::from_secs(block_config.interval);
+    let format = FormatTemplate::from_string(&block_config.format)?;
+    let mut text = TextWidget::new(id, 0, shared_config).with_icon("github")?;
+
+    // Http client
+    let client = reqwest::Client::new();
+    let request = client
+        .get("https://api.github.com/notifications")
+        .header("Authorization", &format!("token {}", block_config.token))
+        .header(header::USER_AGENT, "swaystatus");
+
+    loop {
+        // Send request
+        let result = request
+            .try_clone()
+            .block_error("github", "failed to clone request")?
+            .send()
+            .await
+            .block_error("github", "failed to send request")?
+            .text()
+            .await
+            .block_error("github", "failed to get responce")?;
+        // Convert to JSON
+        let notifications: Vec<serde_json::Value> =
+            serde_json::from_str(&result).block_error("github", "invalid responce")?;
+        let total = notifications.len();
+
+        let values = map! {
+            "total" => Value::from_integer(total as i64),
+        };
+        text.set_text(format.render(&values)?);
+
+        message_sender
+            .send(BlockMessage {
+                id,
+                widgets: if total == 0 && block_config.hide {
+                    vec![]
+                } else {
+                    vec![text.get_data()]
+                },
+            })
+            .await
+            .internal_error("github", "failed to send message")?;
+
+        tokio::time::sleep(interval).await;
+    }
+}

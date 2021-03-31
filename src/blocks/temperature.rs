@@ -1,7 +1,8 @@
-use async_process::Command;
 use serde::de::Deserialize;
 use std::collections::HashMap;
 use std::time::Duration;
+
+use tokio::process::Command;
 use tokio::sync::mpsc;
 
 use super::{BlockEvent, BlockMessage};
@@ -63,7 +64,7 @@ pub async fn run(
     drop(events_reciever);
 
     let block_config = TemperatureConfig::deserialize(block_config)
-        .configuration_error("failed to parse config")?;
+        .block_error("temperature", "failed to parse config")?;
     let format = FormatTemplate::from_string(&block_config.format)?;
     let interval = Duration::from_secs(block_config.interval);
 

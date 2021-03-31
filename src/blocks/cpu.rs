@@ -43,7 +43,7 @@ pub async fn run(
     mut events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
     let block_config =
-        CpuConfig::deserialize(block_config).configuration_error("failed to parse config")?;
+        CpuConfig::deserialize(block_config).block_error("cpu", "failed to parse config")?;
 
     let mut format = FormatTemplate::from_string(&block_config.format)?;
     let mut format_alt = match block_config.format_alt {
