@@ -86,13 +86,22 @@ pub async fn run(
             .internal_error("sway_kbd", "failed to send message")?;
 
         // Wait for new event
-        if let Some(event) = events.next().await {
-            let event = event.block_error("sway_kbd", "bad event")?;
+        loop {
+            let event = events
+                .next()
+                .await
+                .block_error("sway_kbd", "bad event")?
+                .block_error("sway_kbd", "bad event")?;
             if let Event::Input(event) = event {
-                layout = event
+                let new_layout = event
                     .input
                     .xkb_active_layout_name
                     .block_error("sway_kbd", "failed to get current input")?;
+                // Update only if layout has changed
+                if new_layout != layout {
+                    layout = new_layout;
+                    break;
+                }
             }
         }
     }
