@@ -1,42 +1,78 @@
 use std::error::Error as StdError;
 use std::fmt;
-
-pub use self::Error::{BlockError, ConfigurationError, InternalError};
+use std::result::Result as StdResult;
+pub use Error::{BlockError, ConfigError, InternalError};
 
 /// Result type returned from functions that can have our `Error`s.
-pub type Result<T> = ::std::result::Result<T, Error>;
+pub type Result<T> = StdResult<T, Error>;
 
-// Why `ResultExtBlock` and `ResultExtInternal` are splitted?
-pub trait ResultExtBlock<T, E> {
-    fn block_error(self, block: &str, message: &str) -> Result<T>;
+/// A set of errors that can occur during the runtime of swaystatus
+#[derive(Debug)]
+pub enum Error {
+    /// An error that occurred in the block
+    BlockError {
+        block: String,
+        message: String,
+        cause: Option<String>,
+        cause_dbg: Option<String>,
+    },
+    /// An error that occurred because of mistake in the config file
+    ConfigError {
+        block: Option<String>,
+        cause: String,
+        cause_dbg: String,
+    },
+    /// An error that occurred outside of any block
+    InternalError {
+        context: String,
+        message: String,
+        cause: Option<String>,
+        cause_dbg: Option<String>,
+    },
 }
 
-pub trait ResultExtInternal<T, E> {
-    fn configuration_error(self, message: &str) -> Result<T>;
+pub trait ResultExt<T, E> {
+    fn block_error(self, block: &str, message: &str) -> Result<T>;
+    fn config_error(self) -> Result<T>;
+    fn block_config_error(self, block: &str) -> Result<T>;
     fn internal_error(self, context: &str, message: &str) -> Result<T>;
 }
 
-impl<T, E> ResultExtBlock<T, E> for ::std::result::Result<T, E> {
-    fn block_error(self, block: &str, message: &str) -> Result<T> {
-        self.map_err(|_| BlockError(block.to_owned(), message.to_owned()))
-    }
-}
-
-impl<T, E> ResultExtInternal<T, E> for ::std::result::Result<T, E>
+impl<T, E> ResultExt<T, E> for StdResult<T, E>
 where
-    E: fmt::Display + fmt::Debug,
+    E: StdError,
 {
-    fn configuration_error(self, message: &str) -> Result<T> {
-        self.map_err(|e| ConfigurationError(message.to_owned(), format!("{}", e)))
+    fn block_error(self, block: &str, message: &str) -> Result<T> {
+        self.map_err(|e| BlockError {
+            block: block.to_owned(),
+            message: message.to_owned(),
+            cause: Some(e.to_string()),
+            cause_dbg: Some(format!("{:?}", e)),
+        })
+    }
+
+    fn config_error(self) -> Result<T> {
+        self.map_err(|e| ConfigError {
+            block: None,
+            cause: e.to_string(),
+            cause_dbg: format!("{:?}", e),
+        })
+    }
+
+    fn block_config_error(self, block: &str) -> Result<T> {
+        self.map_err(|e| ConfigError {
+            block: Some(block.to_string()),
+            cause: e.to_string(),
+            cause_dbg: format!("{:?}", e),
+        })
     }
 
     fn internal_error(self, context: &str, message: &str) -> Result<T> {
-        self.map_err(|e| {
-            InternalError(
-                context.to_owned(),
-                message.to_owned(),
-                Some((format!("{}", e), format!("{:?}", e))),
-            )
+        self.map_err(|e| InternalError {
+            context: context.to_string(),
+            message: message.to_string(),
+            cause: Some(e.to_string()),
+            cause_dbg: Some(format!("{:?}", e)),
         })
     }
 }
@@ -46,74 +82,76 @@ pub trait OptionExt<T> {
     fn internal_error(self, context: &str, message: &str) -> Result<T>;
 }
 
-impl<T> OptionExt<T> for ::std::option::Option<T> {
+impl<T> OptionExt<T> for Option<T> {
     fn block_error(self, block: &str, message: &str) -> Result<T> {
-        self.ok_or_else(|| BlockError(block.to_owned(), message.to_owned()))
+        self.ok_or_else(|| BlockError {
+            block: block.to_owned(),
+            message: message.to_owned(),
+            cause: None,
+            cause_dbg: None,
+        })
     }
 
     fn internal_error(self, context: &str, message: &str) -> Result<T> {
-        self.ok_or_else(|| InternalError(context.to_owned(), message.to_owned(), None))
+        self.ok_or_else(|| InternalError {
+            context: context.to_owned(),
+            message: message.to_owned(),
+            cause: None,
+            cause_dbg: None,
+        })
     }
-}
-
-/// A set of errors that can occur during the runtime of i3status-rs.
-/// TODO: rewrite using struct-like fields ("what is the order of InternalError again?")
-#[derive(Clone)]
-pub enum Error {
-    BlockError(String, String),
-    ConfigurationError(String, String),
-    InternalError(String, String, Option<(String, String)>),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            BlockError(ref block, ref message) => {
-                f.write_str(&format!("Error in block '{}': {}", block, message))
+            BlockError {
+                ref block,
+                ref message,
+                ref cause,
+                ..
+            } => {
+                if let Some(cause) = cause {
+                    write!(
+                        f,
+                        "Error in block '{}': {}. Cause: {}",
+                        block, message, cause
+                    )
+                } else {
+                    write!(f, "Error in block '{}': {}", block, message)
+                }
             }
-            ConfigurationError(ref message, _) => {
-                f.write_str(&format!("Configuration error: {}", message))
+            ConfigError {
+                ref block,
+                ref cause,
+                ..
+            } => {
+                if let Some(block) = block {
+                    write!(
+                        f,
+                        "Configuration error in block '{}'. Cause: {}",
+                        block, cause
+                    )
+                } else {
+                    write!(f, "Configuration error. Cause: {}", cause)
+                }
             }
-            InternalError(ref context, ref message, _) => f.write_str(&format!(
-                "Internal error in context '{}': {}",
-                context, message
-            )),
-        }
-    }
-}
-
-impl fmt::Debug for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            BlockError(ref block, ref message) => {
-                f.write_str(&format!("Error in block '{}': {}", block, message))
+            InternalError {
+                ref context,
+                ref message,
+                ref cause,
+                ..
+            } => {
+                if let Some(cause) = cause {
+                    write!(
+                        f,
+                        "Internal error in '{}': {}. Cause: {}",
+                        context, message, cause
+                    )
+                } else {
+                    write!(f, "Internal error in '{}': {}", context, message)
+                }
             }
-            ConfigurationError(ref message, ref cause) => f.write_str(&format!(
-                "Configuration error: {}.\nCause: {}",
-                message, cause
-            )),
-            InternalError(ref context, ref message, Some((ref cause, _))) => f.write_str(&format!(
-                "Internal error in context '{}': {}.\nCause: {}",
-                context, message, cause
-            )),
-            InternalError(ref context, ref message, None) => f.write_str(&format!(
-                "Internal error in context '{}': {}",
-                context, message
-            )),
         }
-    }
-}
-
-impl StdError for Error {
-    fn description(&self) -> &str {
-        match *self {
-            BlockError(_, _) => "Block error occurred in block '{}'",
-            ConfigurationError(_, _) => "Configuration error occurred",
-            InternalError(_, _, _) => "Internal error occurred",
-        }
-    }
-
-    fn cause(&self) -> Option<&dyn StdError> {
-        None
     }
 }

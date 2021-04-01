@@ -103,11 +103,12 @@ pub async fn _main() {
         // Create widget with error message
         let error_widget = TextWidget::new(0, 0, Default::default())
             .with_state(State::Critical)
-            .with_text(&format!("{:?}", error));
+            .with_text(&error.to_string());
 
         // Print errors
         println!("[{}],", error_widget.get_data().render());
-        eprintln!("\n\n{:?}", error);
+        eprintln!("\n\n{}\n\n", error);
+        dbg!(error);
 
         // Wait for USR2 signal to restart
         signal_hook::iterator::Signals::new(&[signal_hook::consts::SIGUSR2])

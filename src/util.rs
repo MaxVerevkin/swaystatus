@@ -110,7 +110,7 @@ where
     );
     file.read_to_string(&mut contents)
         .internal_error("util", "failed to read file")?;
-    toml::from_str(&contents).configuration_error("failed to parse TOML from file contents")
+    toml::from_str(&contents).config_error()
 }
 
 pub fn read_file(blockname: &str, path: &Path) -> Result<String> {

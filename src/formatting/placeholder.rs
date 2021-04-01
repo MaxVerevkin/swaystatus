@@ -22,14 +22,13 @@ pub struct Placeholder {
     pub bar_max_value: Option<f64>,
 }
 
-fn unexpected_token<T>(token: char) -> Result<T> {
-    Err(ConfigurationError(
-        format!(
-            "failed to parse formatting string: unexpected token '{}'",
-            token
-        ),
-        String::new(),
-    ))
+pub(super) fn unexpected_token<T>(token: char) -> Result<T> {
+    Err(InternalError {
+        context: "format parser".to_string(),
+        message: format!("unexpected token '{}'", token),
+        cause: None,
+        cause_dbg: None,
+    })
 }
 
 impl TryInto<Placeholder> for &str {
@@ -82,38 +81,36 @@ impl TryInto<Placeholder> for &str {
         }
 
         // Parse padding
-        let (min_width, pad_with) =
-            if min_width_buf.is_empty() {
-                (None, None)
-            } else if let ("0", "") = min_width_buf.split_at(1) {
-                (Some(0), None)
-            } else if let ("0", min_width) = min_width_buf.split_at(1) {
-                (
-                    Some(min_width.parse().configuration_error(&format!(
-                        "failed to parse min_width '{}'",
-                        min_width
-                    ))?),
-                    Some('0'),
-                )
-            } else {
-                (
-                    Some(min_width_buf.parse().configuration_error(&format!(
-                        "failed to parse min_width '{}'",
-                        min_width_buf
-                    ))?),
-                    None,
-                )
-            };
+        let (min_width, pad_with) = if min_width_buf.is_empty() {
+            (None, None)
+        } else if let ("0", "") = min_width_buf.split_at(1) {
+            (Some(0), None)
+        } else if let ("0", min_width) = min_width_buf.split_at(1) {
+            (
+                Some(min_width.parse().internal_error(
+                    "format parser",
+                    &format!("failed to parse min_width '{}'", min_width),
+                )?),
+                Some('0'),
+            )
+        } else {
+            (
+                Some(min_width_buf.parse().internal_error(
+                    "format parser",
+                    &format!("failed to parse min_width '{}'", min_width_buf),
+                )?),
+                None,
+            )
+        };
         // Parse max_width
-        let max_width =
-            if max_width_buf.is_empty() {
-                None
-            } else {
-                Some(max_width_buf.parse().configuration_error(&format!(
-                    "failed to parse max_width '{}'",
-                    max_width_buf
-                ))?)
-            };
+        let max_width = if max_width_buf.is_empty() {
+            None
+        } else {
+            Some(max_width_buf.parse().internal_error(
+                "format parser",
+                &format!("failed to parse max_width '{}'", max_width_buf),
+            )?)
+        };
         // Parse min_prefix
         let min_prefix = if min_prefix_buf.is_empty() {
             None
@@ -132,10 +129,10 @@ impl TryInto<Placeholder> for &str {
         let bar_max_value = if bar_max_value_buf.is_empty() {
             None
         } else {
-            Some(bar_max_value_buf.parse().configuration_error(&format!(
-                "failed to parse bar_max_value '{}'",
-                bar_max_value_buf
-            ))?)
+            Some(bar_max_value_buf.parse().internal_error(
+                "format parser",
+                &format!("failed to parse bar_max_value '{}'", bar_max_value_buf),
+            )?)
         };
 
         Ok(Placeholder {

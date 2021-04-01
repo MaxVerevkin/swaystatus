@@ -42,8 +42,7 @@ pub async fn run(
     message_sender: mpsc::Sender<BlockMessage>,
     mut events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
-    let block_config =
-        CpuConfig::deserialize(block_config).block_error("cpu", "failed to parse config")?;
+    let block_config = CpuConfig::deserialize(block_config).block_config_error("cpu")?;
 
     let mut format = FormatTemplate::from_string(&block_config.format)?;
     let mut format_alt = match block_config.format_alt {
@@ -67,10 +66,12 @@ pub async fn run(
         let utilization_avg = new_cputime.0.utilization(cputime.0);
         let mut utilizations = Vec::new();
         if new_cputime.1.len() != cores {
-            return Err(BlockError(
-                "cpu".to_string(),
-                "new cputime length is incorrect".to_string(),
-            ));
+            return Err(BlockError {
+                block: "cpu".to_string(),
+                message: "new cputime length is incorrect".to_string(),
+                cause: None,
+                cause_dbg: None,
+            });
         }
         for i in 0..cores {
             utilizations.push(new_cputime.1[i].utilization(cputime.1[i]));

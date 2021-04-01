@@ -48,10 +48,12 @@ impl SharedConfig {
                 "critical_fg" => theme.critical_fg = Some(entry.1.to_string()),
                 "critical_bg" => theme.critical_bg = Some(entry.1.to_string()),
                 x => {
-                    return Err(errors::ConfigurationError(
-                        format!("Theme element \"{}\" cannot be overriden", x),
-                        String::new(),
-                    ))
+                    return Err(errors::Error::InternalError {
+                        context: "theme overrider".to_string(),
+                        message: format!("theme element \"{}\" cannot be overriden", x),
+                        cause: None,
+                        cause_dbg: None,
+                    })
                 }
             }
         }
@@ -174,8 +176,9 @@ where
     let raw_blocks: Vec<value::Table> = Deserialize::deserialize(deserializer)?;
     for mut entry in raw_blocks {
         if let Some(name) = entry.remove("block") {
-            let block = BlockType::deserialize(name).unwrap();
-            //let block: BlockType = deserializer.deserialize_any(name)?;
+            let name_str = name.to_string();
+            let block = BlockType::deserialize(name)
+                .map_err(|_| serde::de::Error::custom(format!("unknown block {}", name_str)))?;
             blocks.push((block, value::Value::Table(entry)));
         }
     }

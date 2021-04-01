@@ -1,6 +1,7 @@
 pub mod cpu;
 pub mod github;
 pub mod memory;
+pub mod net;
 pub mod sway_kbd;
 pub mod temperature;
 pub mod time;
@@ -26,6 +27,7 @@ pub enum BlockType {
     Temperature,
     Cpu,
     Github,
+    Net,
 }
 
 #[derive(Debug)]
@@ -72,8 +74,7 @@ impl CommonConfig {
             }
         }
         let common_value: Value = common_table.into();
-        CommonConfig::deserialize(common_value)
-            .configuration_error("failed to deserialize common config")
+        CommonConfig::deserialize(common_value).config_error()
     }
 }
 
@@ -122,20 +123,16 @@ pub async fn run_block(
         }
     });
 
+    use BlockType::*;
     match block_type {
-        BlockType::Time => time::run(id, block_config, shared_config, message_tx, events_rx).await,
-        BlockType::Memory => {
-            memory::run(id, block_config, shared_config, message_tx, events_rx).await
-        }
-        BlockType::SwayKbd => {
-            sway_kbd::run(id, block_config, shared_config, message_tx, events_rx).await
-        }
-        BlockType::Temperature => {
+        Time => time::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Memory => memory::run(id, block_config, shared_config, message_tx, events_rx).await,
+        SwayKbd => sway_kbd::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Temperature => {
             temperature::run(id, block_config, shared_config, message_tx, events_rx).await
         }
-        BlockType::Cpu => cpu::run(id, block_config, shared_config, message_tx, events_rx).await,
-        BlockType::Github => {
-            github::run(id, block_config, shared_config, message_tx, events_rx).await
-        }
+        Cpu => cpu::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Github => github::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Net => net::run(id, block_config, shared_config, message_tx, events_rx).await,
     }
 }

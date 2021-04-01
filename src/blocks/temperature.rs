@@ -63,8 +63,8 @@ pub async fn run(
     // Drop the reciever if we don't what to recieve events
     drop(events_reciever);
 
-    let block_config = TemperatureConfig::deserialize(block_config)
-        .block_error("temperature", "failed to parse config")?;
+    let block_config =
+        TemperatureConfig::deserialize(block_config).block_config_error("temperature")?;
     let format = FormatTemplate::from_string(&block_config.format)?;
     let interval = Duration::from_secs(block_config.interval);
 

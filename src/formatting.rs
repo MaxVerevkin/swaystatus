@@ -9,6 +9,7 @@ use std::convert::TryInto;
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::widgets::{text::TextWidget, Spacing};
+use placeholder::unexpected_token;
 use placeholder::Placeholder;
 use value::Value;
 
@@ -27,16 +28,6 @@ enum Token {
 pub enum RenderedWidget {
     Text(TextWidget),
     Var(String, TextWidget),
-}
-
-fn unexpected_token<T>(token: char) -> Result<T> {
-    Err(ConfigurationError(
-        format!(
-            "failed to parse formatting string: unexpected token '{}'",
-            token
-        ),
-        String::new(),
-    ))
 }
 
 impl FormatTemplate {
@@ -75,10 +66,12 @@ impl FormatTemplate {
             }
         }
         if inside_var {
-            return Err(ConfigurationError(
-                "failed to parse formatting string: missing '}'".to_string(),
-                "".to_string(),
-            ));
+            return Err(InternalError {
+                context: "format parser".to_string(),
+                message: "missing '}'".to_string(),
+                cause: None,
+                cause_dbg: None,
+            });
         }
         if !text_buf.is_empty() {
             tokens.push(Token::Text(text_buf.clone()));

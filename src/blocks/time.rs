@@ -39,10 +39,8 @@ pub async fn run(
     // Drop the reciever if we don't what to recieve events
     drop(events_reciever);
 
-    let block_config =
-        TimeConfig::deserialize(block_config).block_error("time", "failed to fase config")?;
+    let block_config = TimeConfig::deserialize(block_config).block_config_error("time")?;
     let interval = Duration::from_secs(block_config.interval);
-
     let mut text = TextWidget::new(id, 0, shared_config).with_icon("time")?;
 
     loop {

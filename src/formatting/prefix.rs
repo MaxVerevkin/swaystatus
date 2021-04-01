@@ -50,10 +50,12 @@ impl TryInto<Prefix> for &str {
             "M" => Ok(Prefix::Mega),
             "G" => Ok(Prefix::Giga),
             "T" => Ok(Prefix::Tera),
-            x => Err(ConfigurationError(
-                "Can not parse prefix".to_string(),
-                format!("unknown prefix: '{}'", x.to_string()),
-            )),
+            x => Err(InternalError {
+                context: "format parser".to_string(),
+                message: format!("unknown prefix: '{}'", x.to_string()),
+                cause: None,
+                cause_dbg: None,
+            }),
         }
     }
 }
