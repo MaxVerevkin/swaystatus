@@ -11,3 +11,5 @@ Currently `swaystatus` supports those blocks (TODO write docs):
 - Memory (`memory`)
 - Cpu Utilization (`cpu`)
 - GitHub (`github`)
+- Network (`net`)
+- WiFi (`wifi`)
