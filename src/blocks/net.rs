@@ -158,7 +158,7 @@ mod tests {
     use super::push_to_hist;
 
     #[test]
-    #[clippy::allow(float_cmp)]
+    #[allow(clippy::float_cmp)]
     fn test_push_to_hist() {
         let mut hist = [0f64; 4];
         assert_eq!(&hist, &[0., 0., 0., 0.]);
