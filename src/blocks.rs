@@ -102,22 +102,16 @@ pub async fn run_block(
     let (evets_tx, events_rx) = mpsc::channel(64);
     tokio::task::spawn(async move {
         while let Some(event) = events_reciever.recv().await {
-            match event {
-                BlockEvent::I3Bar(click) => {
-                    if let Some(ref on_click) = on_click {
-                        if click.button == MouseButton::Left {
-                            let _ = spawn_child_async("sh", &["-c", on_click]);
-                        }
-                    }
-                    if let Some(ref on_right_click) = on_right_click {
-                        if click.button == MouseButton::Right {
-                            let _ = spawn_child_async("sh", &["-c", on_right_click]);
-                        }
+            if let BlockEvent::I3Bar(click) = event {
+                if let Some(ref on_click) = on_click {
+                    if click.button == MouseButton::Left {
+                        let _ = spawn_child_async("sh", &["-c", on_click]);
                     }
                 }
-                BlockEvent::Signal(signal) => {
-                    // TODO handle signals
-                    eprintln!("got signal: {:?}", signal);
+                if let Some(ref on_right_click) = on_right_click {
+                    if click.button == MouseButton::Right {
+                        let _ = spawn_child_async("sh", &["-c", on_right_click]);
+                    }
                 }
             }
             // Reciever might be droped -- but we don't care

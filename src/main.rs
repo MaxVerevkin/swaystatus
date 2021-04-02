@@ -180,23 +180,22 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
                 *rendered.get_mut(message.id).internal_error("handle block's message", "failed to get block")? = message.widgets;
                 protocol::print_blocks(&rendered, &shared_config)?;
             }
-            event = events_reciever.recv() => {
+            Some(event) = events_reciever.recv() => {
                 // Hnadle clicks
-                let event = event.unwrap();
                 if let Some(id) = event.id {
                     let blocks_event = blocks_events.get(id).unwrap();
                     blocks_event.send(BlockEvent::I3Bar(event)).await.unwrap();
                 }
             }
-            signal = signals_reciever.recv() => {
+            Some(signal) = signals_reciever.recv() => {
                 // Handle signals
-                match signal.unwrap() {
-                    Signal::USR2 => restart(),
-                    to_blocks => {
+                match signal {
+                    Signal::Usr1 => {
                         for block in &blocks_events {
-                            block.send(BlockEvent::Signal(to_blocks)).await.unwrap();
+                            block.send(BlockEvent::Signal(signal)).await.unwrap();
                         }
                     }
+                    Signal::Usr2 => restart(),
                 }
             }
         }
