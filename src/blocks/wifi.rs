@@ -54,7 +54,7 @@ pub async fn run(
         None => None,
     };
 
-    let mut text = TextWidget::new(id, 0, shared_config.clone()).with_icon("net_wireless")?;
+    let mut text = TextWidget::new(id, 0, shared_config).with_icon("net_wireless")?;
     let interval = Duration::from_secs(block_config.interval);
 
     loop {

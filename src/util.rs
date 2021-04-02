@@ -195,18 +195,11 @@ pub fn format_vec_to_bar_graph(content: &[f64]) -> String {
         }
     }
 
-    //let min = min.unwrap_or(min_v);
-    //let max = max.unwrap_or(max_v);
-    let extant = max - min;
-    if extant.is_normal() {
-        let length = BARS.len() as f64 - 1.0;
-        content
-            .iter()
-            .map(|x| BARS[((x.clamp(min, max) - min) / extant * length) as usize])
-            .collect()
-    } else {
-        (0..content.len() - 1).map(|_| BARS[0]).collect::<_>()
-    }
+    let range = max - min;
+    content
+        .iter()
+        .map(|x| BARS[((x - min) / range * 7.).clamp(0., 7.) as usize])
+        .collect()
 }
 
 #[cfg(test)]

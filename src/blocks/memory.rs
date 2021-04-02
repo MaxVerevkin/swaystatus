@@ -65,7 +65,7 @@ pub async fn run(
     );
 
     let mut text_mem = TextWidget::new(id, 0, shared_config.clone()).with_icon("memory_mem")?;
-    let mut text_swap = TextWidget::new(id, 0, shared_config.clone()).with_icon("memory_swap")?;
+    let mut text_swap = TextWidget::new(id, 0, shared_config).with_icon("memory_swap")?;
 
     let mut memtype = block_config.display_type;
     let clickable = block_config.clickable;
