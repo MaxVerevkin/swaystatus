@@ -5,6 +5,7 @@ mod config;
 mod errors;
 mod formatting;
 mod icons;
+mod netlink;
 mod protocol;
 mod signals;
 mod subprocess;
@@ -29,8 +30,9 @@ use crate::widgets::text::TextWidget;
 use crate::widgets::{I3BarWidget, State};
 
 fn main() {
-    tokio::runtime::Builder::new_current_thread()
-        .max_blocking_threads(3)
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .max_blocking_threads(2)
         .enable_all()
         .build()
         .unwrap()

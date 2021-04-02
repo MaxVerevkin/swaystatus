@@ -1,16 +1,16 @@
-use std::str::FromStr;
-use std::time::Duration;
-use tokio::fs::File;
-use tokio::io::{AsyncBufReadExt, BufReader};
-
 use serde::de::Deserialize;
-
+use std::path::PathBuf;
+use std::str::FromStr;
+use std::time::{Duration, Instant};
+use tokio::fs::File;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
 
 use super::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
+use crate::netlink::default_interface;
 use crate::protocol::i3bar_event::MouseButton;
 use crate::widgets::text::TextWidget;
 use crate::widgets::I3BarWidget;
@@ -25,7 +25,7 @@ pub struct NetConfig {
     pub format_alt: Option<String>,
 
     /// Format string for `Net` block.
-    pub interface: String,
+    pub interface: Option<String>,
 
     /// The delay in seconds between updates.
     pub interval: u64,
@@ -36,7 +36,7 @@ impl Default for NetConfig {
         Self {
             format: "{speed_down;K}{speed_up;k}".to_string(),
             format_alt: None,
-            interface: "lo".to_string(), // FIXME detect automatically
+            interface: None,
             interval: 2,
         }
     }
@@ -59,14 +59,48 @@ pub async fn run(
     let mut text = TextWidget::new(id, 0, shared_config.clone()).with_icon("net_wireless")?; // FIXME select icont automatically
     let interval = Duration::from_secs(block_config.interval);
 
+    // Stats
+    let mut interface = block_config
+        .interface
+        .clone()
+        .or(default_interface())
+        .unwrap_or_else(|| "lo".to_string());
+    let mut stats = read_stats(&interface).await;
+    let mut timer = Instant::now();
+
     loop {
-        // FIXME
-        let speed_down: f64 = 0.0;
-        let speed_up: f64 = 0.0;
+        let mut speed_down: f64 = 0.0;
+        let mut speed_up: f64 = 0.0;
+
+        // Get interface name
+        interface = block_config
+            .interface
+            .clone()
+            .or_else(default_interface)
+            .unwrap_or_else(|| "lo".to_string());
+
+        // Calculate speed
+        match (stats, read_stats(&interface).await) {
+            // No previous stats available
+            (None, new_stats) => stats = new_stats,
+            // No new stats available
+            (Some(_), None) => stats = None,
+            // All stats available
+            (Some(old_stats), Some(new_stats)) => {
+                let rx_bytes = new_stats.0 - old_stats.0;
+                let tx_bytes = new_stats.1 - old_stats.1;
+                let elapsed = timer.elapsed().as_secs_f64();
+                timer = Instant::now();
+                speed_down = rx_bytes as f64 / elapsed;
+                speed_up = tx_bytes as f64 / elapsed;
+                stats = Some(new_stats);
+            }
+        }
 
         text.set_text(format.render(&map! {
             "speed_down" => Value::from_float(speed_down).bytes().icon(shared_config.get_icon("net_down")?),
             "speed_up" => Value::from_float(speed_up).bytes().icon(shared_config.get_icon("net_up")?),
+            "interface" => Value::from_string(interface),
         })?);
 
         message_sender
@@ -90,4 +124,22 @@ pub async fn run(
             }
         }
     }
+}
+
+// Option<(rx, tx)>
+async fn read_stats(interface: &str) -> Option<(u64, u64)> {
+    let mut path = PathBuf::from("/sys/class/net");
+    path = path.join(interface);
+    let mut buf = String::new();
+
+    let mut file = BufReader::new(File::open(path.join("statistics/rx_bytes")).await.ok()?);
+    file.read_to_string(&mut buf).await.ok()?;
+    let rx: u64 = buf.trim().parse().ok()?;
+    buf.clear();
+
+    let mut file = BufReader::new(File::open(path.join("statistics/tx_bytes")).await.ok()?);
+    file.read_to_string(&mut buf).await.ok()?;
+    let tx: u64 = buf.trim().parse().ok()?;
+
+    Some((rx, tx))
 }
