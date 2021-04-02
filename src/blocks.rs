@@ -5,6 +5,7 @@ pub mod net;
 pub mod sway_kbd;
 pub mod temperature;
 pub mod time;
+pub mod wifi;
 
 use serde::de::Deserialize;
 use std::collections::HashMap;
@@ -28,6 +29,7 @@ pub enum BlockType {
     Cpu,
     Github,
     Net,
+    Wifi,
 }
 
 #[derive(Debug)]
@@ -134,5 +136,6 @@ pub async fn run_block(
         Cpu => cpu::run(id, block_config, shared_config, message_tx, events_rx).await,
         Github => github::run(id, block_config, shared_config, message_tx, events_rx).await,
         Net => net::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Wifi => wifi::run(id, block_config, shared_config, message_tx, events_rx).await,
     }
 }

@@ -11,6 +11,7 @@ use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
 use crate::netlink::default_interface;
 use crate::protocol::i3bar_event::MouseButton;
+use crate::util;
 use crate::widgets::text::TextWidget;
 use crate::widgets::I3BarWidget;
 
@@ -61,6 +62,8 @@ pub async fn run(
     // Stats
     let mut stats = None;
     let mut timer = Instant::now();
+    let mut tx_hist = [0f64; 8];
+    let mut rx_hist = [0f64; 8];
 
     loop {
         let mut speed_down: f64 = 0.0;
@@ -91,9 +94,14 @@ pub async fn run(
             }
         }
 
+        push_to_hist(&mut rx_hist, speed_down);
+        push_to_hist(&mut tx_hist, speed_up);
+
         text.set_text(format.render(&map! {
             "speed_down" => Value::from_float(speed_down).bytes().icon(shared_config.get_icon("net_down")?),
             "speed_up" => Value::from_float(speed_up).bytes().icon(shared_config.get_icon("net_up")?),
+            "graph_down" => Value::from_string(util::format_vec_to_bar_graph(&rx_hist)),
+            "graph_up" => Value::from_string(util::format_vec_to_bar_graph(&tx_hist)),
             "interface" => Value::from_string(interface),
         })?);
 
@@ -136,4 +144,32 @@ async fn read_stats(interface: &str) -> Option<(u64, u64)> {
     let tx: u64 = buf.trim().parse().ok()?;
 
     Some((rx, tx))
+}
+
+fn push_to_hist(hist: &mut [f64], elem: f64) {
+    for i in 1..hist.len() {
+        hist[i - 1] = hist[i];
+    }
+    hist[hist.len() - 1] = elem;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::push_to_hist;
+
+    #[test]
+    fn test_push_to_hist() {
+        let mut hist = [0f64; 4];
+        assert_eq!(&hist, &[0., 0., 0., 0.]);
+        push_to_hist(&mut hist, 1.);
+        assert_eq!(&hist, &[0., 0., 0., 1.]);
+        push_to_hist(&mut hist, 3.);
+        assert_eq!(&hist, &[0., 0., 1., 3.]);
+        push_to_hist(&mut hist, 0.);
+        assert_eq!(&hist, &[0., 1., 3., 0.]);
+        push_to_hist(&mut hist, 10.);
+        assert_eq!(&hist, &[1., 3., 0., 10.]);
+        push_to_hist(&mut hist, 2.);
+        assert_eq!(&hist, &[3., 0., 10., 2.]);
+    }
 }
