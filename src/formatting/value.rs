@@ -155,6 +155,7 @@ impl Value {
         self.unit = Unit::Bytes;
         self
     }
+    #[allow(dead_code)]
     pub fn bits(mut self) -> Self {
         self.unit = Unit::Bits;
         self
@@ -167,10 +168,12 @@ impl Value {
         self.unit = Unit::Percents;
         self
     }
+    #[allow(dead_code)]
     pub fn seconds(mut self) -> Self {
         self.unit = Unit::Seconds;
         self
     }
+    #[allow(dead_code)]
     pub fn watts(mut self) -> Self {
         self.unit = Unit::Watts;
         self

@@ -56,12 +56,14 @@ impl TextWidget {
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_spacing(mut self, spacing: Spacing) -> Self {
         self.spacing = spacing;
         self.update();
         self
     }
 
+    #[allow(dead_code)]
     pub fn set_icon(&mut self, name: &str) -> Result<()> {
         self.icon = Some(self.shared_config.get_icon(name)?);
         self.update();
@@ -83,6 +85,7 @@ impl TextWidget {
         self.update();
     }
 
+    #[allow(dead_code)]
     pub fn set_spacing(&mut self, spacing: Spacing) {
         self.spacing = spacing;
         self.update();

@@ -112,6 +112,7 @@ impl Default for I3BarBlock {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub enum I3BarBlockAlign {
     Center,
     Right,
@@ -119,6 +120,7 @@ pub enum I3BarBlockAlign {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum I3BarBlockMinWidth {
     Pixels(usize),
     Text(String),

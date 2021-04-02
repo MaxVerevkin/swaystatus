@@ -1,6 +1,6 @@
 use crate::errors::*;
 use serde::de::DeserializeOwned;
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
@@ -78,16 +78,6 @@ pub fn escape_pango_text(text: String) -> String {
         .collect()
 }
 
-pub fn battery_level_to_icon(charge_level: Result<u64>) -> &'static str {
-    match charge_level {
-        Ok(0..=5) => "bat_empty",
-        Ok(6..=25) => "bat_quarter",
-        Ok(26..=50) => "bat_half",
-        Ok(51..=75) => "bat_three_quarters",
-        _ => "bat_full",
-    }
-}
-
 pub fn xdg_config_home() -> PathBuf {
     // In the unlikely event that $HOME is not set, it doesn't really matter
     // what we fall back on, so use /.config.
@@ -111,21 +101,7 @@ where
     toml::from_str(&contents).config_error()
 }
 
-pub fn read_file(blockname: &str, path: &Path) -> Result<String> {
-    let mut f = OpenOptions::new().read(true).open(path).block_error(
-        blockname,
-        &format!("failed to open file {}", path.to_string_lossy()),
-    )?;
-    let mut content = String::new();
-    f.read_to_string(&mut content).block_error(
-        blockname,
-        &format!("failed to read {}", path.to_string_lossy()),
-    )?;
-    // Removes trailing newline
-    content.pop();
-    Ok(content)
-}
-
+#[allow(dead_code)]
 pub fn has_command(block_name: &str, command: &str) -> Result<bool> {
     let exit_status = Command::new("sh")
         .args(&[

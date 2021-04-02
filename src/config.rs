@@ -144,12 +144,14 @@ pub enum Scrolling {
 }
 
 #[derive(Copy, Clone, Debug)]
+#[allow(dead_code)]
 pub enum LogicalDirection {
     Up,
     Down,
 }
 
 impl Scrolling {
+    #[allow(dead_code)]
     pub fn to_logical_direction(self, button: MouseButton) -> Option<LogicalDirection> {
         use LogicalDirection::*;
         use MouseButton::*;

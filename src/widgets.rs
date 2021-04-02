@@ -1,4 +1,4 @@
-pub mod rotatingtext;
+//pub mod rotatingtext;
 pub mod text;
 
 use std::str::FromStr;

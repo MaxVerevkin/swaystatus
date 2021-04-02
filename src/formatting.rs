@@ -25,6 +25,7 @@ enum Token {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum RenderedWidget {
     Text(TextWidget),
     Var(String, TextWidget),
@@ -103,6 +104,7 @@ impl FormatTemplate {
 
     // Experimental function: avoid using this function in your block.
     // TODO reconsider the interface
+    #[allow(dead_code)]
     pub fn render_widgets(
         &self,
         config: SharedConfig,
