@@ -171,14 +171,12 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
     // Main loop
     loop {
         tokio::select! {
-            block_result = blocks_tasks.next() => {
-                // TODO remove unwraps
+            Some(block_result) = blocks_tasks.next() => {
                 // Handle blocks' errors
-                block_result.unwrap().unwrap()?;
+                block_result.internal_error("error handler", "failed to get block's error")??;
             }
-            message = message_reciever.recv() => {
+            Some(message) = message_reciever.recv() => {
                 // Recieve widgets from blocks
-                let message = message.unwrap();
                 *rendered.get_mut(message.id).internal_error("handle block's message", "failed to get block")? = message.widgets;
                 protocol::print_blocks(&rendered, &shared_config)?;
             }

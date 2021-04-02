@@ -1,13 +1,11 @@
+use crate::errors::*;
+use serde::de::DeserializeOwned;
 use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::prelude::v1::String;
 use std::process::Command;
-
-use serde::de::DeserializeOwned;
-
-use crate::errors::*;
 
 pub const USR_SHARE_PATH: &str = "/usr/share/swaystatus";
 

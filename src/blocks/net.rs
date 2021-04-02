@@ -1,9 +1,8 @@
 use serde::de::Deserialize;
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::time::{Duration, Instant};
 use tokio::fs::File;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
+use tokio::io::{AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
 
 use super::{BlockEvent, BlockMessage};
@@ -56,16 +55,11 @@ pub async fn run(
         None => None,
     };
 
-    let mut text = TextWidget::new(id, 0, shared_config.clone()).with_icon("net_wireless")?; // FIXME select icont automatically
+    let mut text = TextWidget::new(id, 0, shared_config.clone());
     let interval = Duration::from_secs(block_config.interval);
 
     // Stats
-    let mut interface = block_config
-        .interface
-        .clone()
-        .or(default_interface())
-        .unwrap_or_else(|| "lo".to_string());
-    let mut stats = read_stats(&interface).await;
+    let mut stats = None;
     let mut timer = Instant::now();
 
     loop {
@@ -73,7 +67,7 @@ pub async fn run(
         let mut speed_up: f64 = 0.0;
 
         // Get interface name
-        interface = block_config
+        let interface = block_config
             .interface
             .clone()
             .or_else(default_interface)
@@ -87,8 +81,8 @@ pub async fn run(
             (Some(_), None) => stats = None,
             // All stats available
             (Some(old_stats), Some(new_stats)) => {
-                let rx_bytes = new_stats.0 - old_stats.0;
-                let tx_bytes = new_stats.1 - old_stats.1;
+                let rx_bytes = new_stats.0.saturating_sub(old_stats.0);
+                let tx_bytes = new_stats.1.saturating_sub(old_stats.1);
                 let elapsed = timer.elapsed().as_secs_f64();
                 timer = Instant::now();
                 speed_down = rx_bytes as f64 / elapsed;
