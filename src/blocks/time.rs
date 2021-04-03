@@ -40,7 +40,7 @@ pub async fn run(
     drop(events_reciever);
 
     let block_config = TimeConfig::deserialize(block_config).block_config_error("time")?;
-    let interval = Duration::from_secs(block_config.interval);
+    let mut interval = tokio::time::interval(Duration::from_secs(block_config.interval));
     let mut text = TextWidget::new(id, 0, shared_config).with_icon("time")?;
 
     loop {
@@ -53,6 +53,6 @@ pub async fn run(
             .await
             .internal_error("time", "failed to send message")?;
 
-        tokio::time::sleep(interval).await;
+        interval.tick().await;
     }
 }

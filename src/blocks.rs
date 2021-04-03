@@ -1,4 +1,5 @@
 pub mod cpu;
+pub mod custom;
 pub mod github;
 pub mod memory;
 pub mod net;
@@ -17,7 +18,7 @@ use crate::errors::*;
 use crate::protocol::i3bar_block::I3BarBlock;
 use crate::protocol::i3bar_event::{I3BarEvent, MouseButton};
 use crate::signals::Signal;
-use crate::subprocess::spawn_child_async;
+use crate::subprocess::spawn_shell;
 
 #[derive(serde_derive::Deserialize, Debug, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -30,6 +31,7 @@ pub enum BlockType {
     Github,
     Net,
     Wifi,
+    Custom,
 }
 
 #[derive(Debug)]
@@ -105,12 +107,12 @@ pub async fn run_block(
             if let BlockEvent::I3Bar(click) = event {
                 if let Some(ref on_click) = on_click {
                     if click.button == MouseButton::Left {
-                        let _ = spawn_child_async("sh", &["-c", on_click]);
+                        let _ = spawn_shell(on_click);
                     }
                 }
                 if let Some(ref on_right_click) = on_right_click {
                     if click.button == MouseButton::Right {
-                        let _ = spawn_child_async("sh", &["-c", on_right_click]);
+                        let _ = spawn_shell(on_right_click);
                     }
                 }
             }
@@ -131,5 +133,6 @@ pub async fn run_block(
         Github => github::run(id, block_config, shared_config, message_tx, events_rx).await,
         Net => net::run(id, block_config, shared_config, message_tx, events_rx).await,
         Wifi => wifi::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Custom => custom::run(id, block_config, shared_config, message_tx, events_rx).await,
     }
 }
