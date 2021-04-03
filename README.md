@@ -13,3 +13,4 @@ Currently `swaystatus` supports those blocks (TODO write docs):
 - GitHub (`github`)
 - Network (`net`)
 - WiFi (`wifi`)
+- Cutom (`custom`)
