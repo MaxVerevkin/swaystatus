@@ -2,6 +2,7 @@ pub mod cpu;
 pub mod custom;
 pub mod github;
 pub mod memory;
+pub mod music;
 pub mod net;
 pub mod sway_kbd;
 pub mod temperature;
@@ -32,6 +33,7 @@ pub enum BlockType {
     Net,
     Wifi,
     Custom,
+    Music,
 }
 
 #[derive(Debug)]
@@ -134,5 +136,6 @@ pub async fn run_block(
         Net => net::run(id, block_config, shared_config, message_tx, events_rx).await,
         Wifi => wifi::run(id, block_config, shared_config, message_tx, events_rx).await,
         Custom => custom::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Music => music::run(id, block_config, shared_config, message_tx, events_rx).await,
     }
 }

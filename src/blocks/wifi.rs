@@ -112,13 +112,11 @@ pub async fn run(
             .internal_error("net", "failed to send message")?;
 
         tokio::select! {
-            _ = tokio::time::sleep(interval) =>(),
-            event = events_reciever.recv() => {
-                if let BlockEvent::I3Bar(click) = event.unwrap() {
-                    if click.button == MouseButton::Left {
-                        if let Some(ref mut format_alt) = format_alt {
-                            std::mem::swap(format_alt, &mut format);
-                        }
+            _ = tokio::time::sleep(interval) => (),
+            Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
+                if click.button == MouseButton::Left {
+                    if let Some(ref mut format_alt) = format_alt {
+                        std::mem::swap(format_alt, &mut format);
                     }
                 }
             }

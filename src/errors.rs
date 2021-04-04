@@ -1,6 +1,6 @@
 use std::error::Error as StdError;
 use std::fmt;
-use std::result::Result as StdResult;
+pub use std::result::Result as StdResult;
 pub use Error::{BlockError, ConfigError, InternalError};
 
 /// Result type returned from functions that can have our `Error`s.

@@ -115,12 +115,10 @@ pub async fn run(
 
         tokio::select! {
             _ = tokio::time::sleep(interval) =>(),
-            event = events_reciever.recv() => {
-                if let BlockEvent::I3Bar(click) = event.unwrap() {
-                    if click.button == MouseButton::Left {
-                        if let Some(ref mut format_alt) = format_alt {
-                            std::mem::swap(format_alt, &mut format);
-                        }
+            Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
+                if click.button == MouseButton::Left {
+                    if let Some(ref mut format_alt) = format_alt {
+                        std::mem::swap(format_alt, &mut format);
                     }
                 }
             }
@@ -147,10 +145,8 @@ async fn read_stats(interface: &str) -> Option<(u64, u64)> {
 }
 
 fn push_to_hist(hist: &mut [f64], elem: f64) {
-    for i in 1..hist.len() {
-        hist[i - 1] = hist[i];
-    }
-    hist[hist.len() - 1] = elem;
+    hist[0] = elem;
+    hist.rotate_left(1);
 }
 
 #[cfg(test)]
