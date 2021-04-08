@@ -76,7 +76,7 @@ pub async fn run(
         .block_error("music", "failed to add match")?
         .msg_stream();
 
-    let mut player = get_first_player(&dbus_conn).await?;
+    let mut player = get_any_player(&dbus_conn).await?;
 
     loop {
         let widgets = match player {
@@ -116,7 +116,7 @@ pub async fn run(
             //_ = tokio::time::sleep(Duration::from_secs(1)) => {text.next()?;},
             _ = tokio::time::sleep(Duration::from_secs(1)) => (),
             // Wait for a DBUS event
-            _ = stream1.next() => player = get_first_player(&dbus_conn).await?,
+            _ = stream1.next() => player = get_any_player(&dbus_conn).await?,
             // Wait for a click
             Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
                 if click.button == MouseButton::Left {
@@ -133,7 +133,7 @@ pub async fn run(
     }
 }
 
-async fn get_first_player(dbus_conn: &nonblock::SyncConnection) -> Result<Option<Player>> {
+async fn get_any_player(dbus_conn: &nonblock::SyncConnection) -> Result<Option<Player>> {
     // Get already oppened players
     let dbus_proxy = nonblock::Proxy::new(
         "org.freedesktop.DBus",
@@ -145,17 +145,26 @@ async fn get_first_player(dbus_conn: &nonblock::SyncConnection) -> Result<Option
         .method_call("org.freedesktop.DBus", "ListNames", ())
         .await
         .block_error("music", "failed to execute 'ListNames'")?;
+
+    // Get all the players with a name that starts with "org.mpris.MediaPlayer2"
     let names = names
         .into_iter()
         .filter(|n| n.starts_with("org.mpris.MediaPlayer2"));
+
+    // Try each name
     for name in names {
-        let (bus_name,): (String,) = dbus_proxy
+        let bus_name: Option<(String,)> = dbus_proxy
             .method_call("org.freedesktop.DBus", "GetNameOwner", (&name,))
             .await
-            .block_error("music", "failed to execute 'GetNameOwner'")?;
+            .ok();
+        let bus_name = match bus_name {
+            Some((bus_name,)) => bus_name,
+            None => continue,
+        };
         return Ok(Some(Player::new(&dbus_conn, name, bus_name).await));
     }
 
+    // Couldn't find anything
     Ok(None)
 }
 
