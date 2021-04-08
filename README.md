@@ -14,3 +14,4 @@ Currently `swaystatus` supports those blocks (TODO write docs):
 - Network (`net`)
 - WiFi (`wifi`)
 - Cutom (`custom`)
+- Music (`music`)
