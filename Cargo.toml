@@ -21,6 +21,8 @@ reqwest = "0.11.2"
 libc = "0.2.92"
 nl80211 = "0.0.2"
 dbus-tokio = "0.7.3"
+inotify = "0.9"
+tokio-stream = "0.1.5"
 
 [dependencies.tokio]
 version = "1.0"

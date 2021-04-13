@@ -29,17 +29,8 @@ use crate::util::deserialize_file;
 use crate::widgets::text::TextWidget;
 use crate::widgets::{I3BarWidget, State};
 
-fn main() {
-    tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
-        .max_blocking_threads(2)
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(_main());
-}
-
-pub async fn _main() {
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
     let ver = if env!("GIT_COMMIT_HASH").is_empty() || env!("GIT_COMMIT_DATE").is_empty() {
         env!("CARGO_PKG_VERSION").to_string()
     } else {
@@ -134,13 +125,16 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
         None => util::find_file("config.toml", None, None)
             .unwrap_or_else(|| util::xdg_config_home().join("swaystatus/config.toml")),
     };
+
     let config: Config = deserialize_file(&config_path)?;
     let shared_config = SharedConfig::new(&config);
+    let blocks_local = tokio::task::LocalSet::new();
 
     // Initialize the blocks
     let mut blocks_events: Vec<mpsc::Sender<BlockEvent>> = Vec::new();
     let mut blocks_tasks = FuturesUnordered::new();
-    let (message_sender, mut message_reciever) = mpsc::channel(64);
+    let (message_sender, mut message_receiver) = mpsc::channel(64);
+
     for (block_type, block_config) in config.blocks {
         let (events_sender, events_reciever) = mpsc::channel(64);
         blocks_events.push(events_sender);
@@ -149,7 +143,7 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
         let message_sender = message_sender.clone();
         let id = blocks_tasks.len();
 
-        blocks_tasks.push(tokio::spawn(run_block(
+        blocks_tasks.push(blocks_local.spawn_local(run_block(
             id,
             block_type,
             block_config,
@@ -163,43 +157,45 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
     let mut rendered: Vec<Vec<I3BarBlock>> = blocks_events.iter().map(|_| Vec::new()).collect();
 
     // Listen to signals and clicks
-    let (signals_sender, mut signals_reciever) = mpsc::channel(64);
-    let (events_sender, mut events_reciever) = mpsc::channel(64);
+    let (signals_sender, mut signals_receiver) = mpsc::channel(64);
+    let (events_sender, mut events_receiver) = mpsc::channel(64);
     tokio::spawn(process_signals(signals_sender));
     tokio::spawn(process_events(events_sender));
 
     // Main loop
-    loop {
-        tokio::select! {
-            Some(block_result) = blocks_tasks.next() => {
-                // Handle blocks' errors
-                block_result.internal_error("error handler", "failed to get block's error")??;
-            }
-            Some(message) = message_reciever.recv() => {
-                // Recieve widgets from blocks
-                *rendered.get_mut(message.id).internal_error("handle block's message", "failed to get block")? = message.widgets;
-                protocol::print_blocks(&rendered, &shared_config)?;
-            }
-            Some(event) = events_reciever.recv() => {
-                // Hnadle clicks
-                if let Some(id) = event.id {
-                    let blocks_event = blocks_events.get(id).unwrap();
-                    blocks_event.send(BlockEvent::I3Bar(event)).await.unwrap();
+    blocks_local.run_until(async move {
+        loop {
+            tokio::select! {
+                Some(block_result) = blocks_tasks.next() => {
+                    // Handle blocks' errors
+                    block_result.internal_error("error handler", "failed to get block's error")??;
                 }
-            }
-            Some(signal) = signals_reciever.recv() => {
-                // Handle signals
-                match signal {
-                    Signal::Usr1 => {
-                        for block in &blocks_events {
-                            block.send(BlockEvent::Signal(signal)).await.unwrap();
-                        }
+                Some(message) = message_receiver.recv() => {
+                    // Recieve widgets from blocks
+                    *rendered.get_mut(message.id).internal_error("handle block's message", "failed to get block")? = message.widgets;
+                    protocol::print_blocks(&rendered, &shared_config)?;
+                }
+                Some(event) = events_receiver.recv() => {
+                    // Handle clicks
+                    if let Some(id) = event.id {
+                        let blocks_event = blocks_events.get(id).unwrap();
+                        blocks_event.send(BlockEvent::I3Bar(event)).await.unwrap();
                     }
-                    Signal::Usr2 => restart(),
+                }
+                Some(signal) = signals_receiver.recv() => {
+                    // Handle signals
+                    match signal {
+                        Signal::Usr1 => {
+                            for block in &blocks_events {
+                                block.send(BlockEvent::Signal(signal)).await.unwrap();
+                            }
+                        }
+                        Signal::Usr2 => restart(),
+                    }
                 }
             }
         }
-    }
+    }).await
 }
 
 /// Restart `swaystatus` in-place
