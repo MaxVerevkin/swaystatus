@@ -2,6 +2,7 @@
 mod util;
 mod blocks;
 mod config;
+mod de;
 mod errors;
 mod formatting;
 mod icons;

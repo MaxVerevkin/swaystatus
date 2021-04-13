@@ -9,6 +9,7 @@ pub mod net;
 pub mod sway_kbd;
 pub mod temperature;
 pub mod time;
+pub mod weather;
 pub mod wifi;
 
 use serde::de::Deserialize;
@@ -37,6 +38,7 @@ pub enum BlockType {
     SwayKbd,
     Temperature,
     Time,
+    Weather,
     Wifi,
 }
 
@@ -144,6 +146,7 @@ pub async fn run_block(
             temperature::run(id, block_config, shared_config, message_tx, events_rx).await
         }
         Time => time::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Weather => weather::run(id, block_config, shared_config, message_tx, events_rx).await,
         Wifi => wifi::run(id, block_config, shared_config, message_tx, events_rx).await,
     }
 }
