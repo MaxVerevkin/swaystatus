@@ -1,6 +1,7 @@
 pub mod backlight;
 pub mod cpu;
 pub mod custom;
+pub mod focused_window;
 pub mod github;
 pub mod memory;
 pub mod music;
@@ -28,6 +29,7 @@ pub enum BlockType {
     Backlight,
     Cpu,
     Custom,
+    FocusedWindow,
     Github,
     Memory,
     Music,
@@ -130,6 +132,9 @@ pub async fn run_block(
         Backlight => backlight::run(id, block_config, shared_config, message_tx, events_rx).await,
         Cpu => cpu::run(id, block_config, shared_config, message_tx, events_rx).await,
         Custom => custom::run(id, block_config, shared_config, message_tx, events_rx).await,
+        FocusedWindow => {
+            focused_window::run(id, block_config, shared_config, message_tx, events_rx).await
+        }
         Github => github::run(id, block_config, shared_config, message_tx, events_rx).await,
         Memory => memory::run(id, block_config, shared_config, message_tx, events_rx).await,
         Music => music::run(id, block_config, shared_config, message_tx, events_rx).await,

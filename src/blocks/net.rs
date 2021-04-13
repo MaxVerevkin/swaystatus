@@ -65,16 +65,16 @@ pub async fn run(
     let mut tx_hist = [0f64; 8];
     let mut rx_hist = [0f64; 8];
 
+    // Get interface name
+    let interface = block_config
+        .interface
+        .clone()
+        .or_else(default_interface)
+        .unwrap_or_else(|| "lo".to_string());
+
     loop {
         let mut speed_down: f64 = 0.0;
         let mut speed_up: f64 = 0.0;
-
-        // Get interface name
-        let interface = block_config
-            .interface
-            .clone()
-            .or_else(default_interface)
-            .unwrap_or_else(|| "lo".to_string());
 
         // Calculate speed
         match (stats, read_stats(&interface).await) {
@@ -102,7 +102,7 @@ pub async fn run(
             "speed_up" => Value::from_float(speed_up).bytes().icon(shared_config.get_icon("net_up")?),
             "graph_down" => Value::from_string(util::format_vec_to_bar_graph(&rx_hist)),
             "graph_up" => Value::from_string(util::format_vec_to_bar_graph(&tx_hist)),
-            "interface" => Value::from_string(interface),
+            "interface" => Value::from_string(interface.clone()),
         })?);
 
         message_sender
@@ -126,7 +126,6 @@ pub async fn run(
     }
 }
 
-// Option<(rx, tx)>
 async fn read_stats(interface: &str) -> Option<(u64, u64)> {
     let mut path = PathBuf::from("/sys/class/net");
     path = path.join(interface);

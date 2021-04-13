@@ -27,15 +27,20 @@ use crate::config::SharedConfig;
 use crate::errors::{OptionExt, Result, ResultExt};
 use crate::widgets::text::TextWidget;
 use crate::widgets::I3BarWidget;
-// use crate::protocol::i3bar_event::I3BarEvent;
-// use crate::widgets::text::TextWidget;
-// use crate::widgets::I3BarWidget;
 
 /// Location of backlight devices
 const DEVICES_PATH: &str = "/sys/class/backlight";
 
 /// Filename for device's max brightness
 const FILE_MAX_BRIGHTNESS: &str = "max_brightness";
+
+/// Filename for current brightness.
+const FILE_BRIGHTNESS: &str = "actual_brightness";
+
+/// amdgpu drivers set the actual_brightness in a different scale than
+/// [0, max_brightness], so we have to use the 'brightness' file instead.
+/// This may be fixed in the new 5.7 kernel?
+const FILE_BRIGHTNESS_AMD: &str = "brightness";
 
 /// Range of valid values for `root_scaling`
 const ROOT_SCALDING_RANGE: Range<f64> = 0.1..10.;
@@ -77,10 +82,6 @@ async fn read_brightness_raw(device_file: &Path) -> Result<u64> {
         .parse::<u64>()
         .block_error("backlight", "Failed to read value from brightness file")
 }
-
-// ---
-// --- BacklightDevice
-// ---
 
 /// Represents a physical backlit device whose brightness level can be queried.
 pub struct BacklitDevice {
@@ -206,20 +207,16 @@ impl BacklitDevice {
     }
 
     /// The brightness file itself.
-    // amdgpu drivers set the actual_brightness in a different scale than [0, max_brightness],
-    // so we have to use the 'brightness' file instead. This may be fixed in the new 5.7 kernel?
     fn brightness_file(&self) -> PathBuf {
-        if self.device_path.ends_with("amdgpu_bl0") {
-            self.device_path.join("brightness")
-        } else {
-            self.device_path.join("actual_brightness")
-        }
+        self.device_path.join({
+            if self.device_path.ends_with("amdgpu_bl0") {
+                FILE_BRIGHTNESS_AMD
+            } else {
+                FILE_BRIGHTNESS
+            }
+        })
     }
 }
-
-// ---
-// --- Config
-// ---
 
 /// Configuration for the [`Backlight`](./struct.Backlight.html) block.
 #[derive(Deserialize, Debug, Clone)]
@@ -256,10 +253,6 @@ impl Default for BacklightConfig {
     }
 }
 
-// ---
-// --- Run
-// ---
-
 pub async fn run(
     id: usize,
     block_config: toml::Value,
@@ -275,6 +268,7 @@ pub async fn run(
         Some(path) => BacklitDevice::from_device(path, block_config.root_scaling).await?,
     };
 
+    // Render and send widget
     let update = || async {
         let brightness = device.brightness().await?;
         let mut icon_index = (usize::from(brightness) * BACKLIGHT_ICONS.len()) / 101;
