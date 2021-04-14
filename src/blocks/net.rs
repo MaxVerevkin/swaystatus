@@ -102,7 +102,7 @@ pub async fn run(
             "speed_up" => Value::from_float(speed_up).bytes().icon(shared_config.get_icon("net_up")?),
             "graph_down" => Value::from_string(util::format_vec_to_bar_graph(&rx_hist)),
             "graph_up" => Value::from_string(util::format_vec_to_bar_graph(&tx_hist)),
-            "interface" => Value::from_string(interface.clone()),
+            "interface" => Value::from_string(interface),
         })?);
 
         message_sender
