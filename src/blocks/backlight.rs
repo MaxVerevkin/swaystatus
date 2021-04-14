@@ -11,8 +11,9 @@ use std::cmp::max;
 use std::convert::TryInto;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Duration;
 
-use dbus::ffidisp::Connection;
 use inotify::{Inotify, WatchMask};
 use serde::de::Deserialize;
 use serde_derive::Deserialize;
@@ -88,16 +89,25 @@ pub struct BacklitDevice {
     device_path: PathBuf,
     max_brightness: u64,
     root_scaling: f64,
-    dbus_conn: Connection,
+    dbus_proxy: dbus::nonblock::Proxy<'static, Arc<dbus::nonblock::LocalConnection>>,
 }
 
 impl BacklitDevice {
     fn new(max_brightness: u64, device_path: PathBuf, root_scaling: f64) -> Result<Self> {
-        // TODO: `ffidisp` is legacy, Unsync and blocking, it makes it a worst choice than what
-        //       is available in `dbus_tokio`. However send doesn't work out of the box through
-        //       the unsync interface.
-        let dbus_conn = dbus::ffidisp::Connection::get_private(dbus::ffidisp::BusType::System)
-            .block_error("backlight", "Failed to establish D-Bus connection.")?;
+        let (ressource, dbus_conn) = dbus_tokio::connection::new_system_local()
+            .block_error("backlight", "Failed to open dbus connection")?;
+
+        tokio::task::spawn_local(async move {
+            let err = ressource.await;
+            panic!("Lost connection to D-Bus: {}", err);
+        });
+
+        let dbus_proxy = dbus::nonblock::Proxy::new(
+            "org.freedesktop.login1",
+            "/org/freedesktop/login1/session/auto",
+            Duration::from_secs(2),
+            dbus_conn,
+        );
 
         Ok(Self {
             max_brightness,
@@ -109,7 +119,7 @@ impl BacklitDevice {
                     ROOT_SCALDING_RANGE.end
                 }
             },
-            dbus_conn,
+            dbus_proxy,
         })
     }
 
@@ -183,24 +193,13 @@ impl BacklitDevice {
             .and_then(|x| x.to_str())
             .block_error("backlight", "Malformed device path")?;
 
-        let msg = {
-            dbus::Message::new_method_call(
-                "org.freedesktop.login1",
-                "/org/freedesktop/login1/session/auto",
+        self.dbus_proxy
+            .method_call(
                 "org.freedesktop.login1.Session",
                 "SetBrightness",
+                ("backlight", device_name, raw_value as u32),
             )
-            .ok()
-            .block_error("backlight", "Failed to create D-Bus message")?
-            .append2("backlight", device_name)
-            .append1(raw_value as u32)
-        };
-
-        eprintln!("sending message {:?}", msg);
-
-        self.dbus_conn
-            .send(msg)
-            .ok()
+            .await
             .block_error("backlight", "Failed to send D-Bus message")?;
 
         Ok(())
