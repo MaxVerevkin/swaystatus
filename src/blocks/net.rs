@@ -65,16 +65,16 @@ pub async fn run(
     let mut tx_hist = [0f64; 8];
     let mut rx_hist = [0f64; 8];
 
-    // Get interface name
-    let interface = block_config
-        .interface
-        .clone()
-        .or_else(default_interface)
-        .unwrap_or_else(|| "lo".to_string());
-
     loop {
         let mut speed_down: f64 = 0.0;
         let mut speed_up: f64 = 0.0;
+
+        // Get interface name
+        let interface = block_config
+            .interface
+            .clone()
+            .or_else(default_interface)
+            .unwrap_or_else(|| "lo".to_string());
 
         // Calculate speed
         match (stats, read_stats(&interface).await) {
