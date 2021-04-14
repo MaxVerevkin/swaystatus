@@ -35,7 +35,7 @@ features = [
   #"parking_lot",
   "process",
   #"rt",
-  "rt-multi-thread",
+  #"rt-multi-thread",
   #"signal",
   "sync",
   "time",
