@@ -22,6 +22,7 @@ pub enum MarksType {
 #[serde(deny_unknown_fields, default)]
 pub struct FocusedWindowConfig {
     /// Truncates titles if longer than max-width
+    /// TODO replace with `format`
     pub max_width: usize,
 
     /// Show marks in place of title (if exist)
