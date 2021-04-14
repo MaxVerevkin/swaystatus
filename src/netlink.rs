@@ -20,6 +20,7 @@ fn index_to_interface(index: u32) -> String {
         .to_string()
 }
 
+// TODO FIXME make async
 pub fn default_interface() -> Option<String> {
     let mut socket = NlSocketHandle::connect(NlFamily::Route, None, &[]).ok()?;
 
