@@ -30,8 +30,16 @@ use crate::util::deserialize_file;
 use crate::widgets::text::TextWidget;
 use crate::widgets::{I3BarWidget, State};
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
+fn main() {
+    tokio::runtime::Builder::new_current_thread()
+        .max_blocking_threads(2)
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(_main());
+}
+
+pub async fn _main() {
     let ver = if env!("GIT_COMMIT_HASH").is_empty() || env!("GIT_COMMIT_DATE").is_empty() {
         env!("CARGO_PKG_VERSION").to_string()
     } else {
@@ -144,14 +152,14 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
         let message_sender = message_sender.clone();
         let id = blocks_tasks.len();
 
-        blocks_tasks.push(blocks_local.spawn_local(run_block(
+        blocks_tasks.push(run_block(
             id,
             block_type,
             block_config,
             shared_config,
             message_sender,
             events_reciever,
-        )));
+        ));
     }
 
     // TODO first wait for all the blocks to send their widgets and then print
@@ -169,7 +177,7 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
             tokio::select! {
                 Some(block_result) = blocks_tasks.next() => {
                     // Handle blocks' errors
-                    block_result.internal_error("error handler", "failed to get block's error")??;
+                    block_result?;
                 }
                 Some(message) = message_receiver.recv() => {
                     // Recieve widgets from blocks
