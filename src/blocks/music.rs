@@ -67,6 +67,7 @@ pub async fn run(
     });
 
     // Add matches
+    // TODO (maybe?) listen to "owner changed" events
     let mut rule1 = MatchRule::new();
     rule1.interface = Some(Interface::from_slice("org.freedesktop.DBus.Properties").unwrap());
     rule1.member = Some(Member::new("PropertiesChanged").unwrap());
@@ -87,6 +88,7 @@ pub async fn run(
                 output.push('|');
                 player.artist.as_deref().map(|a| output.push_str(a));
                 text.set_text(output);
+                text.set_spacing(Spacing::Normal);
                 match player.status {
                     PlaybackStatus::Paused => {
                         play_pause_button.set_icon("music_play")?;
@@ -101,6 +103,7 @@ pub async fn run(
             }
             None => {
                 text.set_text(String::new());
+                text.set_spacing(Spacing::Hidden);
                 vec![text.get_data()]
             }
         };
@@ -114,7 +117,6 @@ pub async fn run(
 
         tokio::select! {
             // Time to update rotating text
-            //_ = tokio::time::sleep(Duration::from_secs(1)) => {text.next()?;},
             _ = tokio::time::sleep(Duration::from_secs(1)) => (),
             // Wait for a DBUS event
             _ = stream1.next() => player = get_any_player(&dbus_conn).await?,

@@ -104,6 +104,11 @@ impl RotatingTextWidget {
         Ok(())
     }
 
+    pub fn set_spacing(&mut self, spacing: Spacing) {
+        self.spacing = spacing;
+        self.update();
+    }
+
     pub fn set_text(&mut self, content: String) {
         if self.content != content {
             self.content = content;
