@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 use std::prelude::v1::String;
 use std::process::Command;
 
+use tokio::io::AsyncReadExt;
+
 pub const USR_SHARE_PATH: &str = "/usr/share/swaystatus";
 
 /// Tries to find a file in standard locations:
@@ -99,6 +101,16 @@ where
     file.read_to_string(&mut contents)
         .internal_error("util", "failed to read file")?;
     toml::from_str(&contents).config_error()
+}
+
+pub async fn read_file(
+    blockname: &str,
+    path: &Path,
+) -> std::result::Result<String, std::io::Error> {
+    let mut file = tokio::fs::File::open(path).await?;
+    let mut content = String::new();
+    file.read_to_string(&mut content).await?;
+    Ok(content.trim_end().to_string())
 }
 
 #[allow(dead_code)]
