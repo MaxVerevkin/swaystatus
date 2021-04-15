@@ -58,7 +58,7 @@ async fn read_value_from_file<P: AsRef<Path>, T: FromStr>(path: P) -> Result<Opt
 where
     T::Err: std::error::Error,
 {
-    match read_file("battery", path.as_ref()).await {
+    match read_file(path.as_ref()).await {
         Ok(raw) => Ok(Some(
             raw.parse().block_error("battery", "failed to parse file")?,
         )),

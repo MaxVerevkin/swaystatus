@@ -68,7 +68,7 @@ const BACKLIGHT_ICONS: &[&str] = &[
 
 /// Read a brightness value from the given path.
 async fn read_brightness_raw(device_file: &Path) -> Result<u64> {
-    read_file("backlight", device_file)
+    read_file(device_file)
         .await
         .block_error("backlight", "Failed to read brightness file")?
         .parse::<u64>()

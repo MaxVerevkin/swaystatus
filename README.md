@@ -18,3 +18,4 @@ Currently `swaystatus` supports those blocks (TODO write docs):
 - Backlight (`backlight`)
 - Focused Window (`forcused_window`)
 - Weather (`weather`)
+- Battery (`battery`)
