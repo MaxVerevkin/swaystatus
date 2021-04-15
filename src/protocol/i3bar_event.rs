@@ -58,7 +58,7 @@ pub async fn process_events(sender: Sender<I3BarEvent>) {
                     button: e.button,
                 })
                 .await
-                .unwrap();
+                .expect("channel closed while sending event");
         }
 
         input.clear();

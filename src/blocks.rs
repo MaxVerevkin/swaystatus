@@ -1,5 +1,7 @@
+pub mod backlight;
 pub mod cpu;
 pub mod custom;
+pub mod focused_window;
 pub mod github;
 pub mod memory;
 pub mod music;
@@ -7,6 +9,7 @@ pub mod net;
 pub mod sway_kbd;
 pub mod temperature;
 pub mod time;
+pub mod weather;
 pub mod wifi;
 
 use serde::de::Deserialize;
@@ -24,16 +27,19 @@ use crate::subprocess::spawn_shell;
 #[derive(serde_derive::Deserialize, Debug, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum BlockType {
-    Time,
+    Backlight,
+    Cpu,
+    Custom,
+    FocusedWindow,
+    Github,
     Memory,
+    Music,
+    Net,
     SwayKbd,
     Temperature,
-    Cpu,
-    Github,
-    Net,
+    Time,
+    Weather,
     Wifi,
-    Custom,
-    Music,
 }
 
 #[derive(Debug)]
@@ -125,17 +131,22 @@ pub async fn run_block(
 
     use BlockType::*;
     match block_type {
-        Time => time::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Backlight => backlight::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Cpu => cpu::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Custom => custom::run(id, block_config, shared_config, message_tx, events_rx).await,
+        FocusedWindow => {
+            focused_window::run(id, block_config, shared_config, message_tx, events_rx).await
+        }
+        Github => github::run(id, block_config, shared_config, message_tx, events_rx).await,
         Memory => memory::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Music => music::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Net => net::run(id, block_config, shared_config, message_tx, events_rx).await,
         SwayKbd => sway_kbd::run(id, block_config, shared_config, message_tx, events_rx).await,
         Temperature => {
             temperature::run(id, block_config, shared_config, message_tx, events_rx).await
         }
-        Cpu => cpu::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Github => github::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Net => net::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Time => time::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Weather => weather::run(id, block_config, shared_config, message_tx, events_rx).await,
         Wifi => wifi::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Custom => custom::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Music => music::run(id, block_config, shared_config, message_tx, events_rx).await,
     }
 }

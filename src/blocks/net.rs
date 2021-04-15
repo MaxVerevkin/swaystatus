@@ -126,7 +126,6 @@ pub async fn run(
     }
 }
 
-// Option<(rx, tx)>
 async fn read_stats(interface: &str) -> Option<(u64, u64)> {
     let mut path = PathBuf::from("/sys/class/net");
     path = path.join(interface);

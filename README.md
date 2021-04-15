@@ -15,3 +15,6 @@ Currently `swaystatus` supports those blocks (TODO write docs):
 - WiFi (`wifi`)
 - Cutom (`custom`)
 - Music (`music`)
+- Backlight (`backlight`)
+- Focused Window (`forcused_window`)
+- Weather (`weather`)
