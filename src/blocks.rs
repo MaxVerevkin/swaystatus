@@ -1,4 +1,5 @@
 pub mod backlight;
+pub mod battery;
 pub mod cpu;
 pub mod custom;
 pub mod focused_window;
@@ -28,6 +29,7 @@ use crate::subprocess::spawn_shell;
 #[serde(rename_all = "snake_case")]
 pub enum BlockType {
     Backlight,
+    Battery,
     Cpu,
     Custom,
     FocusedWindow,
@@ -132,6 +134,7 @@ pub async fn run_block(
     use BlockType::*;
     match block_type {
         Backlight => backlight::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Battery => battery::run(id, block_config, shared_config, message_tx, events_rx).await,
         Cpu => cpu::run(id, block_config, shared_config, message_tx, events_rx).await,
         Custom => custom::run(id, block_config, shared_config, message_tx, events_rx).await,
         FocusedWindow => {

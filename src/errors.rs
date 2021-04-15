@@ -7,7 +7,7 @@ pub use Error::{BlockError, ConfigError, InternalError};
 pub type Result<T> = StdResult<T, Error>;
 
 /// A set of errors that can occur during the runtime of swaystatus
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Error {
     /// An error that occurred in the block
     BlockError {
@@ -155,3 +155,5 @@ impl fmt::Display for Error {
         }
     }
 }
+
+impl std::error::Error for Error {}

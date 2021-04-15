@@ -18,7 +18,7 @@ use inotify::{Inotify, WatchMask};
 use serde::de::Deserialize;
 use serde_derive::Deserialize;
 use tokio::fs::{read_dir, OpenOptions};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
@@ -26,6 +26,7 @@ use crate::blocks::{BlockEvent, BlockMessage};
 use crate::config::LogicalDirection;
 use crate::config::SharedConfig;
 use crate::errors::{OptionExt, Result, ResultExt};
+use crate::util::read_file;
 use crate::widgets::text::TextWidget;
 use crate::widgets::I3BarWidget;
 
@@ -67,19 +68,9 @@ const BACKLIGHT_ICONS: &[&str] = &[
 
 /// Read a brightness value from the given path.
 async fn read_brightness_raw(device_file: &Path) -> Result<u64> {
-    let mut content = String::new();
-    let mut file = OpenOptions::new()
-        .read(true)
-        .open(device_file)
+    read_file("backlight", device_file)
         .await
-        .block_error("backlight", "Failed to open brightness file")?;
-
-    file.read_to_string(&mut content)
-        .await
-        .block_error("backlight", "Failed to read brightness file")?;
-
-    content
-        .trim_end()
+        .block_error("backlight", "Failed to read brightness file")?
         .parse::<u64>()
         .block_error("backlight", "Failed to read value from brightness file")
 }
