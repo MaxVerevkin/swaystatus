@@ -64,6 +64,7 @@ impl WeatherService {
         *units
     }
 
+    // FIXME use `autolocate`
     async fn get(&self, autolocate: bool) -> Result<ApiResponse> {
         let Self::OpenWeatherMap {
             api_key,

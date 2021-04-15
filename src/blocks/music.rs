@@ -39,7 +39,8 @@ pub async fn run(
 ) -> Result<()> {
     const PLAY_PAUSE_BTN: usize = 1;
 
-    //let block_config = MusicConfig::deserialize(block_config).block_config_error("time")?;
+    let _block_config = MusicConfig::deserialize(block_config).block_config_error("time")?;
+
     let mut text = RotatingTextWidget::new(
         id,
         0,
@@ -57,10 +58,10 @@ pub async fn run(
 
     // Connect to the D-Bus session bus (this is blocking, unfortunately).
     let (resource, dbus_conn) =
-        connection::new_session_sync().block_error("music", "failed to open DBUS connection")?;
+        connection::new_session_local().block_error("music", "failed to open DBUS connection")?;
     // The resource is a task that should be spawned onto a tokio compatible
     // reactor ASAP. If the resource ever finishes, you lost connection to D-Bus.
-    tokio::spawn(async {
+    tokio::task::spawn_local(async {
         let err = resource.await;
         panic!("Lost connection to D-Bus: {}", err);
     });
@@ -76,7 +77,7 @@ pub async fn run(
         .block_error("music", "failed to add match")?
         .msg_stream();
 
-    let mut player = get_any_player(&dbus_conn).await?;
+    let mut player = get_any_player(dbus_conn.as_ref()).await?;
 
     loop {
         let widgets = match player {
@@ -133,7 +134,7 @@ pub async fn run(
     }
 }
 
-async fn get_any_player(dbus_conn: &nonblock::SyncConnection) -> Result<Option<Player>> {
+async fn get_any_player(dbus_conn: &nonblock::LocalConnection) -> Result<Option<Player>> {
     // Get already oppened players
     let dbus_proxy = nonblock::Proxy::new(
         "org.freedesktop.DBus",
@@ -178,7 +179,7 @@ struct Player {
 }
 
 impl Player {
-    async fn new(dbus_conn: &nonblock::SyncConnection, name: String, bus_name: String) -> Self {
+    async fn new(dbus_conn: &nonblock::LocalConnection, name: String, bus_name: String) -> Self {
         let proxy = nonblock::Proxy::new(
             &bus_name,
             "/org/mpris/MediaPlayer2",
