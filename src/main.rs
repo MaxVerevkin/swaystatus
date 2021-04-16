@@ -40,19 +40,8 @@ fn main() {
 }
 
 pub async fn _main() {
-    let ver = if env!("GIT_COMMIT_HASH").is_empty() || env!("GIT_COMMIT_DATE").is_empty() {
-        env!("CARGO_PKG_VERSION").to_string()
-    } else {
-        format!(
-            "{} (commit {} {})",
-            env!("CARGO_PKG_VERSION"),
-            env!("GIT_COMMIT_HASH"),
-            env!("GIT_COMMIT_DATE")
-        )
-    };
-
     let builder = app_from_crate!()
-        .version(&*ver)
+        .version(env!("VERSION"))
         .arg(
             Arg::with_name("config")
                 .value_name("CONFIG_FILE")

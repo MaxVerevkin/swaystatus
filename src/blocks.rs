@@ -111,6 +111,7 @@ pub async fn run_block(
     let on_click = common_config.on_click;
     let on_right_click = common_config.on_right_click;
 
+    // Spawn event handler
     let (evets_tx, events_rx) = mpsc::channel(64);
     tokio::task::spawn(async move {
         while let Some(event) = events_reciever.recv().await {
