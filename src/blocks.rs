@@ -78,7 +78,6 @@ impl CommonConfig {
             "icons_format",
         ];
 
-        // FIXME (?): this function is to paper over https://github.com/serde-rs/serde/issues/1957
         let mut common_table = Table::new();
         if let Some(table) = from.as_table_mut() {
             for &field in FIELDS {

@@ -7,6 +7,7 @@ use tokio_stream::StreamExt;
 use crate::blocks::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
 use crate::errors::{BlockError, Result, ResultExt};
+use crate::formatting::{value::Value, FormatTemplate};
 use crate::widgets::text::TextWidget;
 use crate::widgets::I3BarWidget;
 
@@ -21,9 +22,8 @@ pub enum MarksType {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 pub struct FocusedWindowConfig {
-    /// Truncates titles if longer than max-width
-    /// TODO replace with `format`
-    pub max_width: usize,
+    /// Format string
+    pub format: String,
 
     /// Show marks in place of title (if exist)
     pub show_marks: MarksType,
@@ -32,7 +32,7 @@ pub struct FocusedWindowConfig {
 impl Default for FocusedWindowConfig {
     fn default() -> Self {
         Self {
-            max_width: 21,
+            format: "{window^21}".to_string(),
             show_marks: MarksType::None,
         }
     }
@@ -49,6 +49,7 @@ pub async fn run(
 
     let block_config =
         FocusedWindowConfig::deserialize(block_config).block_config_error("focused_window")?;
+    let format = FormatTemplate::from_string(&block_config.format)?;
 
     let mut title = "".to_string();
     let mut marks = Vec::new();
@@ -79,33 +80,6 @@ pub async fn run(
         }
 
         result
-    };
-
-    // Render and send widget
-    let update = |title: &str, marks: &[String]| {
-        let text: String = match block_config.show_marks {
-            MarksType::None => title.to_string(),
-            _ => marks_str(marks),
-        }
-        .chars()
-        .take(block_config.max_width)
-        .collect();
-
-        let widget = TextWidget::new(id, 0, shared_config.clone())
-            .with_text(&text)
-            .get_data();
-
-        async {
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![widget],
-                })
-                .await
-                .internal_error("focused_window", "failed to send message")?;
-
-            Ok(())
-        }
     };
 
     // Main loop
@@ -167,8 +141,26 @@ pub async fn run(
             _ => false,
         };
 
+        // Render and send widget
         if updated {
-            update(&title, &marks).await?;
+            let text: String = match block_config.show_marks {
+                MarksType::None => title.to_string(),
+                _ => marks_str(&marks),
+            };
+
+            let widget = TextWidget::new(id, 0, shared_config.clone())
+                .with_text(&format.render(&map! {
+                    "window" => Value::from_string(text),
+                })?)
+                .get_data();
+
+            message_sender
+                .send(BlockMessage {
+                    id,
+                    widgets: vec![widget],
+                })
+                .await
+                .internal_error("focused_window", "failed to send message")?;
         }
     }
 
