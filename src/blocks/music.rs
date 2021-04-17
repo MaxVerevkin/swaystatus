@@ -50,11 +50,9 @@ pub async fn run(
         false,
         shared_config.clone(),
     )
-    .with_icon("music")?
-    .with_state(State::Info);
-    let mut play_pause_button = TextWidget::new(id, PLAY_PAUSE_BTN, shared_config.clone())
-        .with_state(State::Info)
-        .with_spacing(Spacing::Hidden);
+    .with_icon("music")?;
+    let mut play_pause_button =
+        TextWidget::new(id, PLAY_PAUSE_BTN, shared_config.clone()).with_spacing(Spacing::Hidden);
 
     // Connect to the D-Bus session bus (this is blocking, unfortunately).
     let (resource, dbus_conn) =
@@ -87,14 +85,22 @@ pub async fn run(
                 player.title.as_deref().map(|t| output.push_str(t));
                 output.push('|');
                 player.artist.as_deref().map(|a| output.push_str(a));
+
                 text.set_text(output);
                 text.set_spacing(Spacing::Normal);
+
+                text.set_state(State::Idle);
+                play_pause_button.set_state(State::Idle);
+
                 match player.status {
                     PlaybackStatus::Paused => {
                         play_pause_button.set_icon("music_play")?;
                         vec![text.get_data(), play_pause_button.get_data()]
                     }
                     PlaybackStatus::Playing => {
+                        text.set_state(State::Info);
+                        play_pause_button.set_state(State::Info);
+
                         play_pause_button.set_icon("music_pause")?;
                         vec![text.get_data(), play_pause_button.get_data()]
                     }
@@ -103,6 +109,7 @@ pub async fn run(
             }
             None => {
                 text.set_text(String::new());
+                text.set_state(State::Idle);
                 text.set_spacing(Spacing::Hidden);
                 vec![text.get_data()]
             }

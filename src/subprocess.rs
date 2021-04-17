@@ -16,3 +16,14 @@ pub fn spawn_shell(cmd: &str) -> io::Result<()> {
         .unwrap();
     Ok(())
 }
+
+pub async fn spawn_shell_sync(cmd: &str) -> io::Result<()> {
+    tokio::process::Command::new("sh")
+        .args(&["-c", cmd])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .spawn()?
+        .wait()
+        .await?;
+    Ok(())
+}

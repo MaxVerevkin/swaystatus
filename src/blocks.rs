@@ -23,7 +23,7 @@ use crate::errors::*;
 use crate::protocol::i3bar_block::I3BarBlock;
 use crate::protocol::i3bar_event::{I3BarEvent, MouseButton};
 use crate::signals::Signal;
-use crate::subprocess::spawn_shell;
+use crate::subprocess::{spawn_shell, spawn_shell_sync};
 
 #[derive(serde_derive::Deserialize, Debug, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -57,12 +57,15 @@ pub enum BlockEvent {
 }
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
-#[serde(deny_unknown_fields)]
 pub struct CommonConfig {
     #[serde(default)]
     pub on_click: Option<String>,
     #[serde(default)]
+    pub on_click_sync: Option<String>,
+    #[serde(default)]
     pub on_right_click: Option<String>,
+    #[serde(default)]
+    pub on_right_click_sync: Option<String>,
     #[serde(default)]
     pub icons_format: Option<String>,
     #[serde(default)]
@@ -73,7 +76,9 @@ impl CommonConfig {
     pub fn new(from: &mut Value) -> Result<Self> {
         const FIELDS: &[&str] = &[
             "on_click",
+            "on_click_sync",
             "on_right_click",
+            "on_right_click_sync",
             "theme_overrides",
             "icons_format",
         ];
@@ -108,21 +113,29 @@ pub async fn run_block(
         shared_config.theme_override(&theme_overrides)?;
     }
     let on_click = common_config.on_click;
+    let on_click_sync = common_config.on_click_sync;
     let on_right_click = common_config.on_right_click;
+    let on_right_click_sync = common_config.on_right_click_sync;
 
     // Spawn event handler
     let (evets_tx, events_rx) = mpsc::channel(64);
     tokio::task::spawn(async move {
         while let Some(event) = events_reciever.recv().await {
             if let BlockEvent::I3Bar(click) = event {
-                if let Some(ref on_click) = on_click {
-                    if click.button == MouseButton::Left {
-                        let _ = spawn_shell(on_click);
+                if click.button == MouseButton::Left {
+                    if let Some(ref cmd) = on_click {
+                        let _ = spawn_shell(cmd);
+                    }
+                    if let Some(ref cmd) = on_click_sync {
+                        let _ = spawn_shell_sync(cmd).await;
                     }
                 }
-                if let Some(ref on_right_click) = on_right_click {
-                    if click.button == MouseButton::Right {
-                        let _ = spawn_shell(on_right_click);
+                if click.button == MouseButton::Right {
+                    if let Some(ref cmd) = on_right_click {
+                        let _ = spawn_shell(cmd);
+                    }
+                    if let Some(ref cmd) = on_right_click_sync {
+                        let _ = spawn_shell_sync(cmd).await;
                     }
                 }
             }
