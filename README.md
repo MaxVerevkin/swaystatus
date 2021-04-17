@@ -19,3 +19,5 @@ Currently `swaystatus` supports those blocks (TODO write docs):
 - Focused Window (`forcused_window`)
 - Weather (`weather`)
 - Battery (`battery`)
+
+Each block supports `on_click`, `on_click_sync`, `on_right_click` and `on_right_click_sync` options to handle bolcks' clicks. `_sync` options wait for command to finish before accepting any new clicks, while others don't.
