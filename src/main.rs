@@ -118,11 +118,9 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
     }
 
     // Read & parse the config file
-    let config_path = match config {
-        Some(config_path) => std::path::PathBuf::from(config_path),
-        None => util::find_file("config.toml", None, None)
-            .unwrap_or_else(|| util::xdg_config_home().join("swaystatus/config.toml")),
-    };
+    let config = config.unwrap_or_else(|| "config.toml".to_string());
+    let config_path = util::find_file(&config, None, Some("toml"))
+        .internal_error("run()", "configuration file not found")?;
 
     let config: Config = deserialize_file(&config_path)?;
     let shared_config = SharedConfig::new(&config);
