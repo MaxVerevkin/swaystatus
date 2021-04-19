@@ -92,15 +92,14 @@ pub async fn run(
                 .block_error("sway_kbd", "bad event")?
                 .block_error("sway_kbd", "bad event")?;
             if let Event::Input(event) = event {
-                let new_layout = event
-                    .input
-                    .xkb_active_layout_name
-                    .block_error("sway_kbd", "failed to get current input")?;
-                // Update only if layout has changed
-                if new_layout != layout {
-                    layout = new_layout;
-                    break;
-                }
+                match event.input.xkb_active_layout_name {
+                    // Update only if layout has changed
+                    Some(new_layout) if new_layout != layout => {
+                        layout = new_layout;
+                        break;
+                    }
+                    _ => (),
+                };
             }
         }
     }
