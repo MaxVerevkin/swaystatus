@@ -26,7 +26,7 @@ use crate::errors::{BlockError, OptionExt, Result, ResultExt};
 use crate::formatting::value::Value;
 use crate::formatting::FormatTemplate;
 use crate::util::read_file;
-use crate::widgets::text::TextWidget;
+use crate::widgets::widget::Widget;
 use crate::widgets::{I3BarWidget, Spacing, State};
 
 /// Path for the power supply devices
@@ -554,11 +554,11 @@ pub async fn run(
             status.unwrap_or_default(),
             capacity.ok().map(|c| c.clamp(0, 100)),
         ) {
-            (BatteryStatus::Empty, _) => TextWidget::new(id, 0, shared_config.clone())
+            (BatteryStatus::Empty, _) => Widget::new(id, 0, shared_config.clone())
                 .with_icon(BATTERY_EMPTY_ICON)?
                 .with_state(State::Critical)
                 .with_spacing(Spacing::Hidden),
-            (BatteryStatus::Full, _) => TextWidget::new(id, 0, shared_config.clone())
+            (BatteryStatus::Full, _) => Widget::new(id, 0, shared_config.clone())
                 .with_icon(BATTERY_FULL_ICON)?
                 .with_spacing(Spacing::Hidden),
             (status, Some(charge)) => {
@@ -581,12 +581,12 @@ pub async fn run(
                     }
                 };
 
-                TextWidget::new(id, 0, shared_config.clone())
+                Widget::new(id, 0, shared_config.clone())
                     .with_text(&fmt.render(&vars)?)
                     .with_icon(icon)?
                     .with_state(state)
             }
-            _ => TextWidget::new(id, 0, shared_config.clone())
+            _ => Widget::new(id, 0, shared_config.clone())
                 .with_icon(BATTERY_UNAVAILABLE_ICON)?
                 .with_state(State::Warning)
                 .with_spacing(Spacing::Hidden),

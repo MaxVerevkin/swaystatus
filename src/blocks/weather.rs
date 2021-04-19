@@ -10,7 +10,7 @@ use crate::de::deserialize_duration;
 use crate::errors::{OptionExt, Result, ResultExt};
 use crate::formatting::value::Value;
 use crate::formatting::FormatTemplate;
-use crate::widgets::text::TextWidget;
+use crate::widgets::widget::Widget;
 use crate::widgets::I3BarWidget;
 
 const IP_API_URL: &str = "https://ipapi.co/json";
@@ -272,7 +272,7 @@ pub async fn run(
             _ => "weather_default",
         };
 
-        let widget = TextWidget::new(id, 0, shared_config.clone())
+        let widget = Widget::new(id, 0, shared_config.clone())
             .with_text(&fmt.render(&keys)?)
             .with_icon(icon)?
             .get_data();

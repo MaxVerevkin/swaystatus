@@ -8,7 +8,7 @@ use crate::blocks::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
 use crate::errors::{BlockError, Result, ResultExt};
 use crate::formatting::{value::Value, FormatTemplate};
-use crate::widgets::text::TextWidget;
+use crate::widgets::widget::Widget;
 use crate::widgets::I3BarWidget;
 
 #[derive(Copy, Clone, Debug, Deserialize)]
@@ -148,7 +148,7 @@ pub async fn run(
                 _ => marks_str(&marks),
             };
 
-            let widget = TextWidget::new(id, 0, shared_config.clone())
+            let widget = Widget::new(id, 0, shared_config.clone())
                 .with_text(&format.render(&map! {
                     "window" => Value::from_string(text),
                 })?)

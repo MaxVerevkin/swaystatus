@@ -1,5 +1,4 @@
-pub mod rotatingtext;
-pub mod text;
+pub mod widget;
 
 use std::str::FromStr;
 

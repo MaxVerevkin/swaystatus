@@ -12,7 +12,7 @@ use crate::formatting::{value::Value, FormatTemplate};
 use crate::netlink::default_interface;
 use crate::protocol::i3bar_event::MouseButton;
 use crate::util;
-use crate::widgets::text::TextWidget;
+use crate::widgets::widget::Widget;
 use crate::widgets::I3BarWidget;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
@@ -56,7 +56,7 @@ pub async fn run(
         None => None,
     };
 
-    let mut text = TextWidget::new(id, 0, shared_config.clone());
+    let mut text = Widget::new(id, 0, shared_config.clone());
     let interval = Duration::from_secs(block_config.interval);
 
     // Stats

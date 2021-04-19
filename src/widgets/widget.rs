@@ -4,9 +4,9 @@ use crate::errors::*;
 use crate::protocol::i3bar_block::I3BarBlock;
 
 #[derive(Clone, Debug)]
-pub struct TextWidget {
+pub struct Widget {
     id: usize,
-    pub instance: usize,
+    instance: usize,
     content: Option<String>,
     icon: Option<String>,
     state: State,
@@ -15,7 +15,7 @@ pub struct TextWidget {
     inner: I3BarBlock,
 }
 
-impl TextWidget {
+impl Widget {
     pub fn new(id: usize, instance: usize, shared_config: SharedConfig) -> Self {
         let (key_bg, key_fg) = State::Idle.theme_keys(&shared_config.theme); // Initial colors
         let inner = I3BarBlock {
@@ -26,7 +26,7 @@ impl TextWidget {
             ..I3BarBlock::default()
         };
 
-        TextWidget {
+        Widget {
             id,
             instance,
             content: None,
@@ -114,7 +114,7 @@ impl TextWidget {
     }
 }
 
-impl I3BarWidget for TextWidget {
+impl I3BarWidget for Widget {
     fn get_data(&self) -> I3BarBlock {
         self.inner.clone()
     }

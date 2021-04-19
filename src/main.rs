@@ -27,7 +27,7 @@ use crate::protocol::i3bar_block::I3BarBlock;
 use crate::protocol::i3bar_event::process_events;
 use crate::signals::{process_signals, Signal};
 use crate::util::deserialize_file;
-use crate::widgets::text::TextWidget;
+use crate::widgets::widget::Widget;
 use crate::widgets::{I3BarWidget, State};
 
 fn main() {
@@ -92,7 +92,7 @@ pub async fn _main() {
         }
 
         // Create widget with error message
-        let error_widget = TextWidget::new(0, 0, Default::default())
+        let error_widget = Widget::new(0, 0, Default::default())
             .with_state(State::Critical)
             .with_text(&error.to_string());
 

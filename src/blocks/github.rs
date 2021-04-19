@@ -7,7 +7,7 @@ use super::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
-use crate::widgets::text::TextWidget;
+use crate::widgets::widget::Widget;
 use crate::widgets::I3BarWidget;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
@@ -51,7 +51,7 @@ pub async fn run(
     let block_config = GithubConfig::deserialize(block_config).block_config_error("github")?;
     let interval = Duration::from_secs(block_config.interval);
     let format = FormatTemplate::from_string(&block_config.format)?;
-    let mut text = TextWidget::new(id, 0, shared_config).with_icon("github")?;
+    let mut text = Widget::new(id, 0, shared_config).with_icon("github")?;
 
     // Http client
     let client = reqwest::Client::new();

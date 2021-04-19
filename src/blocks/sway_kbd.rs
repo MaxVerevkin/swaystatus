@@ -9,7 +9,7 @@ use super::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
-use crate::widgets::text::TextWidget;
+use crate::widgets::widget::Widget;
 use crate::widgets::I3BarWidget;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
@@ -40,7 +40,7 @@ pub async fn run(
 
     let block_config = SwayKbdConfig::deserialize(block_config).block_config_error("sway_kbd")?;
     let format = FormatTemplate::from_string(&block_config.format)?;
-    let mut text = TextWidget::new(id, 0, shared_config);
+    let mut text = Widget::new(id, 0, shared_config);
 
     // New connection
     let mut connection = Connection::new()

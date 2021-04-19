@@ -9,7 +9,7 @@ use super::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
-use crate::widgets::text::TextWidget;
+use crate::widgets::widget::Widget;
 use crate::widgets::{I3BarWidget, State};
 
 type SensorsOutput = HashMap<String, HashMap<String, serde_json::Value>>;
@@ -68,7 +68,7 @@ pub async fn run(
     let format = FormatTemplate::from_string(&block_config.format)?;
     let interval = Duration::from_secs(block_config.interval);
 
-    let mut text = TextWidget::new(id, 0, shared_config).with_icon("thermometer")?;
+    let mut text = Widget::new(id, 0, shared_config).with_icon("thermometer")?;
 
     loop {
         // Construct a command

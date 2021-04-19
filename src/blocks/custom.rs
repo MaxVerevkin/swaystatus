@@ -11,7 +11,7 @@ use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
 use crate::protocol::i3bar_event::MouseButton;
 use crate::subprocess::spawn_shell;
-use crate::widgets::text::TextWidget;
+use crate::widgets::widget::Widget;
 use crate::widgets::{I3BarWidget, Spacing};
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
@@ -115,7 +115,7 @@ pub async fn run(
                     .map(|cmd| click_handlers.insert((instance, MouseButton::WheelDown), cmd));
 
                 // Create widget
-                let mut widget = TextWidget::new(id, instance, shared_config.clone());
+                let mut widget = Widget::new(id, instance, shared_config.clone());
 
                 // Maybe set text
                 if let Some(text) = widget_data.get("text") {
@@ -135,7 +135,7 @@ pub async fn run(
         } else {
             // No JSON, use standard output
             let text =
-                TextWidget::new(id, 0, shared_config.clone()).with_text(&format.render(&map! {
+                Widget::new(id, 0, shared_config.clone()).with_text(&format.render(&map! {
                     "stdout" => Value::from_string(stdout.to_string()),
                     "stderr" => Value::from_string(stderr.to_string()),
                     "exit_code" => Value::from_integer(exit_code as i64),

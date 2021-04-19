@@ -12,7 +12,7 @@ use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
 use crate::protocol::i3bar_event::MouseButton;
-use crate::widgets::text::TextWidget;
+use crate::widgets::widget::Widget;
 use crate::widgets::{I3BarWidget, State};
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
@@ -50,7 +50,7 @@ pub async fn run(
         None => None,
     };
 
-    let mut text = TextWidget::new(id, 0, shared_config).with_icon("cpu")?;
+    let mut text = Widget::new(id, 0, shared_config).with_icon("cpu")?;
     let interval = Duration::from_secs(block_config.interval);
 
     // Store previous /proc/stat state

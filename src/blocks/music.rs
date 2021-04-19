@@ -7,6 +7,7 @@ use dbus_tokio::connection;
 
 use futures::StreamExt;
 use serde::de::Deserialize;
+use std::collections::VecDeque;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -14,8 +15,8 @@ use super::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::protocol::i3bar_event::MouseButton;
-use crate::widgets::rotatingtext::RotatingTextWidget;
-use crate::widgets::text::TextWidget;
+use crate::util::escape_pango_text;
+use crate::widgets::widget::Widget;
 use crate::widgets::{I3BarWidget, Spacing, State};
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
@@ -41,18 +42,9 @@ pub async fn run(
 
     let _block_config = MusicConfig::deserialize(block_config).block_config_error("time")?;
 
-    let mut text = RotatingTextWidget::new(
-        id,
-        0,
-        Duration::from_secs(1),
-        Duration::from_secs(1),
-        20,
-        false,
-        shared_config.clone(),
-    )
-    .with_icon("music")?;
+    let mut text = Widget::new(id, 0, shared_config.clone()).with_icon("music")?;
     let mut play_pause_button =
-        TextWidget::new(id, PLAY_PAUSE_BTN, shared_config.clone()).with_spacing(Spacing::Hidden);
+        Widget::new(id, PLAY_PAUSE_BTN, shared_config.clone()).with_spacing(Spacing::Hidden);
 
     // Connect to the D-Bus session bus (this is blocking, unfortunately).
     let (resource, dbus_conn) =
@@ -81,13 +73,7 @@ pub async fn run(
     loop {
         let widgets = match player {
             Some(ref player) => {
-                let mut output = String::new();
-                player.title.as_deref().map(|t| output.push_str(t));
-                output.push('|');
-                player.artist.as_deref().map(|a| output.push_str(a));
-
-                text.set_text(output);
-                text.set_spacing(Spacing::Normal);
+                text.set_text(escape_pango_text(player.display(10)));
 
                 text.set_state(State::Idle);
                 play_pause_button.set_state(State::Idle);
@@ -110,7 +96,6 @@ pub async fn run(
             None => {
                 text.set_text(String::new());
                 text.set_state(State::Idle);
-                text.set_spacing(Spacing::Hidden);
                 vec![text.get_data()]
             }
         };
@@ -120,7 +105,7 @@ pub async fn run(
             .await
             .internal_error("music", "failed to send message")?;
 
-        text.next()?;
+        player.as_mut().map(|p| p.rotating.rotate());
 
         tokio::select! {
             // Time to update rotating text
@@ -130,12 +115,9 @@ pub async fn run(
             // Wait for a click
             Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
                 if click.button == MouseButton::Left {
-                    match (click.instance, &player) {
-                        (Some(PLAY_PAUSE_BTN), Some(player)) => {
+                    if let (Some(PLAY_PAUSE_BTN), Some(player)) = (click.instance, &player) {
                             let proxy = nonblock::Proxy::new(&player.name, "/org/mpris/MediaPlayer2", Duration::from_secs(2), dbus_conn.clone());
                             let _resonce: () = proxy.method_call("org.mpris.MediaPlayer2.Player", "PlayPause", ()).await.block_error("music", "failed to call pause/play")?;
-                        },
-                        _ => (),
                     }
                 }
             }
@@ -185,6 +167,7 @@ struct Player {
     status: PlaybackStatus,
     title: Option<String>,
     artist: Option<String>,
+    rotating: RotatingText,
 }
 
 impl Player {
@@ -221,12 +204,21 @@ impl Player {
         };
 
         Self {
+            rotating: RotatingText::new(match (title.as_deref(), artist.as_deref()) {
+                (Some(t), Some(a)) => format!("{}|{}|", t, a),
+                (None, Some(s)) | (Some(s), None) => s.to_string(),
+                _ => "".to_string(),
+            }),
             name,
             bus_name,
             status,
             title,
             artist,
         }
+    }
+
+    fn display(&self, len: usize) -> String {
+        self.rotating.display(len)
     }
 }
 
@@ -236,4 +228,38 @@ enum PlaybackStatus {
     Paused,
     Stopped,
     Unknown,
+}
+
+// TODO move to util.rs or somewhere else
+#[derive(Debug)]
+pub struct RotatingText(VecDeque<char>);
+impl RotatingText {
+    pub fn new(text: String) -> Self {
+        Self(text.chars().collect())
+    }
+
+    pub fn display(&self, len: usize) -> String {
+        let mut output = String::with_capacity(len);
+
+        if self.0.len() == 0 {
+            return output;
+        }
+
+        while output.len() < len {
+            for c in &self.0 {
+                output.push(*c);
+                if output.len() >= len {
+                    break;
+                }
+            }
+        }
+
+        output
+    }
+
+    pub fn rotate(&mut self) {
+        if let Some(c) = self.0.pop_front() {
+            self.0.push_back(c);
+        }
+    }
 }

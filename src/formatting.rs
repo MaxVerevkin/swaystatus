@@ -8,7 +8,7 @@ use std::convert::TryInto;
 
 use crate::config::SharedConfig;
 use crate::errors::*;
-use crate::widgets::{text::TextWidget, Spacing};
+use crate::widgets::{widget::Widget, Spacing};
 use placeholder::unexpected_token;
 use placeholder::Placeholder;
 use value::Value;
@@ -27,8 +27,8 @@ enum Token {
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum RenderedWidget {
-    Text(TextWidget),
-    Var(String, TextWidget),
+    Text(Widget),
+    Var(String, Widget),
 }
 
 impl FormatTemplate {
@@ -116,11 +116,11 @@ impl FormatTemplate {
         for token in &self.tokens {
             match token {
                 Token::Text(text) => rendered.push(RenderedWidget::Text(
-                    TextWidget::new(id, rendered.len(), config.clone()).with_text(text),
+                    Widget::new(id, rendered.len(), config.clone()).with_text(text),
                 )),
                 Token::Var(var) => rendered.push(RenderedWidget::Var(
                     var.name.clone(),
-                    TextWidget::new(id, rendered.len(), config.clone())
+                    Widget::new(id, rendered.len(), config.clone())
                         .with_spacing(Spacing::Hidden)
                         .with_text(
                             &vars

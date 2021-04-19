@@ -27,7 +27,7 @@ use crate::config::LogicalDirection;
 use crate::config::SharedConfig;
 use crate::errors::{OptionExt, Result, ResultExt};
 use crate::util::read_file;
-use crate::widgets::text::TextWidget;
+use crate::widgets::widget::Widget;
 use crate::widgets::I3BarWidget;
 
 /// Location of backlight devices
@@ -267,7 +267,7 @@ pub async fn run(
             icon_index = BACKLIGHT_ICONS.len() - icon_index;
         }
 
-        let widget = TextWidget::new(id, 0, shared_config.clone())
+        let widget = Widget::new(id, 0, shared_config.clone())
             .with_text(&format!("{}%", brightness))
             .with_icon(BACKLIGHT_ICONS[icon_index])?
             .get_data();
