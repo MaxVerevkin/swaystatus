@@ -11,13 +11,13 @@ use crate::widgets::I3BarWidget;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
-pub struct TimeConfig {
+struct TimeConfig {
     /// Format string.
     /// See [chrono docs](https://docs.rs/chrono/0.3.0/chrono/format/strftime/index.html#specifiers) for all options.
-    pub format: String,
+    format: String,
 
     /// Update interval in seconds
-    pub interval: u64,
+    interval: u64,
 }
 
 impl Default for TimeConfig {

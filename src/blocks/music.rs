@@ -19,15 +19,18 @@ use crate::util::escape_pango_text;
 use crate::widgets::widget::Widget;
 use crate::widgets::{I3BarWidget, Spacing, State};
 
+const PLAY_PAUSE_BTN: usize = 1;
+
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
-pub struct MusicConfig {
+struct MusicConfig {
     // TODO add stuff here
+    width: usize,
 }
 
 impl Default for MusicConfig {
     fn default() -> Self {
-        Self {}
+        Self { width: 10 }
     }
 }
 
@@ -38,13 +41,11 @@ pub async fn run(
     message_sender: mpsc::Sender<BlockMessage>,
     mut events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
-    const PLAY_PAUSE_BTN: usize = 1;
-
-    let _block_config = MusicConfig::deserialize(block_config).block_config_error("time")?;
+    let block_config = MusicConfig::deserialize(block_config).block_config_error("time")?;
 
     let mut text = Widget::new(id, 0, shared_config.clone()).with_icon("music")?;
     let mut play_pause_button =
-        Widget::new(id, PLAY_PAUSE_BTN, shared_config.clone()).with_spacing(Spacing::Hidden);
+        Widget::new(id, PLAY_PAUSE_BTN, shared_config).with_spacing(Spacing::Hidden);
 
     // Connect to the D-Bus session bus (this is blocking, unfortunately).
     let (resource, dbus_conn) =
@@ -70,10 +71,12 @@ pub async fn run(
 
     let mut player = get_any_player(dbus_conn.as_ref()).await?;
 
+    let timer = tokio::time::interval(Duration::from_secs(1));
+
     loop {
         let widgets = match player {
             Some(ref player) => {
-                text.set_text(escape_pango_text(player.display(10)));
+                text.set_text(escape_pango_text(player.display(block_config.width)));
 
                 text.set_state(State::Idle);
                 play_pause_button.set_state(State::Idle);
