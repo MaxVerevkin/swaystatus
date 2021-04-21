@@ -243,15 +243,17 @@ impl RotatingText {
 
     pub fn display(&self, len: usize) -> String {
         let mut output = String::with_capacity(len);
+        let mut output_len = 0;
 
         if self.0.len() == 0 {
             return output;
         }
 
-        while output.len() < len {
+        while output_len < len {
             for c in &self.0 {
                 output.push(*c);
-                if output.len() >= len {
+                output_len += 1;
+                if output_len >= len {
                     break;
                 }
             }
