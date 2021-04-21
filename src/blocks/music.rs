@@ -71,8 +71,6 @@ pub async fn run(
 
     let mut player = get_any_player(dbus_conn.as_ref()).await?;
 
-    let timer = tokio::time::interval(Duration::from_secs(1));
-
     loop {
         let widgets = match player {
             Some(ref player) => {
@@ -242,24 +240,7 @@ impl RotatingText {
     }
 
     pub fn display(&self, len: usize) -> String {
-        let mut output = String::with_capacity(len);
-        let mut output_len = 0;
-
-        if self.0.len() == 0 {
-            return output;
-        }
-
-        while output_len < len {
-            for c in &self.0 {
-                output.push(*c);
-                output_len += 1;
-                if output_len >= len {
-                    break;
-                }
-            }
-        }
-
-        output
+        self.0.iter().cycle().take(len).collect()
     }
 
     pub fn rotate(&mut self) {
