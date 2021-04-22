@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::rc::Rc;
 
 use serde::de::{Deserialize, Deserializer};
 use serde_derive::Deserialize;
@@ -13,8 +13,8 @@ use crate::themes::Theme;
 
 #[derive(Debug)]
 pub struct SharedConfig {
-    pub theme: Arc<Theme>,
-    icons: Arc<Icons>,
+    pub theme: Rc<Theme>,
+    icons: Rc<Icons>,
     icons_format: String,
     pub scrolling: Scrolling,
 }
@@ -22,8 +22,8 @@ pub struct SharedConfig {
 impl SharedConfig {
     pub fn new(config: &Config) -> Self {
         Self {
-            theme: Arc::new(config.theme.clone()),
-            icons: Arc::new(config.icons.clone()),
+            theme: Rc::new(config.theme.clone()),
+            icons: Rc::new(config.icons.clone()),
             icons_format: config.icons_format.clone(),
             scrolling: config.scrolling,
         }
@@ -57,7 +57,7 @@ impl SharedConfig {
                 }
             }
         }
-        self.theme = Arc::new(theme);
+        self.theme = Rc::new(theme);
         Ok(())
     }
 
@@ -76,8 +76,8 @@ impl SharedConfig {
 impl Default for SharedConfig {
     fn default() -> Self {
         Self {
-            theme: Arc::new(Theme::default()),
-            icons: Arc::new(Icons::default()),
+            theme: Rc::new(Theme::default()),
+            icons: Rc::new(Icons::default()),
             icons_format: " {icon} ".to_string(),
             scrolling: Scrolling::default(),
         }
@@ -87,8 +87,8 @@ impl Default for SharedConfig {
 impl Clone for SharedConfig {
     fn clone(&self) -> Self {
         Self {
-            theme: Arc::clone(&self.theme),
-            icons: Arc::clone(&self.icons),
+            theme: Rc::clone(&self.theme),
+            icons: Rc::clone(&self.icons),
             icons_format: self.icons_format.clone(),
             scrolling: self.scrolling,
         }
