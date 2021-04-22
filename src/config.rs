@@ -101,11 +101,7 @@ pub struct Config {
     #[serde(default = "Config::default_icons_format")]
     pub icons_format: String,
 
-    /// Direction of scrolling, "natural" or "reverse".
-    ///
-    /// Configuring natural scrolling on input devices changes the way i3status-rust
-    /// processes mouse wheel events: pushing the wheen away now is interpreted as downward
-    /// motion which is undesired for sliders. Use "natural" to invert this.
+    /// Set to `true` to invert mouse wheel direction
     #[serde(default)]
     pub invert_scrolling: bool,
 
