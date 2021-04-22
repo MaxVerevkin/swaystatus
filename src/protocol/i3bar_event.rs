@@ -22,7 +22,7 @@ pub struct I3BarEvent {
     pub button: MouseButton,
 }
 
-pub async fn process_events(sender: Sender<I3BarEvent>) {
+pub async fn process_events(sender: Sender<I3BarEvent>, invert_scrolling: bool) {
     let mut stdin = BufReader::new(tokio::io::stdin());
     let mut input = String::new();
 
@@ -35,12 +35,20 @@ pub async fn process_events(sender: Sender<I3BarEvent>) {
 
         if !slice.is_empty() {
             let e: I3BarEventInternal = serde_json::from_str(slice).unwrap();
+            let mut e = I3BarEvent {
+                id: e.name.map(|x| x.parse().unwrap()),
+                instance: e.instance.map(|x| x.parse::<usize>().unwrap()),
+                button: e.button,
+            };
+            if invert_scrolling {
+                if e.button == MouseButton::WheelUp {
+                    e.button = MouseButton::WheelDown;
+                } else if e.button == MouseButton::WheelDown {
+                    e.button = MouseButton::WheelUp;
+                }
+            }
             sender
-                .send(I3BarEvent {
-                    id: e.name.map(|x| x.parse::<usize>().unwrap()),
-                    instance: e.instance.map(|x| x.parse::<usize>().unwrap()),
-                    button: e.button,
-                })
+                .send(e)
                 .await
                 .expect("channel closed while sending event");
         }

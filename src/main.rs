@@ -152,8 +152,8 @@ async fn run(config: Option<String>, noinit: bool, never_pause: bool) -> Result<
     // Listen to signals and clicks
     let (signals_sender, mut signals_receiver) = mpsc::channel(64);
     let (events_sender, mut events_receiver) = mpsc::channel(64);
-    tokio::spawn(process_signals(signals_sender));
-    tokio::spawn(process_events(events_sender));
+    blocks_local.spawn_local(process_signals(signals_sender));
+    blocks_local.spawn_local(process_events(events_sender, config.invert_scrolling));
 
     // Main loop
     let mut rendered: Vec<Vec<I3BarBlock>> = blocks_events.iter().map(|_| Vec::new()).collect();

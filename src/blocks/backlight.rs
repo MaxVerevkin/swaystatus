@@ -23,7 +23,7 @@ use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
 use crate::blocks::{BlockEvent, BlockMessage};
-use crate::config::LogicalDirection;
+use crate::click::MouseButton;
 use crate::config::SharedConfig;
 use crate::errors::{OptionExt, Result, ResultExt};
 use crate::util::read_file;
@@ -303,19 +303,18 @@ pub async fn run(
             _ = file_changes.next() => update().await?,
             Some(BlockEvent::I3Bar(event)) = events_receiver.recv() => {
                 let brightness = device.brightness().await?;
-
-                match shared_config.scrolling.to_logical_direction(event.button) {
-                    Some(LogicalDirection::Up) => {
+                match event.button {
+                    MouseButton::WheelUp => {
                         device
                             .set_brightness(brightness + block_config.step_width)
                             .await?;
                     }
-                    Some(LogicalDirection::Down) => {
+                    MouseButton::WheelDown => {
                         device
                             .set_brightness(brightness.saturating_sub(block_config.step_width))
                             .await?;
                     }
-                    None => {}
+                    _ => (),
                 }
             }
         }

@@ -6,7 +6,6 @@ use serde_derive::Deserialize;
 use toml::value;
 
 use crate::blocks::BlockType;
-use crate::click::MouseButton;
 use crate::errors;
 use crate::icons::Icons;
 use crate::themes::Theme;
@@ -16,7 +15,6 @@ pub struct SharedConfig {
     pub theme: Rc<Theme>,
     icons: Rc<Icons>,
     icons_format: String,
-    pub scrolling: Scrolling,
 }
 
 impl SharedConfig {
@@ -25,7 +23,6 @@ impl SharedConfig {
             theme: Rc::new(config.theme.clone()),
             icons: Rc::new(config.icons.clone()),
             icons_format: config.icons_format.clone(),
-            scrolling: config.scrolling,
         }
     }
 
@@ -79,7 +76,6 @@ impl Default for SharedConfig {
             theme: Rc::new(Theme::default()),
             icons: Rc::new(Icons::default()),
             icons_format: " {icon} ".to_string(),
-            scrolling: Scrolling::default(),
         }
     }
 }
@@ -90,7 +86,6 @@ impl Clone for SharedConfig {
             theme: Rc::clone(&self.theme),
             icons: Rc::clone(&self.icons),
             icons_format: self.icons_format.clone(),
-            scrolling: self.scrolling,
         }
     }
 }
@@ -112,7 +107,7 @@ pub struct Config {
     /// processes mouse wheel events: pushing the wheen away now is interpreted as downward
     /// motion which is undesired for sliders. Use "natural" to invert this.
     #[serde(default)]
-    pub scrolling: Scrolling,
+    pub invert_scrolling: bool,
 
     #[serde(rename = "block", deserialize_with = "deserialize_blocks")]
     pub blocks: Vec<(BlockType, value::Value)>,
@@ -130,43 +125,9 @@ impl Default for Config {
             icons: Icons::default(),
             theme: Theme::default(),
             icons_format: Config::default_icons_format(),
-            scrolling: Scrolling::default(),
             blocks: Vec::new(),
+            invert_scrolling: false,
         }
-    }
-}
-
-#[derive(Deserialize, Copy, Clone, Debug)]
-#[serde(rename_all = "lowercase")]
-pub enum Scrolling {
-    Reverse,
-    Natural,
-}
-
-#[derive(Copy, Clone, Debug)]
-#[allow(dead_code)]
-pub enum LogicalDirection {
-    Up,
-    Down,
-}
-
-impl Scrolling {
-    #[allow(dead_code)]
-    pub fn to_logical_direction(self, button: MouseButton) -> Option<LogicalDirection> {
-        use LogicalDirection::*;
-        use MouseButton::*;
-        use Scrolling::*;
-        match (self, button) {
-            (Reverse, WheelUp) | (Natural, WheelDown) => Some(Up),
-            (Reverse, WheelDown) | (Natural, WheelUp) => Some(Down),
-            _ => None,
-        }
-    }
-}
-
-impl Default for Scrolling {
-    fn default() -> Self {
-        Scrolling::Reverse
     }
 }
 
