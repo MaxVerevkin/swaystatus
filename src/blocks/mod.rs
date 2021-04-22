@@ -18,10 +18,11 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 use toml::value::{Table, Value};
 
+use crate::click::MouseButton;
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::protocol::i3bar_block::I3BarBlock;
-use crate::protocol::i3bar_event::{I3BarEvent, MouseButton};
+use crate::protocol::i3bar_event::I3BarEvent;
 use crate::signals::Signal;
 use crate::subprocess::{spawn_shell, spawn_shell_sync};
 

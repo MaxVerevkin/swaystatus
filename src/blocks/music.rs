@@ -12,9 +12,9 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 
 use super::{BlockEvent, BlockMessage};
+use crate::click::MouseButton;
 use crate::config::SharedConfig;
 use crate::errors::*;
-use crate::protocol::i3bar_event::MouseButton;
 use crate::util::escape_pango_text;
 use crate::widgets::widget::Widget;
 use crate::widgets::{I3BarWidget, Spacing, State};

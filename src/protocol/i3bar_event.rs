@@ -1,33 +1,17 @@
-use std::fmt;
 use std::option::Option;
 use std::string::*;
 
-use serde::{de, Deserializer};
 use serde_derive::Deserialize;
 
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::mpsc::Sender;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum MouseButton {
-    Left,
-    Middle,
-    Right,
-    WheelUp,
-    WheelDown,
-    Forward,
-    Back,
-    Unknown,
-}
+use crate::click::MouseButton;
 
 #[derive(Deserialize, Debug, Clone)]
 struct I3BarEventInternal {
     pub name: Option<String>,
     pub instance: Option<String>,
-    pub x: u64,
-    pub y: u64,
-
-    #[serde(deserialize_with = "deserialize_mousebutton")]
     pub button: MouseButton,
 }
 
@@ -63,39 +47,4 @@ pub async fn process_events(sender: Sender<I3BarEvent>) {
 
         input.clear();
     }
-}
-
-fn deserialize_mousebutton<'de, D>(deserializer: D) -> Result<MouseButton, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    struct MouseButtonVisitor;
-
-    impl<'de> de::Visitor<'de> for MouseButtonVisitor {
-        type Value = MouseButton;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("u64")
-        }
-
-        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            // TODO: put this behind `--debug` flag
-            //eprintln!("{}", value);
-            Ok(match value {
-                1 => MouseButton::Left,
-                2 => MouseButton::Middle,
-                3 => MouseButton::Right,
-                4 => MouseButton::WheelUp,
-                5 => MouseButton::WheelDown,
-                9 => MouseButton::Forward,
-                8 => MouseButton::Back,
-                _ => MouseButton::Unknown,
-            })
-        }
-    }
-
-    deserializer.deserialize_any(MouseButtonVisitor)
 }

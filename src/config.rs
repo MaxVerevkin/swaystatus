@@ -6,9 +6,9 @@ use serde_derive::Deserialize;
 use toml::value;
 
 use crate::blocks::BlockType;
+use crate::click::MouseButton;
 use crate::errors;
 use crate::icons::Icons;
-use crate::protocol::i3bar_event::MouseButton;
 use crate::themes::Theme;
 
 #[derive(Debug)]

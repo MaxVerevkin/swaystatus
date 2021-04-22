@@ -1,6 +1,7 @@
 #[macro_use]
 mod util;
 mod blocks;
+mod click;
 mod config;
 mod de;
 mod errors;

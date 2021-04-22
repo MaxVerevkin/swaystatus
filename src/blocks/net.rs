@@ -6,11 +6,11 @@ use tokio::io::{AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
 
 use super::{BlockEvent, BlockMessage};
+use crate::click::MouseButton;
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
 use crate::netlink::default_interface;
-use crate::protocol::i3bar_event::MouseButton;
 use crate::util;
 use crate::widgets::widget::Widget;
 use crate::widgets::I3BarWidget;
