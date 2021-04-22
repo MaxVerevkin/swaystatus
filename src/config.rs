@@ -119,18 +119,6 @@ impl Config {
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            icons: Icons::default(),
-            theme: Theme::default(),
-            icons_format: Config::default_icons_format(),
-            blocks: Vec::new(),
-            invert_scrolling: false,
-        }
-    }
-}
-
 fn deserialize_blocks<'de, D>(deserializer: D) -> Result<Vec<(BlockType, value::Value)>, D::Error>
 where
     D: Deserializer<'de>,
