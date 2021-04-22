@@ -40,7 +40,7 @@ fn main() {
 }
 
 pub async fn _main() {
-    let builder = app_from_crate!()
+    let args = app_from_crate!()
         .version(env!("VERSION"))
         .arg(
             Arg::with_name("config")
@@ -74,19 +74,18 @@ pub async fn _main() {
                 .long("no-init")
                 .takes_value(false)
                 .hidden(true),
-        );
-
-    let matches = builder.get_matches();
-    let exit_on_error = matches.is_present("exit-on-error");
+        )
+        .get_matches();
 
     // Run and match for potential error
     if let Err(error) = run(
-        matches.value_of("config").map(String::from),
-        matches.is_present("no-init"),
+        args.value_of("config").map(String::from),
+        args.is_present("no-init"),
+        args.is_present("never_pause"),
     )
     .await
     {
-        if exit_on_error {
+        if args.is_present("exit-on-error") {
             eprintln!("{:?}", error);
             ::std::process::exit(1);
         }
@@ -111,10 +110,10 @@ pub async fn _main() {
     }
 }
 
-async fn run(config: Option<String>, noinit: bool) -> Result<()> {
+async fn run(config: Option<String>, noinit: bool, never_pause: bool) -> Result<()> {
     if !noinit {
         // Now we can start to run the i3bar protocol
-        protocol::init(false);
+        protocol::init(never_pause);
     }
 
     // Read & parse the config file
@@ -149,9 +148,6 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
         ));
     }
 
-    // TODO first wait for all the blocks to send their widgets and then print
-    let mut rendered: Vec<Vec<I3BarBlock>> = blocks_events.iter().map(|_| Vec::new()).collect();
-
     // Listen to signals and clicks
     let (signals_sender, mut signals_receiver) = mpsc::channel(64);
     let (events_sender, mut events_receiver) = mpsc::channel(64);
@@ -159,13 +155,12 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
     tokio::spawn(process_events(events_sender));
 
     // Main loop
+    let mut rendered: Vec<Vec<I3BarBlock>> = blocks_events.iter().map(|_| Vec::new()).collect();
     blocks_local.run_until(async move {
         loop {
             tokio::select! {
-                Some(block_result) = blocks_tasks.next() => {
-                    // Handle blocks' errors
-                    block_result?;
-                }
+                // Handle blocks' errors
+                Some(block_result) = blocks_tasks.next() => block_result?,
                 Some(message) = message_receiver.recv() => {
                     // Recieve widgets from blocks
                     *rendered.get_mut(message.id).internal_error("handle block's message", "failed to get block")? = message.widgets;
@@ -181,12 +176,12 @@ async fn run(config: Option<String>, noinit: bool) -> Result<()> {
                 Some(signal) = signals_receiver.recv() => {
                     // Handle signals
                     match signal {
-                        Signal::Usr1 => {
+                        Signal::Usr2 => restart(),
+                        _ => {
                             for block in &blocks_events {
                                 block.send(BlockEvent::Signal(signal)).await.unwrap();
                             }
                         }
-                        Signal::Usr2 => restart(),
                     }
                 }
             }
