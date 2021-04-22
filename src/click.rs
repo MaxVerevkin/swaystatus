@@ -1,7 +1,9 @@
 use serde::de::{self, Deserialize, Deserializer, Visitor};
 use std::fmt;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+use crate::subprocess::{spawn_shell, spawn_shell_sync};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MouseButton {
     Left,
     Middle,
@@ -11,6 +13,47 @@ pub enum MouseButton {
     Forward,
     Back,
     Unknown,
+}
+
+#[derive(serde_derive::Deserialize, Debug, Clone, Default)]
+pub struct ClickHandler(Vec<ClickConfigEntry>);
+
+impl ClickHandler {
+    // Returns true if the block needs to be updated
+    pub async fn handle(&self, button: MouseButton) -> bool {
+        match self.0.iter().find(|e| e.button == button) {
+            Some(entry) => {
+                if let Some(cmd) = &entry.cmd {
+                    if entry.sync {
+                        let _ = spawn_shell_sync(cmd).await;
+                    } else {
+                        let _ = spawn_shell(cmd);
+                    }
+                }
+                entry.update
+            }
+            None => true,
+        }
+    }
+}
+
+#[derive(serde_derive::Deserialize, Debug, Clone)]
+pub struct ClickConfigEntry {
+    // Which button to handle
+    button: MouseButton,
+    // Which command to run
+    #[serde(default)]
+    cmd: Option<String>,
+    // Whether to wait for command to exit or not (default is `false`)
+    #[serde(default)]
+    sync: bool,
+    // Whether to update the block on click (default is `true`)
+    #[serde(default = "return_true")]
+    update: bool,
+}
+
+fn return_true() -> bool {
+    true
 }
 
 impl<'de> Deserialize<'de> for MouseButton {
@@ -38,7 +81,7 @@ impl<'de> Deserialize<'de> for MouseButton {
                 Ok(match name {
                     "left" => Left,
                     "middle" => Middle,
-                    "Right" => Right,
+                    "right" => Right,
                     "up" => WheelUp,
                     "down" => WheelDown,
                     "forward" => Forward,

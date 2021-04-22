@@ -20,4 +20,17 @@ Currently `swaystatus` supports those blocks (TODO write docs):
 - Weather (`weather`)
 - Battery (`battery`)
 
-Each block supports `on_click`, `on_click_sync`, `on_right_click` and `on_right_click_sync` options to handle bolcks' clicks. `_sync` options wait for command to finish before accepting any new clicks, while others don't.
+
+Each block supports multiple `click` options to handle bolcks' clicks.
+
+Example:
+
+```toml
+[[block]]
+block = "time"
+[[block.click]]
+button = "left" # Which button to handle
+cmd = "kitty" # The shell command to run
+sync = false # Whether to wait for command to finish before proceeding (default is false)
+update = true # Whether to update the block after click (default is true)
+```

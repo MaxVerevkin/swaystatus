@@ -18,13 +18,12 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 use toml::value::{Table, Value};
 
-use crate::click::MouseButton;
+use crate::click::ClickHandler;
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::protocol::i3bar_block::I3BarBlock;
 use crate::protocol::i3bar_event::I3BarEvent;
 use crate::signals::Signal;
-use crate::subprocess::{spawn_shell, spawn_shell_sync};
 
 #[derive(serde_derive::Deserialize, Debug, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -58,32 +57,18 @@ pub enum BlockEvent {
 }
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
-pub struct CommonConfig {
+struct CommonConfig {
     #[serde(default)]
-    pub on_click: Option<String>,
+    click: ClickHandler,
     #[serde(default)]
-    pub on_click_sync: Option<String>,
+    icons_format: Option<String>,
     #[serde(default)]
-    pub on_right_click: Option<String>,
-    #[serde(default)]
-    pub on_right_click_sync: Option<String>,
-    #[serde(default)]
-    pub icons_format: Option<String>,
-    #[serde(default)]
-    pub theme_overrides: Option<HashMap<String, String>>,
+    theme_overrides: Option<HashMap<String, String>>,
 }
 
 impl CommonConfig {
     pub fn new(from: &mut Value) -> Result<Self> {
-        const FIELDS: &[&str] = &[
-            "on_click",
-            "on_click_sync",
-            "on_right_click",
-            "on_right_click_sync",
-            "theme_overrides",
-            "icons_format",
-        ];
-
+        const FIELDS: &[&str] = &["click", "theme_overrides", "icons_format"];
         let mut common_table = Table::new();
         if let Some(table) = from.as_table_mut() {
             for &field in FIELDS {
@@ -113,31 +98,16 @@ pub async fn run_block(
     if let Some(theme_overrides) = common_config.theme_overrides {
         shared_config.theme_override(&theme_overrides)?;
     }
-    let on_click = common_config.on_click;
-    let on_click_sync = common_config.on_click_sync;
-    let on_right_click = common_config.on_right_click;
-    let on_right_click_sync = common_config.on_right_click_sync;
+    let click_handler = common_config.click;
 
     // Spawn event handler
     let (evets_tx, events_rx) = mpsc::channel(64);
-    tokio::task::spawn(async move {
+    tokio::task::spawn_local(async move {
         while let Some(event) = events_reciever.recv().await {
             if let BlockEvent::I3Bar(click) = event {
-                if click.button == MouseButton::Left {
-                    if let Some(ref cmd) = on_click {
-                        let _ = spawn_shell(cmd);
-                    }
-                    if let Some(ref cmd) = on_click_sync {
-                        let _ = spawn_shell_sync(cmd).await;
-                    }
-                }
-                if click.button == MouseButton::Right {
-                    if let Some(ref cmd) = on_right_click {
-                        let _ = spawn_shell(cmd);
-                    }
-                    if let Some(ref cmd) = on_right_click_sync {
-                        let _ = spawn_shell_sync(cmd).await;
-                    }
+                let update = click_handler.handle(click.button).await;
+                if !update {
+                    continue;
                 }
             }
             // Reciever might be droped -- but we don't care
