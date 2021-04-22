@@ -93,7 +93,7 @@ pub async fn run(
             let json_data: Vec<HashMap<String, String>> =
                 serde_json::from_str(stdout).block_error("custom", "failed to parse JSON")?;
             let mut widgets = Vec::new();
-            let mut click_handlers = HashMap::new();
+            let mut click_handlers = HashMap::new(); // TODO use `crate::click::ClickHandler`
 
             for (instance, widget_data) in json_data.into_iter().enumerate() {
                 // Add click handlers
