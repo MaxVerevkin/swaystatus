@@ -32,15 +32,6 @@ use crate::widgets::widget::Widget;
 use crate::widgets::{I3BarWidget, State};
 
 fn main() {
-    tokio::runtime::Builder::new_current_thread()
-        .max_blocking_threads(2)
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(_main());
-}
-
-pub async fn _main() {
     let args = app_from_crate!()
         .version(env!("VERSION"))
         .arg(
@@ -78,14 +69,20 @@ pub async fn _main() {
         )
         .get_matches();
 
-    // Run and match for potential error
-    if let Err(error) = run(
-        args.value_of("config").map(String::from),
-        args.is_present("no-init"),
-        args.is_present("never_pause"),
-    )
-    .await
-    {
+    // Build the runtime adn run the program
+    let result = tokio::runtime::Builder::new_current_thread()
+        .max_blocking_threads(2)
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(run(
+            args.value_of("config").map(String::from),
+            args.is_present("no-init"),
+            args.is_present("never_pause"),
+        ));
+
+    // Match for potential error
+    if let Err(error) = result {
         if args.is_present("exit-on-error") {
             eprintln!("{:?}", error);
             ::std::process::exit(1);
@@ -135,16 +132,12 @@ async fn run(config: Option<String>, noinit: bool, never_pause: bool) -> Result<
         let (events_sender, events_reciever) = mpsc::channel(64);
         blocks_events.push(events_sender);
 
-        let shared_config = shared_config.clone();
-        let message_sender = message_sender.clone();
-        let id = blocks_tasks.len();
-
         blocks_tasks.push(run_block(
-            id,
+            blocks_tasks.len(),
             block_type,
             block_config,
-            shared_config,
-            message_sender,
+            shared_config.clone(),
+            message_sender.clone(),
             events_reciever,
         ));
     }
@@ -156,7 +149,7 @@ async fn run(config: Option<String>, noinit: bool, never_pause: bool) -> Result<
     blocks_local.spawn_local(process_events(events_sender, config.invert_scrolling));
 
     // Main loop
-    let mut rendered: Vec<Vec<I3BarBlock>> = blocks_events.iter().map(|_| Vec::new()).collect();
+    let mut rendered = vec![Vec::<I3BarBlock>::new(); blocks_events.len()];
     blocks_local.run_until(async move {
         loop {
             tokio::select! {
