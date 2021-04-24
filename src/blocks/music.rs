@@ -106,7 +106,9 @@ pub async fn run(
             .await
             .internal_error("music", "failed to send message")?;
 
-        player.as_mut().map(|p| p.rotating.rotate());
+        if let Some(ref mut player) = player {
+            player.rotating.rotate();
+        }
 
         tokio::select! {
             // Time to update rotating text
