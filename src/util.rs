@@ -131,15 +131,11 @@ macro_rules! map {
 }
 
 macro_rules! map_to_owned {
-    { $($key:expr => $value:expr),+ } => {
-        {
-            let mut m = ::std::collections::HashMap::new();
-            $(
-                m.insert($key.to_owned(), $value.to_owned());
-            )+
-            m
-        }
-     };
+    ($($key:expr => $value:expr),+ $(,)*) => {{
+        let mut m = ::std::collections::HashMap::new();
+        $(m.insert($key.to_owned(), $value.to_owned());)+
+        m
+    }};
 }
 
 pub fn color_from_rgba(

@@ -85,7 +85,7 @@ fn main() {
     if let Err(error) = result {
         if args.is_present("exit-on-error") {
             eprintln!("{:?}", error);
-            ::std::process::exit(1);
+            std::process::exit(1);
         }
 
         // Create widget with error message
@@ -155,26 +155,22 @@ async fn run(config: Option<String>, noinit: bool, never_pause: bool) -> Result<
             tokio::select! {
                 // Handle blocks' errors
                 Some(block_result) = blocks_tasks.next() => block_result?,
+                // Recieve widgets from blocks
                 Some(message) = message_receiver.recv() => {
-                    // Recieve widgets from blocks
                     *rendered.get_mut(message.id).internal_error("handle block's message", "failed to get block")? = message.widgets;
                     protocol::print_blocks(&rendered, &shared_config)?;
                 }
+                // Handle clicks
                 Some(event) = events_receiver.recv() => {
-                    // Handle clicks
-                    if let Some(id) = event.id {
-                        let blocks_event = blocks_events.get(id).unwrap();
-                        blocks_event.send(BlockEvent::I3Bar(event)).await.unwrap();
-                    }
+                    let blocks_event = blocks_events.get(event.id).unwrap();
+                    blocks_event.send(BlockEvent::I3Bar(event)).await.unwrap();
                 }
-                Some(signal) = signals_receiver.recv() => {
-                    // Handle signals
-                    match signal {
-                        Signal::Usr2 => restart(),
-                        _ => {
-                            for block in &blocks_events {
-                                block.send(BlockEvent::Signal(signal)).await.unwrap();
-                            }
+                // Handle signals
+                Some(signal) = signals_receiver.recv() => match signal {
+                    Signal::Usr2 => restart(),
+                    signal => {
+                        for block in &blocks_events {
+                            block.send(BlockEvent::Signal(signal)).await.unwrap();
                         }
                     }
                 }
