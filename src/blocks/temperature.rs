@@ -10,7 +10,7 @@ use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
 use crate::widgets::widget::Widget;
-use crate::widgets::{I3BarWidget, State};
+use crate::widgets::State;
 
 type SensorsOutput = HashMap<String, HashMap<String, serde_json::Value>>;
 type InputReadings = HashMap<String, f64>;

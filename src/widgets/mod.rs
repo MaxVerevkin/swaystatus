@@ -6,7 +6,6 @@ use serde::de::value::{Error, StrDeserializer};
 use serde::de::{Deserialize, IntoDeserializer};
 use serde_derive::Deserialize;
 
-use crate::protocol::i3bar_block::I3BarBlock;
 use crate::themes::Theme;
 
 #[derive(Debug, Copy, Clone, Deserialize)]
@@ -48,8 +47,4 @@ impl FromStr for State {
         let deserializer: StrDeserializer<Error> = s.into_deserializer();
         State::deserialize(deserializer).map_err(|_| ())
     }
-}
-
-pub trait I3BarWidget {
-    fn get_data(&self) -> I3BarBlock;
 }

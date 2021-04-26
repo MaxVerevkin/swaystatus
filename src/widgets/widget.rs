@@ -1,4 +1,4 @@
-use super::{I3BarWidget, Spacing, State};
+use super::{Spacing, State};
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::protocol::i3bar_block::I3BarBlock;
@@ -80,10 +80,8 @@ impl Widget {
     pub fn set_spacing(&mut self, spacing: Spacing) {
         self.spacing = spacing;
     }
-}
 
-impl I3BarWidget for Widget {
-    fn get_data(&self) -> I3BarBlock {
+    pub fn get_data(&self) -> I3BarBlock {
         let mut data = self.inner.clone();
 
         data.full_text = format!(

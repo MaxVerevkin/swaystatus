@@ -28,7 +28,6 @@ use crate::config::SharedConfig;
 use crate::errors::{OptionExt, Result, ResultExt};
 use crate::util::read_file;
 use crate::widgets::widget::Widget;
-use crate::widgets::I3BarWidget;
 
 /// Location of backlight devices
 const DEVICES_PATH: &str = "/sys/class/backlight";

@@ -17,7 +17,7 @@ use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::util::escape_pango_text;
 use crate::widgets::widget::Widget;
-use crate::widgets::{I3BarWidget, Spacing, State};
+use crate::widgets::{Spacing, State};
 
 const PLAY_PAUSE_BTN: usize = 1;
 

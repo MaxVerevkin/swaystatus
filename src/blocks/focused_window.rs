@@ -9,7 +9,6 @@ use crate::config::SharedConfig;
 use crate::errors::{BlockError, Result, ResultExt};
 use crate::formatting::{value::Value, FormatTemplate};
 use crate::widgets::widget::Widget;
-use crate::widgets::I3BarWidget;
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]

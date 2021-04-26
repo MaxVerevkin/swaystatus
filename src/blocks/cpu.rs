@@ -13,7 +13,7 @@ use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
 use crate::widgets::widget::Widget;
-use crate::widgets::{I3BarWidget, State};
+use crate::widgets::State;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]

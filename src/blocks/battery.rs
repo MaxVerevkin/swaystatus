@@ -27,7 +27,7 @@ use crate::formatting::value::Value;
 use crate::formatting::FormatTemplate;
 use crate::util::read_file;
 use crate::widgets::widget::Widget;
-use crate::widgets::{I3BarWidget, Spacing, State};
+use crate::widgets::{Spacing, State};
 
 /// Path for the power supply devices
 const POWER_SUPPLY_DEVICES_PATH: &str = "/sys/class/power_supply";

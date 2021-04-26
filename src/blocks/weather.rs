@@ -11,7 +11,6 @@ use crate::errors::{OptionExt, Result, ResultExt};
 use crate::formatting::value::Value;
 use crate::formatting::FormatTemplate;
 use crate::widgets::widget::Widget;
-use crate::widgets::I3BarWidget;
 
 const IP_API_URL: &str = "https://ipapi.co/json";
 

@@ -29,7 +29,7 @@ use crate::protocol::i3bar_event::process_events;
 use crate::signals::{process_signals, Signal};
 use crate::util::deserialize_file;
 use crate::widgets::widget::Widget;
-use crate::widgets::{I3BarWidget, State};
+use crate::widgets::State;
 
 fn main() {
     let args = app_from_crate!()
