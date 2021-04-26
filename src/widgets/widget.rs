@@ -5,11 +5,8 @@ use crate::protocol::i3bar_block::I3BarBlock;
 
 #[derive(Clone, Debug)]
 pub struct Widget {
-    id: usize,
-    instance: Option<usize>,
     content: Option<String>,
     icon: Option<String>,
-    state: State,
     spacing: Spacing,
     shared_config: SharedConfig,
     inner: I3BarBlock,
@@ -26,11 +23,8 @@ impl Widget {
         };
 
         Widget {
-            id,
-            instance: None,
             content: None,
             icon: None,
-            state: State::Idle,
             spacing: Spacing::Normal,
             shared_config,
             inner,
@@ -38,7 +32,6 @@ impl Widget {
     }
 
     pub fn with_instance(mut self, instance: usize) -> Self {
-        self.instance = Some(instance);
         self.inner.instance = Some(instance.to_string());
         self
     }
@@ -80,7 +73,6 @@ impl Widget {
     pub fn set_state(&mut self, state: State) {
         let (key_bg, key_fg) = state.theme_keys(&self.shared_config.theme);
 
-        self.state = state;
         self.inner.background = key_bg.clone();
         self.inner.color = key_fg.clone();
     }
