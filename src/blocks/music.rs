@@ -60,12 +60,12 @@ pub async fn run(
 
     // Add matches
     // TODO (maybe?) listen to "owner changed" events
-    let mut rule1 = MatchRule::new();
-    rule1.interface = Some(Interface::from_slice("org.freedesktop.DBus.Properties").unwrap());
-    rule1.member = Some(Member::new("PropertiesChanged").unwrap());
-    rule1.path = Some(Path::new("/org/mpris/MediaPlayer2").unwrap());
-    let (_incoming_signal1, mut stream1) = dbus_conn
-        .add_match(rule1)
+    let mut dbus_rule = MatchRule::new();
+    dbus_rule.interface = Some(Interface::from_slice("org.freedesktop.DBus.Properties").unwrap());
+    dbus_rule.member = Some(Member::new("PropertiesChanged").unwrap());
+    dbus_rule.path = Some(Path::new("/org/mpris/MediaPlayer2").unwrap());
+    let (_incoming_signal, mut dbus_stream) = dbus_conn
+        .add_match(dbus_rule)
         .await
         .block_error("music", "failed to add match")?
         .msg_stream();
@@ -115,7 +115,7 @@ pub async fn run(
             // Time to update rotating text
             _ = tokio::time::sleep(Duration::from_secs(1)) => (),
             // Wait for a DBUS event
-            _ = stream1.next() => player = get_any_player(&dbus_conn).await?,
+            _ = dbus_stream.next() => player = get_any_player(&dbus_conn).await?,
             // Wait for a click
             Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
                 if click.button == MouseButton::Left {
@@ -149,15 +149,12 @@ async fn get_any_player(dbus_conn: &nonblock::LocalConnection) -> Result<Option<
 
     // Try each name
     for name in names {
-        let bus_name: Option<(String,)> = dbus_proxy
+        let bus_name = dbus_proxy
             .method_call("org.freedesktop.DBus", "GetNameOwner", (&name,))
-            .await
-            .ok();
-        let bus_name = match bus_name {
-            Some((bus_name,)) => bus_name,
-            None => continue,
-        };
-        return Ok(Some(Player::new(&dbus_conn, name, bus_name).await));
+            .await;
+        if let Ok((bus_name,)) = bus_name {
+            return Ok(Some(Player::new(dbus_conn, name, bus_name).await));
+        }
     }
 
     // Couldn't find anything
@@ -210,7 +207,7 @@ impl Player {
         Self {
             rotating: RotatingText::new(match (title.as_deref(), artist.as_deref()) {
                 (Some(t), Some(a)) => format!("{}|{}|", t, a),
-                (None, Some(s)) | (Some(s), None) => s.to_string(),
+                (None, Some(s)) | (Some(s), None) => format!("{}|", s),
                 _ => "".to_string(),
             }),
             name,
