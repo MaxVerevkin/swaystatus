@@ -43,9 +43,10 @@ pub async fn run(
 ) -> Result<()> {
     let block_config = MusicConfig::deserialize(block_config).block_config_error("time")?;
 
-    let mut text = Widget::new(id, 0, shared_config.clone()).with_icon("music")?;
-    let mut play_pause_button =
-        Widget::new(id, PLAY_PAUSE_BTN, shared_config).with_spacing(Spacing::Hidden);
+    let mut text = Widget::new(id, shared_config.clone()).with_icon("music")?;
+    let mut play_pause_button = Widget::new(id, shared_config)
+        .with_instance(PLAY_PAUSE_BTN)
+        .with_spacing(Spacing::Hidden);
 
     // Connect to the D-Bus session bus (this is blocking, unfortunately).
     let (resource, dbus_conn) =

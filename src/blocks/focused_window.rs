@@ -148,8 +148,8 @@ pub async fn run(
                 _ => marks_str(&marks),
             };
 
-            let widget = Widget::new(id, 0, shared_config.clone())
-                .with_text(&format.render(&map! {
+            let widget = Widget::new(id, shared_config.clone())
+                .with_text(format.render(&map! {
                     "window" => Value::from_string(text),
                 })?)
                 .get_data();

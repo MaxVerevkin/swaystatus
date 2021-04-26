@@ -41,7 +41,7 @@ pub async fn run(
 
     let block_config = TimeConfig::deserialize(block_config).block_config_error("time")?;
     let mut interval = tokio::time::interval(Duration::from_secs(block_config.interval));
-    let mut text = Widget::new(id, 0, shared_config).with_icon("time")?;
+    let mut text = Widget::new(id, shared_config).with_icon("time")?;
 
     loop {
         text.set_text(Local::now().format(&block_config.format).to_string());

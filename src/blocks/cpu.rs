@@ -50,7 +50,7 @@ pub async fn run(
         None => None,
     };
 
-    let mut text = Widget::new(id, 0, shared_config).with_icon("cpu")?;
+    let mut text = Widget::new(id, shared_config).with_icon("cpu")?;
     let interval = Duration::from_secs(block_config.interval);
 
     // Store previous /proc/stat state

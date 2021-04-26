@@ -56,7 +56,7 @@ pub async fn run(
         None => None,
     };
 
-    let mut text = Widget::new(id, 0, shared_config.clone());
+    let mut text = Widget::new(id, shared_config.clone());
     let interval = Duration::from_secs(block_config.interval);
 
     // Stats

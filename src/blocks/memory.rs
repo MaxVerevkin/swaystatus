@@ -64,8 +64,8 @@ pub async fn run(
         FormatTemplate::from_string(&block_config.format_swap)?,
     );
 
-    let mut text_mem = Widget::new(id, 0, shared_config.clone()).with_icon("memory_mem")?;
-    let mut text_swap = Widget::new(id, 0, shared_config).with_icon("memory_swap")?;
+    let mut text_mem = Widget::new(id, shared_config.clone()).with_icon("memory_mem")?;
+    let mut text_swap = Widget::new(id, shared_config).with_icon("memory_swap")?;
 
     let mut memtype = block_config.display_type;
     let clickable = block_config.clickable;

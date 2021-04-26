@@ -272,8 +272,8 @@ pub async fn run(
             _ => "weather_default",
         };
 
-        let widget = Widget::new(id, 0, shared_config.clone())
-            .with_text(&fmt.render(&keys)?)
+        let widget = Widget::new(id, shared_config.clone())
+            .with_text(fmt.render(&keys)?)
             .with_icon(icon)?
             .get_data();
 

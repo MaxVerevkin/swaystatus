@@ -115,7 +115,7 @@ pub async fn run(
                     .map(|cmd| click_handlers.insert((instance, MouseButton::WheelDown), cmd));
 
                 // Create widget
-                let mut widget = Widget::new(id, instance, shared_config.clone());
+                let mut widget = Widget::new(id, shared_config.clone()).with_instance(instance);
 
                 // Maybe set text
                 if let Some(text) = widget_data.get("text") {
@@ -134,12 +134,11 @@ pub async fn run(
             (widgets, Some(click_handlers))
         } else {
             // No JSON, use standard output
-            let text =
-                Widget::new(id, 0, shared_config.clone()).with_text(&format.render(&map! {
-                    "stdout" => Value::from_string(stdout.to_string()),
-                    "stderr" => Value::from_string(stderr.to_string()),
-                    "exit_code" => Value::from_integer(exit_code as i64),
-                })?);
+            let text = Widget::new(id, shared_config.clone()).with_text(format.render(&map! {
+                "stdout" => Value::from_string(stdout.to_string()),
+                "stderr" => Value::from_string(stderr.to_string()),
+                "exit_code" => Value::from_integer(exit_code as i64),
+            })?);
             (vec![text.get_data()], None)
         };
 

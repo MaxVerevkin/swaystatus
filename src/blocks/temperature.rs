@@ -68,7 +68,7 @@ pub async fn run(
     let format = FormatTemplate::from_string(&block_config.format)?;
     let interval = Duration::from_secs(block_config.interval);
 
-    let mut text = Widget::new(id, 0, shared_config).with_icon("thermometer")?;
+    let mut text = Widget::new(id, shared_config).with_icon("thermometer")?;
 
     loop {
         // Construct a command

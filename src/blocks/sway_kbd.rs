@@ -40,7 +40,7 @@ pub async fn run(
 
     let block_config = SwayKbdConfig::deserialize(block_config).block_config_error("sway_kbd")?;
     let format = FormatTemplate::from_string(&block_config.format)?;
-    let mut text = Widget::new(id, 0, shared_config);
+    let mut text = Widget::new(id, shared_config);
 
     // New connection
     let mut connection = Connection::new()
@@ -48,11 +48,10 @@ pub async fn run(
         .block_error("sway_kbd", "failed to open swayipc connection")?;
 
     // Get current layout
-    let inputs = connection
+    let mut layout = connection
         .get_inputs()
         .await
-        .block_error("sway_kbd", "failed to get current input")?;
-    let mut layout = inputs
+        .block_error("sway_kbd", "failed to get current input")?
         .iter()
         .find(|i| i.input_type == "keyboard")
         .map(|i| i.xkb_active_layout_name.clone())
@@ -71,10 +70,10 @@ pub async fn run(
         } else {
             layout.clone()
         };
-        let values = map! {
+
+        text.set_text(format.render(&map! {
             "layout" => Value::from_string(layout_mapped),
-        };
-        text.set_text(format.render(&values)?);
+        })?);
 
         message_sender
             .send(BlockMessage {
@@ -92,14 +91,13 @@ pub async fn run(
                 .block_error("sway_kbd", "bad event")?
                 .block_error("sway_kbd", "bad event")?;
             if let Event::Input(event) = event {
-                match event.input.xkb_active_layout_name {
+                if let Some(new_layout) = event.input.xkb_active_layout_name {
                     // Update only if layout has changed
-                    Some(new_layout) if new_layout != layout => {
+                    if new_layout != layout {
                         layout = new_layout;
                         break;
                     }
-                    _ => (),
-                };
+                }
             }
         }
     }

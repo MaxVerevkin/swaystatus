@@ -116,15 +116,17 @@ impl FormatTemplate {
         for token in &self.tokens {
             match token {
                 Token::Text(text) => rendered.push(RenderedWidget::Text(
-                    Widget::new(id, rendered.len(), config.clone()).with_text(text),
+                    Widget::new(id, config.clone())
+                        .with_instance(rendered.len())
+                        .with_text(text.clone()),
                 )),
                 Token::Var(var) => rendered.push(RenderedWidget::Var(
                     var.name.clone(),
-                    Widget::new(id, rendered.len(), config.clone())
+                    Widget::new(id, config.clone())
+                        .with_instance(rendered.len())
                         .with_spacing(Spacing::Hidden)
                         .with_text(
-                            &vars
-                                .get(&*var.name)
+                            vars.get(&*var.name)
                                 .internal_error(
                                     "util",
                                     &format!("Unknown placeholder in format string: {}", var.name),

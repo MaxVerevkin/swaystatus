@@ -6,7 +6,7 @@ use crate::protocol::i3bar_block::I3BarBlock;
 #[derive(Clone, Debug)]
 pub struct Widget {
     id: usize,
-    instance: usize,
+    instance: Option<usize>,
     content: Option<String>,
     icon: Option<String>,
     state: State,
@@ -16,11 +16,10 @@ pub struct Widget {
 }
 
 impl Widget {
-    pub fn new(id: usize, instance: usize, shared_config: SharedConfig) -> Self {
+    pub fn new(id: usize, shared_config: SharedConfig) -> Self {
         let (key_bg, key_fg) = State::Idle.theme_keys(&shared_config.theme); // Initial colors
         let inner = I3BarBlock {
             name: Some(id.to_string()),
-            instance: Some(instance.to_string()),
             color: key_fg.clone(),
             background: key_bg.clone(),
             ..I3BarBlock::default()
@@ -28,7 +27,7 @@ impl Widget {
 
         Widget {
             id,
-            instance,
+            instance: None,
             content: None,
             icon: None,
             state: State::Idle,
@@ -38,35 +37,34 @@ impl Widget {
         }
     }
 
+    pub fn with_instance(mut self, instance: usize) -> Self {
+        self.instance = Some(instance);
+        self.inner.instance = Some(instance.to_string());
+        self
+    }
+
     pub fn with_icon(mut self, name: &str) -> Result<Self> {
-        self.icon = Some(self.shared_config.get_icon(name)?);
-        self.update();
+        self.set_icon(name)?;
         Ok(self)
     }
 
-    pub fn with_text(mut self, content: &str) -> Self {
-        self.content = Some(String::from(content));
-        self.update();
+    pub fn with_text(mut self, content: String) -> Self {
+        self.set_text(content);
         self
     }
 
     pub fn with_state(mut self, state: State) -> Self {
-        self.state = state;
-        self.update();
+        self.set_state(state);
         self
     }
 
-    #[allow(dead_code)]
     pub fn with_spacing(mut self, spacing: Spacing) -> Self {
-        self.spacing = spacing;
-        self.update();
+        self.set_spacing(spacing);
         self
     }
 
-    #[allow(dead_code)]
     pub fn set_icon(&mut self, name: &str) -> Result<()> {
         self.icon = Some(self.shared_config.get_icon(name)?);
-        self.update();
         Ok(())
     }
 
@@ -77,45 +75,44 @@ impl Widget {
             self.spacing = Spacing::Normal;
         }
         self.content = Some(content);
-        self.update();
     }
 
     pub fn set_state(&mut self, state: State) {
+        let (key_bg, key_fg) = state.theme_keys(&self.shared_config.theme);
+
         self.state = state;
-        self.update();
-    }
-
-    #[allow(dead_code)]
-    pub fn set_spacing(&mut self, spacing: Spacing) {
-        self.spacing = spacing;
-        self.update();
-    }
-
-    fn update(&mut self) {
-        let (key_bg, key_fg) = self.state.theme_keys(&self.shared_config.theme);
-
-        // When rendered inline, remove the leading space
-        self.inner.full_text = format!(
-            "{}{}{}",
-            self.icon.clone().unwrap_or_else(|| {
-                match self.spacing {
-                    Spacing::Normal => String::from(" "),
-                    _ => String::from(""),
-                }
-            }),
-            self.content.clone().unwrap_or_default(),
-            match self.spacing {
-                Spacing::Hidden => String::from(""),
-                _ => String::from(" "),
-            }
-        );
         self.inner.background = key_bg.clone();
         self.inner.color = key_fg.clone();
+    }
+
+    pub fn set_spacing(&mut self, spacing: Spacing) {
+        self.spacing = spacing;
     }
 }
 
 impl I3BarWidget for Widget {
     fn get_data(&self) -> I3BarBlock {
-        self.inner.clone()
+        let mut data = self.inner.clone();
+
+        data.full_text = format!(
+            "{}{}{}",
+            self.icon.clone().unwrap_or_else(|| {
+                match self.spacing {
+                    Spacing::Normal => " ",
+                    Spacing::Inline => "",
+                    Spacing::Hidden => "",
+                }
+                .to_string()
+            }),
+            self.content.clone().unwrap_or_default(),
+            match self.spacing {
+                Spacing::Normal => " ",
+                Spacing::Inline => " ",
+                Spacing::Hidden => "",
+            }
+            .to_string()
+        );
+
+        data
     }
 }

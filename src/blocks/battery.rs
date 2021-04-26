@@ -554,11 +554,11 @@ pub async fn run(
             status.unwrap_or_default(),
             capacity.ok().map(|c| c.clamp(0, 100)),
         ) {
-            (BatteryStatus::Empty, _) => Widget::new(id, 0, shared_config.clone())
+            (BatteryStatus::Empty, _) => Widget::new(id, shared_config.clone())
                 .with_icon(BATTERY_EMPTY_ICON)?
                 .with_state(State::Critical)
                 .with_spacing(Spacing::Hidden),
-            (BatteryStatus::Full, _) => Widget::new(id, 0, shared_config.clone())
+            (BatteryStatus::Full, _) => Widget::new(id, shared_config.clone())
                 .with_icon(BATTERY_FULL_ICON)?
                 .with_spacing(Spacing::Hidden),
             (status, Some(charge)) => {
@@ -581,12 +581,12 @@ pub async fn run(
                     }
                 };
 
-                Widget::new(id, 0, shared_config.clone())
-                    .with_text(&fmt.render(&vars)?)
+                Widget::new(id, shared_config.clone())
+                    .with_text(fmt.render(&vars)?)
                     .with_icon(icon)?
                     .with_state(state)
             }
-            _ => Widget::new(id, 0, shared_config.clone())
+            _ => Widget::new(id, shared_config.clone())
                 .with_icon(BATTERY_UNAVAILABLE_ICON)?
                 .with_state(State::Warning)
                 .with_spacing(Spacing::Hidden),
