@@ -87,7 +87,7 @@ pub async fn run(
             let event = events
                 .next()
                 .await
-                .block_error("sway_kbd", "bad event")?
+                .block_error("sway_kbd", "swayipc channel closed")?
                 .block_error("sway_kbd", "bad event")?;
             if let Event::Input(event) = event {
                 if let Some(new_layout) = event.input.xkb_active_layout_name {

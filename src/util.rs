@@ -1,5 +1,4 @@
-use crate::errors::*;
-use serde::de::DeserializeOwned;
+use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -7,9 +6,9 @@ use std::path::{Path, PathBuf};
 use std::prelude::v1::String;
 use std::process::Command;
 
+use crate::errors::*;
+use serde::de::DeserializeOwned;
 use tokio::io::AsyncReadExt;
-
-pub const USR_SHARE_PATH: &str = "/usr/share/swaystatus";
 
 /// Tries to find a file in standard locations:
 /// - Fist try to find a file by full path
@@ -31,17 +30,19 @@ pub fn find_file(file: &str, subdir: Option<&str>, extension: Option<&str>) -> O
     }
 
     // Try XDG_CONFIG_HOME
-    let mut xdg_config_path = xdg_config_home().join("swaystatus");
-    if let Some(subdir) = subdir {
-        xdg_config_path = xdg_config_path.join(subdir);
-    }
-    xdg_config_path = xdg_config_path.join(&file);
-    if xdg_config_path.exists() {
-        return Some(xdg_config_path);
+    if let Some(xdg_config) = xdg_config_home() {
+        let mut xdg_config = xdg_config.join("swaystatus");
+        if let Some(subdir) = subdir {
+            xdg_config = xdg_config.join(subdir);
+        }
+        xdg_config = xdg_config.join(&file);
+        if xdg_config.exists() {
+            return Some(xdg_config);
+        }
     }
 
     // Try `~/.local/share/`
-    if let Ok(home) = std::env::var("HOME") {
+    if let Ok(home) = env::var("HOME") {
         let mut local_share_path = PathBuf::from(home).join(".local/share/swaystatus");
         if let Some(subdir) = subdir {
             local_share_path = local_share_path.join(subdir);
@@ -53,7 +54,7 @@ pub fn find_file(file: &str, subdir: Option<&str>, extension: Option<&str>) -> O
     }
 
     // Try `/usr/share/`
-    let mut usr_share_path = PathBuf::from(USR_SHARE_PATH);
+    let mut usr_share_path = PathBuf::from("/usr/share/swaystatus");
     if let Some(subdir) = subdir {
         usr_share_path = usr_share_path.join(subdir);
     }
@@ -77,13 +78,16 @@ pub fn escape_pango_text(text: String) -> String {
         .collect()
 }
 
-pub fn xdg_config_home() -> PathBuf {
-    // In the unlikely event that $HOME is not set, it doesn't really matter
-    // what we fall back on, so use /.config.
-    PathBuf::from(std::env::var("XDG_CONFIG_HOME").unwrap_or(format!(
-        "{}/.config",
-        std::env::var("HOME").unwrap_or_default()
-    )))
+pub fn xdg_config_home() -> Option<PathBuf> {
+    // If XDG_CONFIG_HOME is not set, fall back to use HOME/.config
+    env::var("XDG_CONFIG_HOME")
+        .ok()
+        .or_else(|| {
+            env::var("HOME")
+                .ok()
+                .map(|home| format!("{}/.config", home))
+        })
+        .map(PathBuf::from)
 }
 
 pub fn deserialize_file<T>(path: &Path) -> Result<T>

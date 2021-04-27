@@ -6,7 +6,7 @@ use tokio_stream::StreamExt;
 
 use crate::blocks::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
-use crate::errors::{BlockError, Result, ResultExt};
+use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
 use crate::widgets::widget::Widget;
 
@@ -82,9 +82,12 @@ pub async fn run(
     };
 
     // Main loop
-    while let Some(event) = events.next().await {
-        let event =
-            event.block_error("focused_window", "could not read event in `window` block")?;
+    loop {
+        let event = events
+            .next()
+            .await
+            .block_error("focused_window", "swayipc channel closed")?
+            .block_error("focused_window", "bad event")?;
 
         let updated = match event {
             Event::Window(e) => match (e.change, e.container) {
@@ -162,11 +165,4 @@ pub async fn run(
                 .internal_error("focused_window", "failed to send message")?;
         }
     }
-
-    Err(BlockError {
-        block: "focused_window".to_string(),
-        message: "swayipc channel closed".to_string(),
-        cause: None,
-        cause_dbg: None,
-    })
 }
