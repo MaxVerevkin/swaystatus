@@ -11,7 +11,6 @@ pub mod sway_kbd;
 pub mod temperature;
 pub mod time;
 pub mod weather;
-pub mod wifi;
 
 use serde::de::Deserialize;
 use std::collections::HashMap;
@@ -41,7 +40,6 @@ pub enum BlockType {
     Temperature,
     Time,
     Weather,
-    Wifi,
 }
 
 #[derive(Debug)]
@@ -134,6 +132,5 @@ pub async fn run_block(
         }
         Time => time::run(id, block_config, shared_config, message_tx, events_rx).await,
         Weather => weather::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Wifi => wifi::run(id, block_config, shared_config, message_tx, events_rx).await,
     }
 }

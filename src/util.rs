@@ -208,6 +208,25 @@ pub fn format_vec_to_bar_graph(content: &[f64]) -> String {
         .collect()
 }
 
+pub fn decode_escaped_unicode(raw: &[u8]) -> String {
+    let mut result: Vec<u8> = Vec::new();
+
+    let mut idx = 0;
+    while idx < raw.len() {
+        if raw[idx] == b'\\' {
+            idx += 2; // skip "\x"
+            let hex = std::str::from_utf8(&raw[idx..idx + 2]).unwrap();
+            result.extend(Some(u8::from_str_radix(hex, 16).unwrap()));
+            idx += 2;
+        } else {
+            result.extend(Some(&raw[idx]));
+            idx += 1;
+        }
+    }
+
+    String::from_utf8_lossy(&result).to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::util::{color_from_rgba, has_command};

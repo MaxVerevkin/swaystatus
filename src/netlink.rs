@@ -1,3 +1,5 @@
+use crate::errors::*;
+use crate::util::{decode_escaped_unicode, escape_pango_text};
 use neli::{
     consts::{nl::*, rtnl::*, socket::*},
     nl::{NlPayload, Nlmsghdr},
@@ -74,4 +76,48 @@ pub fn default_interface() -> Option<String> {
     }
 
     None
+}
+
+/// Queries the wireless SSID of this device, if it is connected to one.
+pub fn wifi_info(target_device: &str) -> Result<(Option<String>, Option<f64>, Option<i64>)> {
+    let interfaces = nl80211::Socket::connect()
+        .block_error("net", "nl80211: failed to connect to the socket")?
+        .get_interfaces_info()
+        .block_error("net", "nl80211: failed to get interfaces' information")?;
+
+    for interface in interfaces {
+        if let Ok(ap) = interface.get_station_info() {
+            // SSID is `None` when not connected
+            if let (Some(ssid), Some(device)) = (interface.ssid, interface.name) {
+                let device = String::from_utf8_lossy(&device);
+                let device = device.trim_matches(char::from(0));
+                if device != target_device {
+                    continue;
+                }
+
+                let ssid = Some(escape_pango_text(decode_escaped_unicode(&ssid)));
+                let freq = interface
+                    .frequency
+                    .map(|f| nl80211::parse_u32(&f) as f64 * 1e6);
+                let signal = ap.signal.map(|s| signal_percents(nl80211::parse_i8(&s)));
+
+                return Ok((ssid, freq, signal));
+            }
+        }
+    }
+
+    Ok((None, None, None))
+}
+
+fn signal_percents(raw: i8) -> i64 {
+    let raw = raw as f64;
+
+    let perfect = -20.;
+    let worst = -85.;
+    let d = perfect - worst;
+
+    // https://github.com/torvalds/linux/blob/9ff9b0d392ea08090cd1780fb196f36dbb586529/drivers/net/wireless/intel/ipw2x00/ipw2200.c#L4322-L4334
+    let percents = 100. - (perfect - raw) * (15. * d + 62. * (perfect - raw)) / (d * d);
+
+    (percents as i64).clamp(0, 100)
 }

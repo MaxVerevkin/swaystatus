@@ -10,7 +10,7 @@ use crate::click::MouseButton;
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
-use crate::netlink::default_interface;
+use crate::netlink::{default_interface, wifi_info};
 use crate::util;
 use crate::widgets::widget::Widget;
 
@@ -24,7 +24,7 @@ pub struct NetConfig {
     pub format_alt: Option<String>,
 
     /// Format string for `Net` block.
-    pub interface: Option<String>,
+    pub device: Option<String>,
 
     /// The delay in seconds between updates.
     pub interval: u64,
@@ -35,7 +35,7 @@ impl Default for NetConfig {
         Self {
             format: "{speed_down;K}{speed_up;k}".to_string(),
             format_alt: None,
-            interface: None,
+            device: None,
             interval: 2,
         }
     }
@@ -70,7 +70,7 @@ pub async fn run(
 
         // Get interface name
         let interface = block_config
-            .interface
+            .device
             .clone()
             .or_else(default_interface)
             .unwrap_or_else(|| "lo".to_string());
@@ -92,16 +92,21 @@ pub async fn run(
                 stats = Some(new_stats);
             }
         }
-
         push_to_hist(&mut rx_hist, speed_down);
         push_to_hist(&mut tx_hist, speed_up);
 
+        // Get WiFi information
+        let wifi = wifi_info(&interface)?;
+
         text.set_text(format.render(&map! {
+            "ssid" => Value::from_string(wifi.0.unwrap_or_else(|| "N/A".to_string())),
+            "signal_stength" => Value::from_integer(wifi.2.unwrap_or_default()).percents(),
+            "frequency" => Value::from_float(wifi.1.unwrap_or_default()).hertz(),
             "speed_down" => Value::from_float(speed_down).bytes().icon(shared_config.get_icon("net_down")?),
             "speed_up" => Value::from_float(speed_up).bytes().icon(shared_config.get_icon("net_up")?),
             "graph_down" => Value::from_string(util::format_vec_to_bar_graph(&rx_hist)),
             "graph_up" => Value::from_string(util::format_vec_to_bar_graph(&tx_hist)),
-            "interface" => Value::from_string(interface),
+            "device" => Value::from_string(interface),
         })?);
 
         message_sender
@@ -142,7 +147,7 @@ async fn read_stats(interface: &str) -> Option<(u64, u64)> {
     Some((rx, tx))
 }
 
-fn push_to_hist(hist: &mut [f64], elem: f64) {
+fn push_to_hist<T>(hist: &mut [T], elem: T) {
     hist[0] = elem;
     hist.rotate_left(1);
 }
@@ -152,19 +157,18 @@ mod tests {
     use super::push_to_hist;
 
     #[test]
-    #[allow(clippy::float_cmp)]
     fn test_push_to_hist() {
-        let mut hist = [0f64; 4];
-        assert_eq!(&hist, &[0., 0., 0., 0.]);
-        push_to_hist(&mut hist, 1.);
-        assert_eq!(&hist, &[0., 0., 0., 1.]);
-        push_to_hist(&mut hist, 3.);
-        assert_eq!(&hist, &[0., 0., 1., 3.]);
-        push_to_hist(&mut hist, 0.);
-        assert_eq!(&hist, &[0., 1., 3., 0.]);
-        push_to_hist(&mut hist, 10.);
-        assert_eq!(&hist, &[1., 3., 0., 10.]);
-        push_to_hist(&mut hist, 2.);
-        assert_eq!(&hist, &[3., 0., 10., 2.]);
+        let mut hist = [0; 4];
+        assert_eq!(&hist, &[0, 0, 0, 0]);
+        push_to_hist(&mut hist, 1);
+        assert_eq!(&hist, &[0, 0, 0, 1]);
+        push_to_hist(&mut hist, 3);
+        assert_eq!(&hist, &[0, 0, 1, 3]);
+        push_to_hist(&mut hist, 0);
+        assert_eq!(&hist, &[0, 1, 3, 0]);
+        push_to_hist(&mut hist, 10);
+        assert_eq!(&hist, &[1, 3, 0, 10]);
+        push_to_hist(&mut hist, 2);
+        assert_eq!(&hist, &[3, 0, 10, 2]);
     }
 }
