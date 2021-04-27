@@ -1,5 +1,3 @@
-use crate::errors::*;
-use crate::util::{decode_escaped_unicode, escape_pango_text};
 use neli::{
     consts::{nl::*, rtnl::*, socket::*},
     nl::{NlPayload, Nlmsghdr},
@@ -7,7 +5,113 @@ use neli::{
     socket::*,
     types::RtBuffer,
 };
+
 use std::convert::TryInto;
+use std::path::{Path, PathBuf};
+
+use crate::errors::*;
+use crate::util;
+use crate::util::{decode_escaped_unicode, escape_pango_text};
+
+#[derive(Debug)]
+pub struct NetDevice {
+    pub interface: String,
+    pub path: PathBuf,
+    pub wireless: bool,
+    pub tun: bool,
+    pub wg: bool,
+    pub ppp: bool,
+    pub icon: &'static str,
+}
+
+impl NetDevice {
+    /// Use the network device `device`. Raises an error if a directory for that
+    /// device is not found.
+    pub async fn from_interface(interface: String) -> Self {
+        let path = Path::new("/sys/class/net").join(interface.clone());
+
+        // I don't believe that this should ever change, so set it now:
+        let wireless = path.join("wireless").exists();
+        let tun = path.join("tun_flags").exists()
+            || interface.starts_with("tun")
+            || interface.starts_with("tap");
+
+        let uevent_path = path.join("uevent");
+        let uevent_content = util::read_file(&uevent_path).await;
+
+        let wg = match &uevent_content {
+            Ok(s) => s.contains("wireguard"),
+            Err(_e) => false,
+        };
+        let ppp = match &uevent_content {
+            Ok(s) => s.contains("ppp"),
+            Err(_e) => false,
+        };
+
+        let icon = if wireless {
+            "net_wireless"
+        } else if tun || wg || ppp {
+            "net_vpn"
+        } else if interface == "lo" {
+            "net_loopback"
+        } else {
+            "net_wired"
+        };
+
+        NetDevice {
+            interface,
+            path,
+            wireless,
+            tun,
+            wg,
+            ppp,
+            icon,
+        }
+    }
+
+    pub async fn read_stats(&self) -> Option<(u64, u64)> {
+        let rx: u64 = util::read_file(&self.path.join("statistics/rx_bytes"))
+            .await
+            .ok()
+            .and_then(|x| x.parse().ok())?;
+        let tx: u64 = util::read_file(&self.path.join("statistics/tx_bytes"))
+            .await
+            .ok()
+            .and_then(|x| x.parse().ok())?;
+        Some((rx, tx))
+    }
+
+    /// Queries the wireless SSID of this device, if it is connected to one.
+    pub fn wifi_info(&self) -> Result<(Option<String>, Option<f64>, Option<i64>)> {
+        let interfaces = nl80211::Socket::connect()
+            .block_error("net", "nl80211: failed to connect to the socket")?
+            .get_interfaces_info()
+            .block_error("net", "nl80211: failed to get interfaces' information")?;
+
+        for interface in interfaces {
+            if let Ok(ap) = interface.get_station_info() {
+                // SSID is `None` when not connected
+                if let (Some(ssid), Some(device)) = (interface.ssid, interface.name) {
+                    let device = String::from_utf8_lossy(&device);
+                    let device = device.trim_matches(char::from(0));
+                    if device != self.interface {
+                        continue;
+                    }
+
+                    let ssid = Some(escape_pango_text(decode_escaped_unicode(&ssid)));
+                    let freq = interface
+                        .frequency
+                        .map(|f| nl80211::parse_u32(&f) as f64 * 1e6);
+                    let signal = ap.signal.map(|s| signal_percents(nl80211::parse_i8(&s)));
+
+                    return Ok((ssid, freq, signal));
+                }
+            }
+        }
+
+        Ok((None, None, None))
+    }
+}
 
 fn index_to_interface(index: u32) -> String {
     let mut buff = [0i8; 16];
@@ -76,37 +180,6 @@ pub fn default_interface() -> Option<String> {
     }
 
     None
-}
-
-/// Queries the wireless SSID of this device, if it is connected to one.
-pub fn wifi_info(target_device: &str) -> Result<(Option<String>, Option<f64>, Option<i64>)> {
-    let interfaces = nl80211::Socket::connect()
-        .block_error("net", "nl80211: failed to connect to the socket")?
-        .get_interfaces_info()
-        .block_error("net", "nl80211: failed to get interfaces' information")?;
-
-    for interface in interfaces {
-        if let Ok(ap) = interface.get_station_info() {
-            // SSID is `None` when not connected
-            if let (Some(ssid), Some(device)) = (interface.ssid, interface.name) {
-                let device = String::from_utf8_lossy(&device);
-                let device = device.trim_matches(char::from(0));
-                if device != target_device {
-                    continue;
-                }
-
-                let ssid = Some(escape_pango_text(decode_escaped_unicode(&ssid)));
-                let freq = interface
-                    .frequency
-                    .map(|f| nl80211::parse_u32(&f) as f64 * 1e6);
-                let signal = ap.signal.map(|s| signal_percents(nl80211::parse_i8(&s)));
-
-                return Ok((ssid, freq, signal));
-            }
-        }
-    }
-
-    Ok((None, None, None))
 }
 
 fn signal_percents(raw: i8) -> i64 {

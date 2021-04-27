@@ -1,8 +1,5 @@
 use serde::de::Deserialize;
-use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use tokio::fs::File;
-use tokio::io::{AsyncReadExt, BufReader};
 use tokio::sync::mpsc;
 
 use super::{BlockEvent, BlockMessage};
@@ -10,7 +7,7 @@ use crate::click::MouseButton;
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
-use crate::netlink::{default_interface, wifi_info};
+use crate::netlink::{default_interface, NetDevice};
 use crate::util;
 use crate::widgets::widget::Widget;
 
@@ -69,14 +66,17 @@ pub async fn run(
         let mut speed_up: f64 = 0.0;
 
         // Get interface name
-        let interface = block_config
-            .device
-            .clone()
-            .or_else(default_interface)
-            .unwrap_or_else(|| "lo".to_string());
+        let device = NetDevice::from_interface(
+            block_config
+                .device
+                .clone()
+                .or_else(default_interface)
+                .unwrap_or_else(|| "lo".to_string()),
+        )
+        .await;
 
         // Calculate speed
-        match (stats, read_stats(&interface).await) {
+        match (stats, device.read_stats().await) {
             // No previous stats available
             (None, new_stats) => stats = new_stats,
             // No new stats available
@@ -96,8 +96,9 @@ pub async fn run(
         push_to_hist(&mut tx_hist, speed_up);
 
         // Get WiFi information
-        let wifi = wifi_info(&interface)?;
+        let wifi = device.wifi_info()?;
 
+        text.set_icon(device.icon)?;
         text.set_text(format.render(&map! {
             "ssid" => Value::from_string(wifi.0.unwrap_or_else(|| "N/A".to_string())),
             "signal_stength" => Value::from_integer(wifi.2.unwrap_or_default()).percents(),
@@ -106,7 +107,7 @@ pub async fn run(
             "speed_up" => Value::from_float(speed_up).bytes().icon(shared_config.get_icon("net_up")?),
             "graph_down" => Value::from_string(util::format_vec_to_bar_graph(&rx_hist)),
             "graph_up" => Value::from_string(util::format_vec_to_bar_graph(&tx_hist)),
-            "device" => Value::from_string(interface),
+            "device" => Value::from_string(device.interface),
         })?);
 
         message_sender
@@ -128,23 +129,6 @@ pub async fn run(
             }
         }
     }
-}
-
-async fn read_stats(interface: &str) -> Option<(u64, u64)> {
-    let mut path = PathBuf::from("/sys/class/net");
-    path = path.join(interface);
-    let mut buf = String::new();
-
-    let mut file = BufReader::new(File::open(path.join("statistics/rx_bytes")).await.ok()?);
-    file.read_to_string(&mut buf).await.ok()?;
-    let rx: u64 = buf.trim().parse().ok()?;
-    buf.clear();
-
-    let mut file = BufReader::new(File::open(path.join("statistics/tx_bytes")).await.ok()?);
-    file.read_to_string(&mut buf).await.ok()?;
-    let tx: u64 = buf.trim().parse().ok()?;
-
-    Some((rx, tx))
 }
 
 fn push_to_hist<T>(hist: &mut [T], elem: T) {
