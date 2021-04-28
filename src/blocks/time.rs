@@ -1,7 +1,11 @@
-use chrono::offset::Local;
 use serde::de::Deserialize;
+use std::convert::TryInto;
 use std::time::Duration;
 use tokio::sync::mpsc;
+
+use chrono::offset::{Local, Utc};
+use chrono::Locale;
+use chrono_tz::Tz;
 
 use super::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
@@ -17,6 +21,10 @@ struct TimeConfig {
 
     /// Update interval in seconds
     interval: u64,
+
+    pub timezone: Option<Tz>,
+
+    pub locale: Option<String>,
 }
 
 impl Default for TimeConfig {
@@ -24,6 +32,8 @@ impl Default for TimeConfig {
         Self {
             format: "%a %d/%m %R".to_string(),
             interval: 5,
+            timezone: None,
+            locale: None,
         }
     }
 }
@@ -43,7 +53,27 @@ pub async fn run(
     let mut text = Widget::new(id, shared_config).with_icon("time")?;
 
     loop {
-        text.set_text(Local::now().format(&block_config.format).to_string());
+        let time = match &block_config.locale {
+            Some(l) => {
+                let locale: Locale = l
+                    .as_str()
+                    .try_into()
+                    .ok()
+                    .block_error("time", "invalid locale")?;
+                match block_config.timezone {
+                    Some(tz) => Utc::now()
+                        .with_timezone(&tz)
+                        .format_localized(&block_config.format, locale),
+                    None => Local::now().format_localized(&block_config.format, locale),
+                }
+            }
+            None => match block_config.timezone {
+                Some(tz) => Utc::now().with_timezone(&tz).format(&block_config.format),
+                None => Local::now().format(&block_config.format),
+            },
+        };
+        text.set_text(time.to_string());
+
         message_sender
             .send(BlockMessage {
                 id,
