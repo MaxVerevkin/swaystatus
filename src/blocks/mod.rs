@@ -5,6 +5,7 @@ mod custom;
 mod disk_space;
 mod focused_window;
 mod github;
+mod load;
 mod memory;
 mod music;
 mod net;
@@ -35,6 +36,7 @@ pub enum BlockType {
     DiskSpace,
     FocusedWindow,
     Github,
+    Load,
     Memory,
     Music,
     Net,
@@ -126,6 +128,7 @@ pub async fn run_block(
             focused_window::run(id, block_config, shared_config, message_tx, events_rx).await
         }
         Github => github::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Load => load::run(id, block_config, shared_config, message_tx, events_rx).await,
         Memory => memory::run(id, block_config, shared_config, message_tx, events_rx).await,
         Music => music::run(id, block_config, shared_config, message_tx, events_rx).await,
         Net => net::run(id, block_config, shared_config, message_tx, events_rx).await,

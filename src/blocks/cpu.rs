@@ -2,10 +2,9 @@ use std::str::FromStr;
 use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::sync::mpsc;
 
 use serde::de::Deserialize;
-
-use tokio::sync::mpsc;
 
 use super::{BlockEvent, BlockMessage};
 use crate::click::MouseButton;
@@ -43,7 +42,6 @@ pub async fn run(
     mut events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
     let block_config = CpuConfig::deserialize(block_config).block_config_error("cpu")?;
-
     let mut format = FormatTemplate::from_string(&block_config.format)?;
     let mut format_alt = match block_config.format_alt {
         Some(ref format_alt) => Some(FormatTemplate::from_string(format_alt)?),
