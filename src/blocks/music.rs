@@ -20,17 +20,24 @@ use crate::widgets::widget::Widget;
 use crate::widgets::{Spacing, State};
 
 const PLAY_PAUSE_BTN: usize = 1;
+const NEXT_BTN: usize = 2;
+const PREV_BTN: usize = 3;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct MusicConfig {
     // TODO add stuff here
     width: usize,
+
+    buttons: Vec<String>,
 }
 
 impl Default for MusicConfig {
     fn default() -> Self {
-        Self { width: 10 }
+        Self {
+            width: 10,
+            buttons: Vec::new(),
+        }
     }
 }
 
@@ -41,12 +48,20 @@ pub async fn run(
     message_sender: mpsc::Sender<BlockMessage>,
     mut events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
-    let block_config = MusicConfig::deserialize(block_config).block_config_error("time")?;
+    let block_config = MusicConfig::deserialize(block_config).block_config_error("music")?;
 
     let mut text = Widget::new(id, shared_config.clone()).with_icon("music")?;
-    let mut play_pause_button = Widget::new(id, shared_config)
+    let mut play_pause_button = Widget::new(id, shared_config.clone())
         .with_instance(PLAY_PAUSE_BTN)
         .with_spacing(Spacing::Hidden);
+    let mut next_button = Widget::new(id, shared_config.clone())
+        .with_instance(NEXT_BTN)
+        .with_spacing(Spacing::Hidden)
+        .with_icon("music_next")?;
+    let mut prev_button = Widget::new(id, shared_config)
+        .with_instance(PREV_BTN)
+        .with_spacing(Spacing::Hidden)
+        .with_icon("music_prev")?;
 
     // Connect to the D-Bus session bus (this is blocking, unfortunately).
     let (resource, dbus_conn) =
@@ -77,23 +92,33 @@ pub async fn run(
             Some(ref player) => {
                 text.set_text(escape_pango_text(player.display(block_config.width)));
 
-                text.set_state(State::Idle);
-                play_pause_button.set_state(State::Idle);
-
                 match player.status {
-                    PlaybackStatus::Paused => {
-                        play_pause_button.set_icon("music_play")?;
-                        vec![text.get_data(), play_pause_button.get_data()]
-                    }
                     PlaybackStatus::Playing => {
                         text.set_state(State::Info);
                         play_pause_button.set_state(State::Info);
-
+                        next_button.set_state(State::Info);
+                        prev_button.set_state(State::Info);
                         play_pause_button.set_icon("music_pause")?;
-                        vec![text.get_data(), play_pause_button.get_data()]
                     }
-                    _ => vec![text.get_data()],
+                    _ => {
+                        text.set_state(State::Idle);
+                        play_pause_button.set_state(State::Idle);
+                        next_button.set_state(State::Idle);
+                        prev_button.set_state(State::Idle);
+                        play_pause_button.set_icon("music_play")?;
+                    }
                 }
+
+                let mut output = vec![text.get_data()];
+                for button in &block_config.buttons {
+                    match button.as_str() {
+                        "play" => output.push(play_pause_button.get_data()),
+                        "next" => output.push(next_button.get_data()),
+                        "prev" => output.push(prev_button.get_data()),
+                        _ => (),
+                    }
+                }
+                output
             }
             None => {
                 text.set_text(String::new());
