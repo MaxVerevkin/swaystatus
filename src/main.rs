@@ -70,7 +70,8 @@ fn main() {
         .get_matches();
 
     // Build the runtime adn run the program
-    let result = tokio::runtime::Builder::new_current_thread()
+    let result = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
         .max_blocking_threads(2)
         .enable_all()
         .build()
@@ -121,7 +122,6 @@ async fn run(config: Option<String>, noinit: bool, never_pause: bool) -> Result<
 
     let config: Config = deserialize_file(&config_path)?;
     let shared_config = SharedConfig::new(&config);
-    let blocks_local = tokio::task::LocalSet::new();
 
     // Initialize the blocks
     let mut blocks_events: Vec<mpsc::Sender<BlockEvent>> = Vec::new();
@@ -145,38 +145,36 @@ async fn run(config: Option<String>, noinit: bool, never_pause: bool) -> Result<
     // Listen to signals and clicks
     let (signals_sender, mut signals_receiver) = mpsc::channel(64);
     let (events_sender, mut events_receiver) = mpsc::channel(64);
-    blocks_local.spawn_local(process_signals(signals_sender));
-    blocks_local.spawn_local(process_events(events_sender, config.invert_scrolling));
+    tokio::spawn(process_signals(signals_sender));
+    tokio::spawn(process_events(events_sender, config.invert_scrolling));
 
     // Main loop
     let mut rendered = vec![Vec::<I3BarBlock>::new(); blocks_events.len()];
-    blocks_local.run_until(async move {
-        loop {
-            tokio::select! {
-                // Handle blocks' errors
-                Some(block_result) = blocks_tasks.next() => block_result?,
-                // Recieve widgets from blocks
-                Some(message) = message_receiver.recv() => {
-                    *rendered.get_mut(message.id).internal_error("handle block's message", "failed to get block")? = message.widgets;
-                    protocol::print_blocks(&rendered, &shared_config)?;
-                }
-                // Handle clicks
-                Some(event) = events_receiver.recv() => {
-                    let blocks_event = blocks_events.get(event.id).unwrap();
-                    blocks_event.send(BlockEvent::I3Bar(event)).await.unwrap();
-                }
-                // Handle signals
-                Some(signal) = signals_receiver.recv() => match signal {
-                    Signal::Usr2 => restart(),
-                    signal => {
-                        for block in &blocks_events {
-                            block.send(BlockEvent::Signal(signal)).await.unwrap();
-                        }
+    loop {
+        tokio::select! {
+            // Handle blocks' errors
+            Some(block_result) = blocks_tasks.next() => block_result?,
+            // Recieve widgets from blocks
+            Some(message) = message_receiver.recv() => {
+                *rendered.get_mut(message.id).internal_error("handle block's message", "failed to get block")? = message.widgets;
+                protocol::print_blocks(&rendered, &shared_config)?;
+            }
+            // Handle clicks
+            Some(event) = events_receiver.recv() => {
+                let blocks_event = blocks_events.get(event.id).unwrap();
+                blocks_event.send(BlockEvent::I3Bar(event)).await.unwrap();
+            }
+            // Handle signals
+            Some(signal) = signals_receiver.recv() => match signal {
+                Signal::Usr2 => restart(),
+                signal => {
+                    for block in &blocks_events {
+                        block.send(BlockEvent::Signal(signal)).await.unwrap();
                     }
                 }
             }
         }
-    }).await
+    }
 }
 
 /// Restart `swaystatus` in-place

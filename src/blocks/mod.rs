@@ -2,6 +2,7 @@ mod backlight;
 mod battery;
 mod cpu;
 mod custom;
+mod custom_dbus;
 mod disk_space;
 mod focused_window;
 mod github;
@@ -33,6 +34,7 @@ pub enum BlockType {
     Battery,
     Cpu,
     Custom,
+    CustomDbus,
     DiskSpace,
     FocusedWindow,
     Github,
@@ -46,7 +48,7 @@ pub enum BlockType {
     Weather,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockMessage {
     pub id: usize,
     pub widgets: Vec<I3BarBlock>,
@@ -104,7 +106,7 @@ pub async fn run_block(
 
     // Spawn event handler
     let (evets_tx, events_rx) = mpsc::channel(64);
-    tokio::task::spawn_local(async move {
+    tokio::spawn(async move {
         while let Some(event) = events_reciever.recv().await {
             if let BlockEvent::I3Bar(click) = event {
                 let update = click_handler.handle(click.button).await;
@@ -123,6 +125,9 @@ pub async fn run_block(
         Battery => battery::run(id, block_config, shared_config, message_tx, events_rx).await,
         Cpu => cpu::run(id, block_config, shared_config, message_tx, events_rx).await,
         Custom => custom::run(id, block_config, shared_config, message_tx, events_rx).await,
+        CustomDbus => {
+            custom_dbus::run(id, block_config, shared_config, message_tx, events_rx).await
+        }
         DiskSpace => disk_space::run(id, block_config, shared_config, message_tx, events_rx).await,
         FocusedWindow => {
             focused_window::run(id, block_config, shared_config, message_tx, events_rx).await

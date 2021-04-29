@@ -25,7 +25,7 @@ impl Widget {
         Widget {
             content: None,
             icon: None,
-            spacing: Spacing::Normal,
+            spacing: Spacing::Hidden,
             shared_config,
             inner,
         }

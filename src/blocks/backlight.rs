@@ -79,15 +79,15 @@ pub struct BacklitDevice {
     device_path: PathBuf,
     max_brightness: u64,
     root_scaling: f64,
-    dbus_proxy: dbus::nonblock::Proxy<'static, Arc<dbus::nonblock::LocalConnection>>,
+    dbus_proxy: dbus::nonblock::Proxy<'static, Arc<dbus::nonblock::SyncConnection>>,
 }
 
 impl BacklitDevice {
     fn new(max_brightness: u64, device_path: PathBuf, root_scaling: f64) -> Result<Self> {
-        let (ressource, dbus_conn) = dbus_tokio::connection::new_system_local()
+        let (ressource, dbus_conn) = dbus_tokio::connection::new_system_sync()
             .block_error("backlight", "Failed to open dbus connection")?;
 
-        tokio::task::spawn_local(async move {
+        tokio::spawn(async move {
             let err = ressource.await;
             panic!("Lost connection to D-Bus: {}", err);
         });

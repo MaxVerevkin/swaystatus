@@ -245,17 +245,17 @@ impl BatteryDevice for PowerSupplyDevice {
 // ---
 
 pub struct UPowerDevice {
-    dbus_conn: Arc<dbus::nonblock::LocalConnection>,
-    dbus_proxy: dbus::nonblock::Proxy<'static, Arc<dbus::nonblock::LocalConnection>>,
+    dbus_conn: Arc<dbus::nonblock::SyncConnection>,
+    dbus_proxy: dbus::nonblock::Proxy<'static, Arc<dbus::nonblock::SyncConnection>>,
     device_path: dbus::Path<'static>,
 }
 
 impl UPowerDevice {
     async fn from_device(device: &str) -> Result<Self> {
-        let (ressource, dbus_conn) = dbus_tokio::connection::new_system_local()
+        let (ressource, dbus_conn) = dbus_tokio::connection::new_system_sync()
             .block_error("battery", "Failed to open dbus connection")?;
 
-        tokio::task::spawn_local(async move {
+        tokio::spawn(async move {
             let err = ressource.await;
             panic!("Lost connection to D-Bus: {}", err);
         });
