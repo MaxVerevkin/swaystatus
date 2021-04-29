@@ -22,9 +22,9 @@ struct TimeConfig {
     /// Update interval in seconds
     interval: u64,
 
-    pub timezone: Option<Tz>,
+    timezone: Option<Tz>,
 
-    pub locale: Option<String>,
+    locale: Option<String>,
 }
 
 impl Default for TimeConfig {

@@ -1,16 +1,17 @@
-pub mod backlight;
-pub mod battery;
-pub mod cpu;
-pub mod custom;
-pub mod focused_window;
-pub mod github;
-pub mod memory;
-pub mod music;
-pub mod net;
-pub mod sway_kbd;
-pub mod temperature;
-pub mod time;
-pub mod weather;
+mod backlight;
+mod battery;
+mod cpu;
+mod custom;
+mod disk_space;
+mod focused_window;
+mod github;
+mod memory;
+mod music;
+mod net;
+mod sway_kbd;
+mod temperature;
+mod time;
+mod weather;
 
 use serde::de::Deserialize;
 use std::collections::HashMap;
@@ -31,6 +32,7 @@ pub enum BlockType {
     Battery,
     Cpu,
     Custom,
+    DiskSpace,
     FocusedWindow,
     Github,
     Memory,
@@ -119,6 +121,7 @@ pub async fn run_block(
         Battery => battery::run(id, block_config, shared_config, message_tx, events_rx).await,
         Cpu => cpu::run(id, block_config, shared_config, message_tx, events_rx).await,
         Custom => custom::run(id, block_config, shared_config, message_tx, events_rx).await,
+        DiskSpace => disk_space::run(id, block_config, shared_config, message_tx, events_rx).await,
         FocusedWindow => {
             focused_window::run(id, block_config, shared_config, message_tx, events_rx).await
         }
