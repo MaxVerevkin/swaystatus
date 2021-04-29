@@ -6,7 +6,9 @@ use tokio::process::Command;
 use tokio::sync::mpsc;
 
 use super::{BlockEvent, BlockMessage};
+use crate::click::MouseButton;
 use crate::config::SharedConfig;
+use crate::de::deserialize_duration;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
 use crate::widgets::widget::Widget;
@@ -17,34 +19,40 @@ type InputReadings = HashMap<String, f64>;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
-pub struct TemperatureConfig {
-    pub format: String,
+struct TemperatureConfig {
+    /// Format string
+    format: String,
 
     /// Update interval in seconds
-    pub interval: u64,
+    #[serde(deserialize_with = "deserialize_duration")]
+    interval: Duration,
 
     /// Narrows the results to a given chip name
-    pub chip: Option<String>,
+    chip: Option<String>,
+
+    /// Collapsed by default?
+    collapsed: bool,
 
     /// Maximum temperature, below which state is set to good
-    pub good: i64,
+    good: i64,
 
     /// Maximum temperature, below which state is set to idle
-    pub idle: i64,
+    idle: i64,
 
     /// Maximum temperature, below which state is set to info
-    pub info: i64,
+    info: i64,
 
     /// Maximum temperature, below which state is set to warning
-    pub warning: i64,
+    warning: i64,
 }
 
 impl Default for TemperatureConfig {
     fn default() -> Self {
         Self {
             format: "{avg}".to_string(),
-            interval: 5,
+            interval: Duration::from_secs(5),
             chip: None,
+            collapsed: false,
             good: 20,
             idle: 45,
             info: 60,
@@ -58,26 +66,22 @@ pub async fn run(
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
-    events_reciever: mpsc::Receiver<BlockEvent>,
+    mut events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
-    // Drop the reciever if we don't what to recieve events
-    drop(events_reciever);
-
     let block_config =
         TemperatureConfig::deserialize(block_config).block_config_error("temperature")?;
     let format = FormatTemplate::from_string(&block_config.format)?;
-    let interval = Duration::from_secs(block_config.interval);
-
     let mut text = Widget::new(id, shared_config).with_icon("thermometer")?;
+    let mut collapsed = block_config.collapsed;
+
+    // Construct a command
+    let mut command = Command::new("sensors");
+    command.arg("-j");
+    if let Some(ref chip) = block_config.chip {
+        command.arg(chip);
+    }
 
     loop {
-        // Construct a command
-        let mut command = Command::new("sensors");
-        command.arg("-j");
-        if let Some(ref chip) = block_config.chip {
-            command.arg(chip);
-        }
-
         // Run command and get output
         let output = String::from_utf8(
             command
@@ -118,7 +122,11 @@ pub async fn run(
             "min" => Value::from_integer(min_temp as i64).degrees(),
             "max" => Value::from_integer(max_temp as i64).degrees(),
         };
-        text.set_text(format.render(&values)?);
+        text.set_text(if collapsed {
+            String::new()
+        } else {
+            format.render(&values)?
+        });
 
         // Set state
         text.set_state(match max_temp {
@@ -137,6 +145,13 @@ pub async fn run(
             .await
             .internal_error("temperature", "failed to send message")?;
 
-        tokio::time::sleep(interval).await;
+        tokio::select! {
+            _ = tokio::time::sleep(block_config.interval) => (),
+            Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
+                if click.button == MouseButton::Left {
+                    collapsed = !collapsed;
+                }
+            }
+        }
     }
 }
