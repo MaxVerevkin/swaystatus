@@ -10,6 +10,7 @@ mod load;
 mod memory;
 mod music;
 mod net;
+mod pomodoro;
 mod sway_kbd;
 mod temperature;
 mod time;
@@ -42,6 +43,7 @@ pub enum BlockType {
     Memory,
     Music,
     Net,
+    Pomodoro,
     SwayKbd,
     Temperature,
     Time,
@@ -137,6 +139,7 @@ pub async fn run_block(
         Memory => memory::run(id, block_config, shared_config, message_tx, events_rx).await,
         Music => music::run(id, block_config, shared_config, message_tx, events_rx).await,
         Net => net::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Pomodoro => pomodoro::run(id, block_config, shared_config, message_tx, events_rx).await,
         SwayKbd => sway_kbd::run(id, block_config, shared_config, message_tx, events_rx).await,
         Temperature => {
             temperature::run(id, block_config, shared_config, message_tx, events_rx).await
