@@ -1,13 +1,14 @@
 use dbus::arg;
 use dbus::message::MatchRule;
-use dbus::nonblock;
 use dbus::nonblock::stdintf::org_freedesktop_dbus::Properties;
+use dbus::nonblock::{Proxy, SyncConnection};
 use dbus::strings::{Interface, Member, Path};
 use dbus_tokio::connection;
 
 use futures::StreamExt;
 use serde::de::Deserialize;
 use std::collections::VecDeque;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -85,7 +86,7 @@ pub async fn run(
         .block_error("music", "failed to add match")?
         .msg_stream();
 
-    let mut player = get_any_player(dbus_conn.as_ref()).await?;
+    let mut player = get_any_player(dbus_conn.clone()).await?;
 
     loop {
         let widgets = match player {
@@ -140,13 +141,22 @@ pub async fn run(
             // Time to update rotating text
             _ = tokio::time::sleep(Duration::from_secs(1)) => (),
             // Wait for a DBUS event
-            _ = dbus_stream.next() => player = get_any_player(&dbus_conn).await?,
+            _ = dbus_stream.next() => player = get_any_player(dbus_conn.clone()).await?,
             // Wait for a click
             Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
                 if click.button == MouseButton::Left {
-                    if let (Some(PLAY_PAUSE_BTN), Some(player)) = (click.instance, &player) {
-                            let proxy = nonblock::Proxy::new(&player.name, "/org/mpris/MediaPlayer2", Duration::from_secs(2), dbus_conn.clone());
-                            let _resonce: () = proxy.method_call("org.mpris.MediaPlayer2.Player", "PlayPause", ()).await.block_error("music", "failed to call pause/play")?;
+                    if let Some(ref player) = player {
+                        let command = match click.instance {
+                            Some(PLAY_PAUSE_BTN) => "PlayPause",
+                            Some(NEXT_BTN) => "Next",
+                            Some(PREV_BTN) => "Previous",
+                            _ => continue,
+                        };
+                        // Ignore the error
+                        let _resonce: StdResult<(), _> = player
+                            .dbus_proxy
+                            .method_call("org.mpris.MediaPlayer2.Player", command, ())
+                            .await;
                     }
                 }
             }
@@ -154,52 +164,51 @@ pub async fn run(
     }
 }
 
-async fn get_any_player(dbus_conn: &nonblock::SyncConnection) -> Result<Option<Player>> {
+async fn get_any_player(dbus_conn: Arc<SyncConnection>) -> Result<Option<Player>> {
     // Get already oppened players
-    let dbus_proxy = nonblock::Proxy::new(
+    let dbus_proxy = Proxy::new(
         "org.freedesktop.DBus",
         "/",
         Duration::from_secs(2),
-        dbus_conn,
+        dbus_conn.as_ref(),
     );
     let (names,): (Vec<String>,) = dbus_proxy
         .method_call("org.freedesktop.DBus", "ListNames", ())
         .await
         .block_error("music", "failed to execute 'ListNames'")?;
 
-    // Get all the players with a name that starts with "org.mpris.MediaPlayer2"
+    // Get players with a name that starts with "org.mpris.MediaPlayer2"
     let names = names
         .into_iter()
         .filter(|n| n.starts_with("org.mpris.MediaPlayer2"));
 
-    // Try each name
+    // Get a playing player if available, or just any player otherwise
+    let mut player = None;
     for name in names {
-        let bus_name = dbus_proxy
-            .method_call("org.freedesktop.DBus", "GetNameOwner", (&name,))
-            .await;
-        if let Ok((bus_name,)) = bus_name {
-            return Ok(Some(Player::new(dbus_conn, name, bus_name).await));
+        let p = Player::new(dbus_conn.clone(), name).await;
+        if p.status == PlaybackStatus::Playing {
+            player = Some(p);
+            break;
         }
+        player = Some(p);
     }
 
-    // Couldn't find anything
-    Ok(None)
+    Ok(player)
 }
 
-#[derive(Debug)]
 struct Player {
-    name: String,
-    bus_name: String,
+    //name: String,
+    dbus_proxy: Proxy<'static, Arc<SyncConnection>>,
     status: PlaybackStatus,
-    title: Option<String>,
-    artist: Option<String>,
+    //title: Option<String>,
+    //artist: Option<String>,
     rotating: RotatingText,
 }
 
 impl Player {
-    async fn new(dbus_conn: &nonblock::SyncConnection, name: String, bus_name: String) -> Self {
-        let proxy = nonblock::Proxy::new(
-            &bus_name,
+    async fn new(dbus_conn: Arc<SyncConnection>, name: String) -> Self {
+        let proxy = Proxy::new(
+            name.clone(),
             "/org/mpris/MediaPlayer2",
             Duration::from_secs(2),
             dbus_conn,
@@ -235,11 +244,11 @@ impl Player {
                 (None, Some(s)) | (Some(s), None) => format!("{}|", s),
                 _ => "".to_string(),
             }),
-            name,
-            bus_name,
+            //name,
+            dbus_proxy: proxy,
             status,
-            title,
-            artist,
+            //title,
+            //artist,
         }
     }
 
@@ -248,7 +257,7 @@ impl Player {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum PlaybackStatus {
     Playing,
     Paused,
