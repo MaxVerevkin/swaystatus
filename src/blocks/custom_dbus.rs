@@ -1,3 +1,29 @@
+//! This block runs a DBus server with a custom name specified in the configuration. It creates
+//! only one path  `/` that implements `rs.swaystatus.dbus` interface. The interface has three
+//! methods:
+//! - SetIcon
+//! - SetText
+//! - SetState
+//!
+//! ## Example.
+//!
+//! Config:
+//! ```toml
+//! [[block]]
+//! block = "custom_dbus"
+//! name = "my.example.block"
+//! ```
+//!
+//! Useage:
+//! ```sh
+//! # set test to 'hello'
+//! busctl --user call my.example.block / rs.swaystatus.dbus SetText s hello
+//! # set icon to 'music'
+//! busctl --user call my.example.block / rs.swaystatus.dbus SetIcon s music
+//! # set state to 'good'
+//! busctl --user call my.example.block / rs.swaystatus.dbus SetState s good
+//! ```
+
 use dbus::channel::MatchingReceiver;
 use dbus::message::MatchRule;
 use dbus_crossroads::Crossroads;
@@ -24,6 +50,7 @@ struct Block {
     sender: mpsc::Sender<BlockMessage>,
 }
 
+// TODO: send a signal in click?
 pub async fn run(
     id: usize,
     block_config: toml::Value,
@@ -132,9 +159,9 @@ pub async fn run(
                 async move {
                     let _ = sender.send(message).await;
                     if succes {
-                        ctx.reply(Ok(("Failture",)))
-                    } else {
                         ctx.reply(Ok(("Succes",)))
+                    } else {
+                        ctx.reply(Ok(("Failture",)))
                     }
                 }
             },
