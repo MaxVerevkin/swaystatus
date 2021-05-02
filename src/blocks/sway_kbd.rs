@@ -34,8 +34,6 @@ pub async fn run(
     let format = default_format!(block_config.format, "{layout}")?;
     let mut text = Widget::new(id, shared_config);
 
-    //dbg!(&format);
-
     // New connection
     let mut connection = Connection::new()
         .await

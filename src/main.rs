@@ -83,8 +83,6 @@ fn main() {
             args.is_present("never_pause"),
         ));
 
-    dbg!(&result);
-
     // Match for potential error
     if let Err(error) = result {
         if args.is_present("exit-on-error") {

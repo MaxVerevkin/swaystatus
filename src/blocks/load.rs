@@ -61,8 +61,6 @@ pub async fn run(
     let format = default_format!(block_config.format, "{1m}")?;
     let mut interval = tokio::time::interval(block_config.interval);
 
-    dbg!(&format);
-
     // borrowed from https://docs.rs/cpuinfo/0.1.1/src/cpuinfo/count/logical.rs.html#4-6
     let logical_cores = util::read_file(Path::new("/proc/cpuinfo"))
         .await
