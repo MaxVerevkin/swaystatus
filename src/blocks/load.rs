@@ -20,6 +20,10 @@ struct LoadConfig {
     /// Format string
     format: String,
 
+    /// Format string (short)
+    format_short: Option<String>,
+
+    /// Inerval of updates
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
 
@@ -37,6 +41,7 @@ impl Default for LoadConfig {
     fn default() -> Self {
         Self {
             format: "{1m}".to_string(),
+            format_short: None,
             interval: Duration::from_secs(5),
             info: 0.3,
             warning: 0.6,
@@ -57,8 +62,10 @@ pub async fn run(
 
     let block_config = LoadConfig::deserialize(block_config).block_config_error("cpu")?;
     let mut text = Widget::new(id, shared_config).with_icon("cogs")?;
-    let format = FormatTemplate::from_string(&block_config.format)?;
+    let format = FormatTemplate::new(&block_config.format, block_config.format_short.as_deref())?;
     let mut interval = tokio::time::interval(block_config.interval);
+
+    dbg!(&format);
 
     // borrowed from https://docs.rs/cpuinfo/0.1.1/src/cpuinfo/count/logical.rs.html#4-6
     let logical_cores = util::read_file(Path::new("/proc/cpuinfo"))

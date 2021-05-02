@@ -119,7 +119,7 @@ pub async fn run(
 
                 // Maybe set text
                 if let Some(text) = widget_data.get("text") {
-                    widget.set_text(text.clone());
+                    widget.set_full_text(text.clone());
                 }
 
                 // Maybe set icon

@@ -76,7 +76,7 @@ struct Block {
 
 impl Block {
     async fn set_text(&mut self, text: String) -> Result<()> {
-        self.widget.set_text(text);
+        self.widget.set_full_text(text);
         self.message_sender
             .send(BlockMessage {
                 id: self.id,

@@ -15,6 +15,7 @@ use crate::widgets::widget::Widget;
 #[serde(deny_unknown_fields, default)]
 pub struct SwayKbdConfig {
     pub format: String,
+    pub format_short: Option<String>,
     pub mappings: Option<HashMap<String, String>>,
 }
 
@@ -22,6 +23,7 @@ impl Default for SwayKbdConfig {
     fn default() -> Self {
         Self {
             format: "{layout}".to_string(),
+            format_short: None,
             mappings: None,
         }
     }
@@ -38,7 +40,7 @@ pub async fn run(
     drop(events_reciever);
 
     let block_config = SwayKbdConfig::deserialize(block_config).block_config_error("sway_kbd")?;
-    let format = FormatTemplate::from_string(&block_config.format)?;
+    let format = FormatTemplate::new(&block_config.format, block_config.format_short.as_deref())?;
     let mut text = Widget::new(id, shared_config);
 
     // New connection

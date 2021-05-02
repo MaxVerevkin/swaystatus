@@ -66,7 +66,7 @@ pub async fn run(
             Some(total) => format.render(&map! {
                 "total" => Value::from_integer(total as i64),
             })?,
-            None => "x".to_string(),
+            None => ("x".to_string(), None),
         });
 
         message_sender

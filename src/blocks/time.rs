@@ -19,6 +19,9 @@ struct TimeConfig {
     /// See [chrono docs](https://docs.rs/chrono/0.3.0/chrono/format/strftime/index.html#specifiers) for all options.
     format: String,
 
+    /// Same as `format` but used when i3bar/swaystatus doesn't have enough space for every block
+    format_short: Option<String>,
+
     /// Update interval in seconds
     interval: u64,
 
@@ -31,6 +34,7 @@ impl Default for TimeConfig {
     fn default() -> Self {
         Self {
             format: "%a %d/%m %R".to_string(),
+            format_short: None,
             interval: 5,
             timezone: None,
             locale: None,
@@ -52,27 +56,27 @@ pub async fn run(
     let mut interval = tokio::time::interval(Duration::from_secs(block_config.interval));
     let mut text = Widget::new(id, shared_config).with_icon("time")?;
 
+    let format = block_config.format.as_str();
+    let format_short = block_config.format_short.as_deref();
+    let timezone = block_config.timezone;
+    let locale = match block_config.locale.as_deref() {
+        Some(locale) => Some(
+            locale
+                .try_into()
+                .ok()
+                .block_error("time", "invalid locale")?,
+        ),
+        None => None,
+    };
+
     loop {
-        let time = match &block_config.locale {
-            Some(l) => {
-                let locale: Locale = l
-                    .as_str()
-                    .try_into()
-                    .ok()
-                    .block_error("time", "invalid locale")?;
-                match block_config.timezone {
-                    Some(tz) => Utc::now()
-                        .with_timezone(&tz)
-                        .format_localized(&block_config.format, locale),
-                    None => Local::now().format_localized(&block_config.format, locale),
-                }
+        let full_time = get_time(format, timezone, locale)?;
+        match format_short {
+            Some(format_short) => {
+                text.set_text((full_time, Some(get_time(format_short, timezone, locale)?)))
             }
-            None => match block_config.timezone {
-                Some(tz) => Utc::now().with_timezone(&tz).format(&block_config.format),
-                None => Local::now().format(&block_config.format),
-            },
-        };
-        text.set_text(time.to_string());
+            None => text.set_full_text(full_time),
+        }
 
         message_sender
             .send(BlockMessage {
@@ -84,4 +88,20 @@ pub async fn run(
 
         interval.tick().await;
     }
+}
+
+fn get_time(format: &str, timezone: Option<Tz>, locale: Option<Locale>) -> Result<String> {
+    Ok(match locale {
+        Some(locale) => match timezone {
+            Some(tz) => Utc::now()
+                .with_timezone(&tz)
+                .format_localized(format, locale)
+                .to_string(),
+            None => Local::now().format_localized(format, locale).to_string(),
+        },
+        None => match timezone {
+            Some(tz) => Utc::now().with_timezone(&tz).format(format).to_string(),
+            None => Local::now().format(format).to_string(),
+        },
+    })
 }

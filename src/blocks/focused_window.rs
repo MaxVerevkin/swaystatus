@@ -24,6 +24,9 @@ pub struct FocusedWindowConfig {
     /// Format string
     pub format: String,
 
+    /// Format string (short)
+    pub format_short: Option<String>,
+
     /// Show marks in place of title (if exist)
     pub show_marks: MarksType,
 }
@@ -32,6 +35,7 @@ impl Default for FocusedWindowConfig {
     fn default() -> Self {
         Self {
             format: "{window^21}".to_string(),
+            format_short: None,
             show_marks: MarksType::None,
         }
     }
@@ -48,7 +52,7 @@ pub async fn run(
 
     let block_config =
         FocusedWindowConfig::deserialize(block_config).block_config_error("focused_window")?;
-    let format = FormatTemplate::from_string(&block_config.format)?;
+    let format = FormatTemplate::new(&block_config.format, block_config.format_short.as_deref())?;
 
     let mut title = "".to_string();
     let mut marks = Vec::new();

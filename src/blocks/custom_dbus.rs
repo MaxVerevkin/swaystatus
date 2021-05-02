@@ -124,7 +124,7 @@ pub async fn run(
             (),
             |mut ctx, cr, (text,): (String,)| {
                 let block: &mut Block = cr.data_mut(ctx.path()).unwrap(); // ok_or_else(|| MethodErr::no_path(ctx.path()))?;
-                block.text.set_text(text);
+                block.text.set_full_text(text);
                 let sender = block.sender.clone();
                 let message = BlockMessage {
                     id: block.id,

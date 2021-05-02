@@ -14,6 +14,7 @@ use value::Value;
 #[derive(Debug, Clone)]
 pub struct FormatTemplate {
     tokens: Vec<Token>,
+    short_tokens: Option<Vec<Token>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,6 +24,15 @@ enum Token {
 }
 
 impl FormatTemplate {
+    pub fn new(full: &str, short: Option<&str>) -> Result<Self> {
+        let mut retval = Self::from_string(full)?;
+        if let Some(short) = short {
+            let short = Self::from_string(short)?;
+            retval.short_tokens = Some(short.tokens);
+        }
+        Ok(retval)
+    }
+
     pub fn from_string(s: &str) -> Result<Self> {
         let mut tokens = vec![];
 
@@ -69,13 +79,26 @@ impl FormatTemplate {
             tokens.push(Token::Text(text_buf.clone()));
         }
 
-        Ok(FormatTemplate { tokens })
+        Ok(FormatTemplate {
+            tokens,
+            short_tokens: None,
+        })
     }
 
-    pub fn render(&self, vars: &HashMap<&str, Value>) -> Result<String> {
-        let mut rendered = String::new();
+    pub fn render(&self, vars: &HashMap<&str, Value>) -> Result<(String, Option<String>)> {
+        let full = Self::render_tokens(&self.tokens, vars)?;
+        Ok((
+            full,
+            match &self.short_tokens {
+                Some(tokens) => Some(Self::render_tokens(tokens, vars)?),
+                None => None,
+            },
+        ))
+    }
 
-        for token in &self.tokens {
+    fn render_tokens(tokens: &[Token], vars: &HashMap<&str, Value>) -> Result<String> {
+        let mut rendered = String::new();
+        for token in tokens {
             match token {
                 Token::Text(text) => rendered.push_str(&text),
                 Token::Var(var) => rendered.push_str(
@@ -89,7 +112,6 @@ impl FormatTemplate {
                 ),
             }
         }
-
         Ok(rendered)
     }
 }

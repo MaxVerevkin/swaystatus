@@ -123,7 +123,7 @@ pub async fn run(
             "max" => Value::from_integer(max_temp as i64).degrees(),
         };
         text.set_text(if collapsed {
-            String::new()
+            (String::new(), None)
         } else {
             format.render(&values)?
         });

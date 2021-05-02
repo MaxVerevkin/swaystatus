@@ -5,9 +5,11 @@ use crate::protocol::i3bar_block::I3BarBlock;
 
 #[derive(Clone, Debug)]
 pub struct Widget {
-    content: Option<String>,
+    full_text: Option<String>,
+    short_text: Option<String>,
     icon: Option<String>,
-    spacing: Spacing,
+    full_spacing: Spacing,
+    short_spacing: Spacing,
     shared_config: SharedConfig,
     inner: I3BarBlock,
 }
@@ -23,9 +25,11 @@ impl Widget {
         };
 
         Widget {
-            content: None,
+            full_text: None,
+            short_text: None,
             icon: None,
-            spacing: Spacing::Hidden,
+            full_spacing: Spacing::Hidden,
+            short_spacing: Spacing::Hidden,
             shared_config,
             inner,
         }
@@ -41,8 +45,12 @@ impl Widget {
         Ok(self)
     }
 
-    pub fn with_text(mut self, content: String) -> Self {
+    pub fn with_text(mut self, content: (String, Option<String>)) -> Self {
         self.set_text(content);
+        self
+    }
+    pub fn with_full_text(mut self, content: String) -> Self {
+        self.set_full_text(content);
         self
     }
 
@@ -61,13 +69,27 @@ impl Widget {
         Ok(())
     }
 
-    pub fn set_text(&mut self, content: String) {
-        if content.is_empty() {
-            self.spacing = Spacing::Hidden;
+    pub fn set_text(&mut self, content: (String, Option<String>)) {
+        if content.0.is_empty() {
+            self.full_spacing = Spacing::Hidden;
         } else {
-            self.spacing = Spacing::Normal;
+            self.full_spacing = Spacing::Normal;
         }
-        self.content = Some(content);
+        if content.1.as_ref().map(String::is_empty).unwrap_or(true) {
+            self.short_spacing = Spacing::Hidden;
+        } else {
+            self.short_spacing = Spacing::Normal;
+        }
+        self.full_text = Some(content.0);
+        self.short_text = content.1;
+    }
+    pub fn set_full_text(&mut self, content: String) {
+        if content.is_empty() {
+            self.full_spacing = Spacing::Hidden;
+        } else {
+            self.full_spacing = Spacing::Normal;
+        }
+        self.full_text = Some(content);
     }
 
     pub fn set_state(&mut self, state: State) {
@@ -78,7 +100,8 @@ impl Widget {
     }
 
     pub fn set_spacing(&mut self, spacing: Spacing) {
-        self.spacing = spacing;
+        self.full_spacing = spacing;
+        self.short_spacing = spacing;
     }
 
     pub fn get_data(&self) -> I3BarBlock {
@@ -87,21 +110,42 @@ impl Widget {
         data.full_text = format!(
             "{}{}{}",
             self.icon.clone().unwrap_or_else(|| {
-                match self.spacing {
+                match self.full_spacing {
                     Spacing::Normal => " ",
                     Spacing::Inline => "",
                     Spacing::Hidden => "",
                 }
                 .to_string()
             }),
-            self.content.clone().unwrap_or_default(),
-            match self.spacing {
+            self.full_text.clone().unwrap_or_default(),
+            match self.full_spacing {
                 Spacing::Normal => " ",
                 Spacing::Inline => " ",
                 Spacing::Hidden => "",
             }
             .to_string()
         );
+
+        data.short_text = self.short_text.as_ref().map(|short_text| {
+            format!(
+                "{}{}{}",
+                self.icon.clone().unwrap_or_else(|| {
+                    match self.short_spacing {
+                        Spacing::Normal => " ",
+                        Spacing::Inline => "",
+                        Spacing::Hidden => "",
+                    }
+                    .to_string()
+                }),
+                short_text,
+                match self.short_spacing {
+                    Spacing::Normal => " ",
+                    Spacing::Inline => " ",
+                    Spacing::Hidden => "",
+                }
+                .to_string()
+            )
+        });
 
         data
     }

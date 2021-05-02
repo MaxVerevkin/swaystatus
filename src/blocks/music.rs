@@ -91,7 +91,7 @@ pub async fn run(
     loop {
         let widgets = match player {
             Some(ref player) => {
-                text.set_text(escape_pango_text(player.display(block_config.width)));
+                text.set_full_text(escape_pango_text(player.display(block_config.width)));
 
                 match player.status {
                     PlaybackStatus::Playing => {
@@ -122,7 +122,7 @@ pub async fn run(
                 output
             }
             None => {
-                text.set_text(String::new());
+                text.set_text((String::new(), None));
                 text.set_state(State::Idle);
                 vec![text.get_data()]
             }

@@ -267,7 +267,7 @@ pub async fn run(
         }
 
         let widget = Widget::new(id, shared_config.clone())
-            .with_text(format!("{}%", brightness)) // TODO use format string
+            .with_full_text(format!("{}%", brightness)) // TODO use format string
             .with_icon(BACKLIGHT_ICONS[icon_index])?
             .get_data();
 
