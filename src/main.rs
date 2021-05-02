@@ -1,11 +1,12 @@
 #[macro_use]
 mod util;
+#[macro_use]
+mod formatting;
 mod blocks;
 mod click;
 mod config;
 mod de;
 mod errors;
-mod formatting;
 mod icons;
 mod netlink;
 mod protocol;
@@ -70,8 +71,8 @@ fn main() {
         .get_matches();
 
     // Build the runtime adn run the program
-    let result = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
+    let result = tokio::runtime::Builder::new_current_thread()
+        //.worker_threads(2)
         .max_blocking_threads(2)
         .enable_all()
         .build()
@@ -82,6 +83,8 @@ fn main() {
             args.is_present("never_pause"),
         ));
 
+    dbg!(&result);
+
     // Match for potential error
     if let Err(error) = result {
         if args.is_present("exit-on-error") {
@@ -89,23 +92,7 @@ fn main() {
             std::process::exit(1);
         }
 
-        // Create widget with error message
-        let error_widget = Widget::new(0, Default::default())
-            .with_state(State::Critical)
-            .with_full_text(error.to_string());
-
-        // Print errors
-        println!("[{}],", error_widget.get_data().render());
-        eprintln!("\n\n{}\n\n", error);
-        dbg!(error);
-
-        // Wait for USR2 signal to restart
-        signal_hook::iterator::Signals::new(&[signal_hook::consts::SIGUSR2])
-            .unwrap()
-            .forever()
-            .next()
-            .unwrap();
-        restart();
+        handle_error(error);
     }
 }
 
@@ -153,7 +140,13 @@ async fn run(config: Option<String>, noinit: bool, never_pause: bool) -> Result<
     loop {
         tokio::select! {
             // Handle blocks' errors
-            Some(block_result) = blocks_tasks.next() => block_result.unwrap()?,
+            Some(block_result) = blocks_tasks.next() => {
+                let block_result = block_result.internal_error("error handler", "failed to read block exit status");
+                match block_result {
+                    Err(e) | Ok(Err(e)) => handle_error(e),
+                    _ => ()
+                }
+            },
             // Recieve widgets from blocks
             Some(message) = message_receiver.recv() => {
                 *rendered.get_mut(message.id).internal_error("handle block's message", "failed to get block")? = message.widgets;
@@ -175,6 +168,26 @@ async fn run(config: Option<String>, noinit: bool, never_pause: bool) -> Result<
             }
         }
     }
+}
+
+fn handle_error(error: Error) -> ! {
+    // Create widget with error message
+    let error_widget = Widget::new(0, Default::default())
+        .with_state(State::Critical)
+        .with_full_text(error.to_string());
+
+    // Print errors
+    println!("[{}],", error_widget.get_data().render());
+    eprintln!("\n\n{}\n\n", error);
+    dbg!(error);
+
+    // Wait for USR2 signal to restart
+    signal_hook::iterator::Signals::new(&[signal_hook::consts::SIGUSR2])
+        .unwrap()
+        .forever()
+        .next()
+        .unwrap();
+    restart();
 }
 
 /// Restart `swaystatus` in-place

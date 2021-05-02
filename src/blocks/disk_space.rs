@@ -35,7 +35,7 @@ struct DiskSpaceConfig {
     info_type: InfoType,
 
     /// Format string for output
-    format: String,
+    format: Option<FormatTemplate>,
 
     /// Unit that is used to display disk space. Options are B, KB, MB, GB and TB
     unit: String,
@@ -59,7 +59,7 @@ impl Default for DiskSpaceConfig {
         Self {
             path: "/".to_string(),
             info_type: InfoType::Available,
-            format: "{available}".to_string(),
+            format: None,
             unit: "GB".to_string(),
             interval: Duration::from_secs(20),
             warning: 20.,
@@ -86,7 +86,7 @@ pub async fn run(
     let icon = icon.trim();
 
     let mut text = Widget::new(id, shared_config);
-    let format = FormatTemplate::from_string(&block_config.format)?;
+    let format = default_format!(block_config.format, "{available}")?;
 
     let unit = match block_config.unit.as_str() {
         "TB" => Prefix::Tera,

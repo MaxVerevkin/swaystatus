@@ -16,8 +16,8 @@ pub struct GithubConfig {
     #[serde(default = "default_interval")]
     pub interval: u64,
 
-    #[serde(default = "default_format")]
-    pub format: String,
+    #[serde(default)]
+    pub format: Option<FormatTemplate>,
 
     // A GitHub personal access token with the "notifications" scope is requried
     pub token: String,
@@ -29,9 +29,6 @@ pub struct GithubConfig {
 
 fn default_interval() -> u64 {
     30
-}
-fn default_format() -> String {
-    "{total:1}".to_string()
 }
 fn default_hide() -> bool {
     true
@@ -49,7 +46,7 @@ pub async fn run(
 
     let block_config = GithubConfig::deserialize(block_config).block_config_error("github")?;
     let interval = Duration::from_secs(block_config.interval);
-    let format = FormatTemplate::from_string(&block_config.format)?;
+    let format = default_format!(block_config.format, "{total:1}")?;
     let mut text = Widget::new(id, shared_config).with_icon("github")?;
 
     // Http client

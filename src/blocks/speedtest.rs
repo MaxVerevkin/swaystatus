@@ -40,7 +40,7 @@ use crate::widgets::widget::Widget;
 #[serde(deny_unknown_fields, default)]
 struct SpeedtestConfig {
     /// Format string
-    format: String,
+    format: Option<FormatTemplate>,
 
     /// Update interval in seconds
     #[serde(deserialize_with = "deserialize_duration")]
@@ -50,7 +50,7 @@ struct SpeedtestConfig {
 impl Default for SpeedtestConfig {
     fn default() -> Self {
         Self {
-            format: "{ping}{speed_down}{speed_up}".to_string(),
+            format: None,
             interval: Duration::from_secs(1800),
         }
     }
@@ -71,7 +71,7 @@ pub async fn run(
     let icon_up = shared_config.get_icon("net_up")?;
     let block_config =
         SpeedtestConfig::deserialize(block_config).block_config_error("speedtest")?;
-    let format = FormatTemplate::from_string(&block_config.format)?;
+    let format = default_format!(block_config.format, "{ping}{speed_down}{speed_up}")?;
     let mut text = Widget::new(id, shared_config);
 
     let mut command = Command::new("speedtest-cli");

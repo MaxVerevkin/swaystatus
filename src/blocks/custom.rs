@@ -21,7 +21,7 @@ pub struct CustomConfig {
     command: String,
 
     /// Format string
-    format: String,
+    format: Option<FormatTemplate>,
 
     /// Interval between command runs
     interval: u64,
@@ -34,7 +34,7 @@ impl Default for CustomConfig {
     fn default() -> Self {
         Self {
             command: "uname -r".to_string(),
-            format: "{stdout}".to_string(),
+            format: None,
             interval: 5,
             json: false,
         }
@@ -49,7 +49,7 @@ pub async fn run(
     mut events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
     let block_config = CustomConfig::deserialize(block_config).block_config_error("custom")?;
-    let format = FormatTemplate::from_string(&block_config.format)?;
+    let format = default_format!(block_config.format, "{stdout}")?;
     let interval = Duration::from_secs(block_config.interval);
 
     loop {

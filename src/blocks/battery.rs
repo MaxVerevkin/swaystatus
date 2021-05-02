@@ -421,15 +421,15 @@ struct BatteryConfig {
 
     /// Format string for displaying battery information.
     /// placeholders: {percentage}, {bar}, {time} and {power}
-    format: String,
+    format: Option<FormatTemplate>,
 
     /// Format string for displaying battery information when battery is full.
     /// placeholders: {percentage}, {bar}, {time} and {power}
-    full_format: String,
+    full_format: Option<FormatTemplate>,
 
     /// Format string that's displayed if a battery is missing.
     /// placeholders: {percentage}, {bar}, {time} and {power}
-    missing_format: String,
+    missing_format: Option<FormatTemplate>,
 
     /// The "driver" to use for powering the block. One of "sysfs" or "upower".
     driver: BatteryDriver,
@@ -458,9 +458,9 @@ impl Default for BatteryConfig {
         Self {
             interval: Duration::from_secs(10),
             device: "BAT0".to_string(),
-            format: "{percentage}".to_string(),
-            full_format: "".to_string(),
-            missing_format: "{percentage}".to_string(),
+            format: None,
+            full_format: None,
+            missing_format: None,
             driver: BatteryDriver::Sysfs,
             good: 60,
             info: 60,
@@ -495,6 +495,10 @@ pub async fn run(
     std::mem::drop(events_receiver);
     let block_config = BatteryConfig::deserialize(block_config).block_config_error("battery")?;
 
+    let format = default_format!(block_config.format.clone(), "{percentage}")?;
+    let format_full = default_format!(block_config.full_format.clone(), "")?;
+    let format_missing = default_format!(block_config.missing_format.clone(), "{percentage}")?;
+
     let mut device: Box<dyn BatteryDevice + Send> = match block_config.driver {
         BatteryDriver::Sysfs => Box::new(PowerSupplyDevice::from_device(
             &block_config.device,
@@ -512,11 +516,11 @@ pub async fn run(
             device.usage()
         );
 
-        let fmt = FormatTemplate::from_string(match status.clone() {
-            Err(_) => &block_config.missing_format,
-            Ok(BatteryStatus::Full) => &block_config.full_format,
-            _ => &block_config.format,
-        })?;
+        let fmt = match status.clone() {
+            Err(_) => &format_missing,
+            Ok(BatteryStatus::Full) => &format_full,
+            _ => &format,
+        };
 
         let vars = {
             if !is_available && block_config.allow_missing {

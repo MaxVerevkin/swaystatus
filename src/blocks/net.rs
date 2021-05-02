@@ -15,10 +15,10 @@ use crate::widgets::widget::Widget;
 #[serde(deny_unknown_fields, default)]
 pub struct NetConfig {
     /// Format string for `Net` block.
-    pub format: String,
+    pub format: Option<FormatTemplate>,
 
     /// Format string that is applied afted a click
-    pub format_alt: Option<String>,
+    pub format_alt: Option<FormatTemplate>,
 
     /// Format string for `Net` block.
     pub device: Option<String>,
@@ -30,7 +30,7 @@ pub struct NetConfig {
 impl Default for NetConfig {
     fn default() -> Self {
         Self {
-            format: "{speed_down;K}{speed_up;k}".to_string(),
+            format: None,
             format_alt: None,
             device: None,
             interval: 2,
@@ -46,11 +46,8 @@ pub async fn run(
     mut events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
     let block_config = NetConfig::deserialize(block_config).block_config_error("net")?;
-    let mut format = FormatTemplate::from_string(&block_config.format)?;
-    let mut format_alt = match block_config.format_alt {
-        Some(ref format_alt) => Some(FormatTemplate::from_string(format_alt)?),
-        None => None,
-    };
+    let mut format = default_format!(block_config.format, "{speed_down;K}{speed_up;k}")?;
+    let mut format_alt = block_config.format_alt;
 
     let mut text = Widget::new(id, shared_config.clone());
     let interval = Duration::from_secs(block_config.interval);

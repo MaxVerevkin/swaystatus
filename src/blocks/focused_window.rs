@@ -22,10 +22,7 @@ pub enum MarksType {
 #[serde(deny_unknown_fields, default)]
 pub struct FocusedWindowConfig {
     /// Format string
-    pub format: String,
-
-    /// Format string (short)
-    pub format_short: Option<String>,
+    pub format: Option<FormatTemplate>,
 
     /// Show marks in place of title (if exist)
     pub show_marks: MarksType,
@@ -34,8 +31,7 @@ pub struct FocusedWindowConfig {
 impl Default for FocusedWindowConfig {
     fn default() -> Self {
         Self {
-            format: "{window^21}".to_string(),
-            format_short: None,
+            format: None,
             show_marks: MarksType::None,
         }
     }
@@ -52,7 +48,7 @@ pub async fn run(
 
     let block_config =
         FocusedWindowConfig::deserialize(block_config).block_config_error("focused_window")?;
-    let format = FormatTemplate::new(&block_config.format, block_config.format_short.as_deref())?;
+    let format = default_format!(block_config.format.clone(), "{window^21}")?;
 
     let mut title = "".to_string();
     let mut marks = Vec::new();

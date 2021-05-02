@@ -18,10 +18,7 @@ use crate::widgets::State;
 #[serde(deny_unknown_fields, default)]
 struct LoadConfig {
     /// Format string
-    format: String,
-
-    /// Format string (short)
-    format_short: Option<String>,
+    format: Option<FormatTemplate>,
 
     /// Inerval of updates
     #[serde(deserialize_with = "deserialize_duration")]
@@ -40,8 +37,7 @@ struct LoadConfig {
 impl Default for LoadConfig {
     fn default() -> Self {
         Self {
-            format: "{1m}".to_string(),
-            format_short: None,
+            format: None,
             interval: Duration::from_secs(5),
             info: 0.3,
             warning: 0.6,
@@ -62,7 +58,7 @@ pub async fn run(
 
     let block_config = LoadConfig::deserialize(block_config).block_config_error("cpu")?;
     let mut text = Widget::new(id, shared_config).with_icon("cogs")?;
-    let format = FormatTemplate::new(&block_config.format, block_config.format_short.as_deref())?;
+    let format = default_format!(block_config.format, "{1m}")?;
     let mut interval = tokio::time::interval(block_config.interval);
 
     dbg!(&format);

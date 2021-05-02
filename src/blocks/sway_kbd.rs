@@ -12,21 +12,12 @@ use crate::formatting::{value::Value, FormatTemplate};
 use crate::widgets::widget::Widget;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
-#[serde(deny_unknown_fields, default)]
+#[serde(deny_unknown_fields)]
 pub struct SwayKbdConfig {
-    pub format: String,
-    pub format_short: Option<String>,
+    #[serde(default)]
+    pub format: Option<FormatTemplate>,
+    #[serde(default)]
     pub mappings: Option<HashMap<String, String>>,
-}
-
-impl Default for SwayKbdConfig {
-    fn default() -> Self {
-        Self {
-            format: "{layout}".to_string(),
-            format_short: None,
-            mappings: None,
-        }
-    }
 }
 
 pub async fn run(
@@ -40,8 +31,10 @@ pub async fn run(
     drop(events_reciever);
 
     let block_config = SwayKbdConfig::deserialize(block_config).block_config_error("sway_kbd")?;
-    let format = FormatTemplate::new(&block_config.format, block_config.format_short.as_deref())?;
+    let format = default_format!(block_config.format, "{layout}")?;
     let mut text = Widget::new(id, shared_config);
+
+    //dbg!(&format);
 
     // New connection
     let mut connection = Connection::new()

@@ -19,10 +19,10 @@ use crate::widgets::State;
 #[serde(deny_unknown_fields, default)]
 pub struct MemoryConfig {
     /// Format string for Memory view. All format values are described below.
-    pub format_mem: String,
+    pub format_mem: Option<FormatTemplate>,
 
     /// Format string for Swap view.
-    pub format_swap: String,
+    pub format_swap: Option<FormatTemplate>,
 
     /// Default view displayed on startup. Options are <br/> memory, swap
     pub display_type: Memtype,
@@ -40,8 +40,8 @@ pub struct MemoryConfig {
 impl Default for MemoryConfig {
     fn default() -> Self {
         Self {
-            format_mem: "{mem_free;M}/{mem_total;M}({mem_total_used_percents})".to_string(),
-            format_swap: "{swap_free;M}/{swap_total;M}({swap_used_percents})".to_string(),
+            format_mem: None,
+            format_swap: None,
             display_type: Memtype::Memory,
             icons: true,
             clickable: true,
@@ -60,8 +60,14 @@ pub async fn run(
     let block_config = MemoryConfig::deserialize(block_config).block_config_error("memory")?;
 
     let format = (
-        FormatTemplate::from_string(&block_config.format_mem)?,
-        FormatTemplate::from_string(&block_config.format_swap)?,
+        default_format!(
+            block_config.format_mem,
+            "{mem_free;M}/{mem_total;M}({mem_total_used_percents})"
+        )?,
+        default_format!(
+            block_config.format_swap,
+            "{swap_free;M}/{swap_total;M}({swap_used_percents})"
+        )?,
     );
 
     let mut text_mem = Widget::new(id, shared_config.clone()).with_icon("memory_mem")?;

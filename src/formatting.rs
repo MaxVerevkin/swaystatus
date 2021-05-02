@@ -5,16 +5,23 @@ pub mod value;
 
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::fmt;
+
+use serde::de::{MapAccess, Visitor};
+use serde::{de, Deserialize, Deserializer};
 
 use crate::errors::*;
 use placeholder::unexpected_token;
 use placeholder::Placeholder;
 use value::Value;
 
-#[derive(Debug, Clone)]
-pub struct FormatTemplate {
-    tokens: Vec<Token>,
-    short_tokens: Option<Vec<Token>>,
+macro_rules! default_format {
+    ($format:expr,$default:expr) => {
+        match $format {
+            Some(format) => Ok(format),
+            None => crate::formatting::FormatTemplate::new($default, None),
+        }
+    };
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,17 +30,23 @@ enum Token {
     Var(Placeholder),
 }
 
+#[derive(Debug, Clone)]
+pub struct FormatTemplate {
+    full: Vec<Token>,
+    short: Option<Vec<Token>>,
+}
+
 impl FormatTemplate {
     pub fn new(full: &str, short: Option<&str>) -> Result<Self> {
-        let mut retval = Self::from_string(full)?;
-        if let Some(short) = short {
-            let short = Self::from_string(short)?;
-            retval.short_tokens = Some(short.tokens);
-        }
-        Ok(retval)
+        let full = Self::tokens_from_string(full)?;
+        let short = match short {
+            Some(short) => Some(Self::tokens_from_string(short)?),
+            None => None,
+        };
+        Ok(Self { full, short })
     }
 
-    pub fn from_string(s: &str) -> Result<Self> {
+    fn tokens_from_string(s: &str) -> Result<Vec<Token>> {
         let mut tokens = vec![];
 
         let mut text_buf = String::new();
@@ -79,18 +92,15 @@ impl FormatTemplate {
             tokens.push(Token::Text(text_buf.clone()));
         }
 
-        Ok(FormatTemplate {
-            tokens,
-            short_tokens: None,
-        })
+        Ok(tokens)
     }
 
     pub fn render(&self, vars: &HashMap<&str, Value>) -> Result<(String, Option<String>)> {
-        let full = Self::render_tokens(&self.tokens, vars)?;
+        let full = Self::render_tokens(&self.full, vars)?;
         Ok((
             full,
-            match &self.short_tokens {
-                Some(tokens) => Some(Self::render_tokens(tokens, vars)?),
+            match &self.short {
+                Some(short) => Some(Self::render_tokens(short, vars)?),
                 None => None,
             },
         ))
@@ -113,5 +123,78 @@ impl FormatTemplate {
             }
         }
         Ok(rendered)
+    }
+}
+
+impl<'de> Deserialize<'de> for FormatTemplate {
+    fn deserialize<D>(deserializer: D) -> StdResult<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(field_identifier, rename_all = "lowercase")]
+        enum Field {
+            Full,
+            Short,
+        }
+
+        struct FormatTemplateVisitor;
+
+        impl<'de> Visitor<'de> for FormatTemplateVisitor {
+            type Value = FormatTemplate;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("format structure")
+            }
+
+            /// Handle configs like:
+            ///
+            /// ```toml
+            /// format = "{layout}"
+            /// ```
+            fn visit_str<E>(self, full: &str) -> StdResult<FormatTemplate, E>
+            where
+                E: de::Error,
+            {
+                FormatTemplate::new(full, None).map_err(|e| de::Error::custom(e.to_string()))
+            }
+
+            /// Handle configs like:
+            ///
+            /// ```toml
+            /// [block.format]
+            /// full = "{layout}"
+            /// short = "{layout^2}"
+            /// ```
+            fn visit_map<V>(self, mut map: V) -> StdResult<FormatTemplate, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut full: Option<String> = None;
+                let mut short: Option<String> = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Full => {
+                            if full.is_some() {
+                                return Err(de::Error::duplicate_field("full"));
+                            }
+                            full = Some(map.next_value()?);
+                        }
+                        Field::Short => {
+                            if short.is_some() {
+                                return Err(de::Error::duplicate_field("short"));
+                            }
+                            short = Some(map.next_value()?);
+                        }
+                    }
+                }
+
+                let full = full.ok_or_else(|| de::Error::missing_field("full"))?;
+                FormatTemplate::new(&full, short.as_deref())
+                    .map_err(|e| de::Error::custom(e.to_string()))
+            }
+        }
+
+        deserializer.deserialize_any(FormatTemplateVisitor)
     }
 }
