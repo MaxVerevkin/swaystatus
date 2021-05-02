@@ -15,10 +15,10 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `use_nag` | i3-nagbar enabled. | No | `false`
-//! `nag_path` | i3-nagbar binary path. | No | `i3-nagbar`
-//! `message` | Message when timer expires. | No | `Pomodoro over! Take a break!`
-//! `break_message` | Message when break is over. | No | `Break over! Time to work!`
+//! `use_nag` | i3-nagbar enabled | No | `false`
+//! `nag_path` | i3-nagbar binary path | No | `i3-nagbar`
+//! `message` | Message when timer expires | No | `Pomodoro over! Take a break!`
+//! `break_message` | Message when break is over | No | `Break over! Time to work!`
 //!
 //! # Example
 //!

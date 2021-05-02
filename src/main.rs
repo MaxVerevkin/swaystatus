@@ -132,14 +132,14 @@ async fn run(config: Option<String>, noinit: bool, never_pause: bool) -> Result<
         let (events_sender, events_reciever) = mpsc::channel(64);
         blocks_events.push(events_sender);
 
-        blocks_tasks.push(run_block(
+        blocks_tasks.push(tokio::spawn(run_block(
             blocks_tasks.len(),
             block_type,
             block_config,
             shared_config.clone(),
             message_sender.clone(),
             events_reciever,
-        ));
+        )));
     }
 
     // Listen to signals and clicks
@@ -153,7 +153,7 @@ async fn run(config: Option<String>, noinit: bool, never_pause: bool) -> Result<
     loop {
         tokio::select! {
             // Handle blocks' errors
-            Some(block_result) = blocks_tasks.next() => block_result?,
+            Some(block_result) = blocks_tasks.next() => block_result.unwrap()?,
             // Recieve widgets from blocks
             Some(message) = message_receiver.recv() => {
                 *rendered.get_mut(message.id).internal_error("handle block's message", "failed to get block")? = message.widgets;

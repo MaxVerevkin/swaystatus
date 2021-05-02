@@ -6,9 +6,7 @@ pub mod value;
 use std::collections::HashMap;
 use std::convert::TryInto;
 
-use crate::config::SharedConfig;
 use crate::errors::*;
-use crate::widgets::{widget::Widget, Spacing};
 use placeholder::unexpected_token;
 use placeholder::Placeholder;
 use value::Value;
@@ -22,13 +20,6 @@ pub struct FormatTemplate {
 enum Token {
     Text(String),
     Var(Placeholder),
-}
-
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub enum RenderedWidget {
-    Text(Widget),
-    Var(String, Widget),
 }
 
 impl FormatTemplate {
@@ -96,44 +87,6 @@ impl FormatTemplate {
                         )?
                         .format(&var)?,
                 ),
-            }
-        }
-
-        Ok(rendered)
-    }
-
-    // Experimental function: avoid using this function in your block.
-    // TODO reconsider the interface
-    #[allow(dead_code)]
-    pub fn render_widgets(
-        &self,
-        config: SharedConfig,
-        id: usize,
-        vars: &HashMap<&str, Value>,
-    ) -> Result<Vec<RenderedWidget>> {
-        let mut rendered = Vec::new();
-
-        for token in &self.tokens {
-            match token {
-                Token::Text(text) => rendered.push(RenderedWidget::Text(
-                    Widget::new(id, config.clone())
-                        .with_instance(rendered.len())
-                        .with_text(text.clone()),
-                )),
-                Token::Var(var) => rendered.push(RenderedWidget::Var(
-                    var.name.clone(),
-                    Widget::new(id, config.clone())
-                        .with_instance(rendered.len())
-                        .with_spacing(Spacing::Hidden)
-                        .with_text(
-                            vars.get(&*var.name)
-                                .internal_error(
-                                    "util",
-                                    &format!("Unknown placeholder in format string: {}", var.name),
-                                )?
-                                .format(&var)?,
-                        ),
-                )),
             }
         }
 

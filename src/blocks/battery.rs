@@ -72,7 +72,7 @@ where
 // ---
 
 /// A battery device can be queried for a few properties relevant to the user.
-#[async_trait(?Send)]
+#[async_trait]
 trait BatteryDevice {
     /// Query whether the device is available. Batteries can be hot-swappable
     /// and configurations may be used for multiple devices (desktop AND laptop).
@@ -159,7 +159,7 @@ impl PowerSupplyDevice {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl BatteryDevice for PowerSupplyDevice {
     async fn is_available(&self) -> bool {
         read_dir(&self.device_path).await.is_ok()
@@ -316,7 +316,7 @@ impl UPowerDevice {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl BatteryDevice for UPowerDevice {
     async fn is_available(&self) -> bool {
         true
@@ -495,7 +495,7 @@ pub async fn run(
     std::mem::drop(events_receiver);
     let block_config = BatteryConfig::deserialize(block_config).block_config_error("battery")?;
 
-    let mut device: Box<dyn BatteryDevice> = match block_config.driver {
+    let mut device: Box<dyn BatteryDevice + Send> = match block_config.driver {
         BatteryDriver::Sysfs => Box::new(PowerSupplyDevice::from_device(
             &block_config.device,
             block_config.interval,
@@ -600,6 +600,7 @@ pub async fn run(
             .await
             .internal_error("backlight", "failed to send message")?;
 
-        device.wait_for_change().await?;
+        let x = device.wait_for_change();
+        x.await?;
     }
 }
