@@ -1,11 +1,13 @@
 //! A block controled by the DBus
 //!
 //! This block runs a DBus server with a custom name specified in the configuration. It creates
-//! only one path  `/` that implements `rs.swaystatus.dbus` interface. The interface has three
-//! methods:
-//! - SetIcon
-//! - SetText
-//! - SetState
+//! only one path  `/` that implements `rs.swaystatus.dbus` interface (output of `qbus <name> /`):
+//! ```text
+//! method void rs.swaystatus.dbus.SetFullText(QString full)
+//! method void rs.swaystatus.dbus.SetIcon(QString icon)
+//! method void rs.swaystatus.dbus.SetState(QString state)
+//! method void rs.swaystatus.dbus.SetText(QString full, QString short)
+//! ```
 //!
 //! # Example
 //!
@@ -19,18 +21,18 @@
 //! Useage:
 //! ```sh
 //! # set test to 'hello'
-//! busctl --user call my.example.block / rs.swaystatus.dbus SetText s hello
+//! busctl --user call my.example.block / rs.swaystatus.dbus SetFullText s hello
 //! # set icon to 'music'
 //! busctl --user call my.example.block / rs.swaystatus.dbus SetIcon s music
 //! # set state to 'good'
 //! busctl --user call my.example.block / rs.swaystatus.dbus SetState s good
+//! # set full test to 'hello' and short text to 'hi'
+//! busctl --user call my.example.block / rs.swaystatus.dbus SetText ss hello hi
 //! ```
-//!
-//! # TODO
-//! - Add `SetShortText` method
 
 use dbus::channel::MatchingReceiver;
 use dbus::message::MatchRule;
+use dbus::MethodErr;
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
 
@@ -104,10 +106,32 @@ pub async fn run(
         b.method_with_cr_async(
             "SetIcon",
             ("icon",),
-            ("reply",),
+            (),
             |mut ctx, cr, (icon,): (String,)| {
                 let block: &mut Block = cr.data_mut(ctx.path()).unwrap(); // ok_or_else(|| MethodErr::no_path(ctx.path()))?;
-                let succes = block.text.set_icon(&icon).is_ok();
+                let result = block
+                    .text
+                    .set_icon(&icon)
+                    .map_err(|e| MethodErr::failed(&e.to_string()));
+                let sender = block.sender.clone();
+                let message = BlockMessage {
+                    id: block.id,
+                    widgets: vec![block.text.get_data()],
+                };
+                async move {
+                    // TODO do not ignore error
+                    let _ = sender.send(message).await;
+                    ctx.reply(result)
+                }
+            },
+        );
+        b.method_with_cr_async(
+            "SetText",
+            ("full", "short"),
+            (),
+            |mut ctx, cr, (full, short): (String, String)| {
+                let block: &mut Block = cr.data_mut(ctx.path()).unwrap(); // ok_or_else(|| MethodErr::no_path(ctx.path()))?;
+                block.text.set_text((full, Some(short)));
                 let sender = block.sender.clone();
                 let message = BlockMessage {
                     id: block.id,
@@ -115,21 +139,17 @@ pub async fn run(
                 };
                 async move {
                     let _ = sender.send(message).await;
-                    if succes {
-                        ctx.reply(Ok(("Succes",)))
-                    } else {
-                        ctx.reply(Ok(("Failture",)))
-                    }
+                    ctx.reply(Ok(()))
                 }
             },
         );
         b.method_with_cr_async(
-            "SetText",
-            ("text",),
+            "SetFullText",
+            ("full",),
             (),
-            |mut ctx, cr, (text,): (String,)| {
+            |mut ctx, cr, (full,): (String,)| {
                 let block: &mut Block = cr.data_mut(ctx.path()).unwrap(); // ok_or_else(|| MethodErr::no_path(ctx.path()))?;
-                block.text.set_full_text(text);
+                block.text.set_text((full, None));
                 let sender = block.sender.clone();
                 let message = BlockMessage {
                     id: block.id,
@@ -144,7 +164,7 @@ pub async fn run(
         b.method_with_cr_async(
             "SetState",
             ("state",),
-            ("relpy",),
+            (),
             |mut ctx, cr, (state,): (String,)| {
                 let block: &mut Block = cr.data_mut(ctx.path()).unwrap(); // ok_or_else(|| MethodErr::no_path(ctx.path()))?;
                 let mut succes = true;
@@ -164,9 +184,9 @@ pub async fn run(
                 async move {
                     let _ = sender.send(message).await;
                     if succes {
-                        ctx.reply(Ok(("Succes",)))
+                        ctx.reply(Ok(()))
                     } else {
-                        ctx.reply(Ok(("Failture",)))
+                        ctx.reply(Err(MethodErr::failed("Incorrect state")))
                     }
                 }
             },
