@@ -53,7 +53,7 @@ pub struct Theme(pub InternalTheme);
 
 impl Default for Theme {
     fn default() -> Self {
-        Self::from_file("plain").unwrap_or_else(|| Self(InternalTheme::default()))
+        Self(InternalTheme::default())
     }
 }
 

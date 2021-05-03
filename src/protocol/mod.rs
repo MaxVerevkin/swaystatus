@@ -20,17 +20,13 @@ pub fn print_blocks(blocks: &[Vec<I3BarBlock>], config: &SharedConfig) -> Result
 
     let mut rendered_blocks = vec![];
 
-    /* To always start with the same alternating tint on the right side of the
-     * bar it is easiest to calculate the number of visible blocks here and
-     * flip the starting tint if an even number of blocks is visible. This way,
-     * the last block should always be untinted.
-     */
-    let mut visible_count = 0;
+    // The right most block should never be alternated
+    let mut alt = true;
     for x in blocks.iter() {
-        visible_count += x.len();
+        if x.len() != 0 {
+            alt = !alt;
+        }
     }
-
-    let mut alternator = visible_count % 2 == 0;
 
     for widgets in blocks.iter() {
         if widgets.is_empty() {
@@ -41,7 +37,7 @@ pub fn print_blocks(blocks: &[Vec<I3BarBlock>], config: &SharedConfig) -> Result
             .iter()
             .map(|data| {
                 let mut data = data.clone();
-                if alternator {
+                if alt {
                     // Apply tint for all widgets of every second block
                     data.background = add_colors(
                         data.background.as_deref(),
@@ -58,7 +54,7 @@ pub fn print_blocks(blocks: &[Vec<I3BarBlock>], config: &SharedConfig) -> Result
             })
             .collect();
 
-        alternator = !alternator;
+        alt = !alt;
 
         if config.theme.separator.is_none() {
             // Re-add native separator on last widget for native theme
