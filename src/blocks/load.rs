@@ -1,3 +1,30 @@
+//! System load average
+//!
+//! # Configuration
+//!
+//! Key        | Values                                                                                | Required | Default
+//! -----------|---------------------------------------------------------------------------------------|----------|--------
+//! `format`   | A string to customise the output of this block. See below for available placeholders. | No       | `"{1m}"`
+//! `interval` | Update interval in seconds                                                            | No       | `3`
+//! `info`     | Minimum load, where state is set to info                                              | No       | `0.3`
+//! `warning`  | Minimum load, where state is set to warning                                           | No       | `0.6`
+//! `critical` | Minimum load, where state is set to critical                                          | No       | `0.9`
+//!
+//! Placeholder    | Value                  | Type  | Unit
+//! ---------------|------------------------|-------|-----
+//! `{1m}`         | 1 minute load average  | Float | -
+//! `{5m}`         | 5 minute load average  | Float | -
+//! `{15m}`        | 15 minute load average | Float | -
+//!
+//! # Example
+//!
+//! ```toml
+//! [[block]]
+//! block = "load"
+//! format = "1min avg: {1m}"
+//! interval = 1
+//! ```
+
 use std::path::Path;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -17,20 +44,11 @@ use crate::widgets::State;
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct LoadConfig {
-    /// Format string
     format: Option<FormatTemplate>,
-
-    /// Inerval of updates
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
-
-    /// Minimum load, where state is set to info
     info: f64,
-
-    /// Minimum load, where state is set to warning
     warning: f64,
-
-    /// Minimum load, where state is set to critical
     critical: f64,
 }
 
@@ -38,7 +56,7 @@ impl Default for LoadConfig {
     fn default() -> Self {
         Self {
             format: None,
-            interval: Duration::from_secs(5),
+            interval: Duration::from_secs(3),
             info: 0.3,
             warning: 0.6,
             critical: 0.9,
