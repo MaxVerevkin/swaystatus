@@ -1,3 +1,44 @@
+//! The system temperature
+//!
+//! This block is based on lm_sensors' `sensors -j` output. Requires `lm_sensors` and appropriate kernel modules for your hardware.
+//!
+//! This block has two modes: "collapsed", which uses only color as an indicator, and "expanded", which shows the content of a `format` string. The average, minimum, and maximum temperatures are computed using all sensors displayed by `sensors`, or optionally filtered by `chip` and `inputs`.
+//!
+//! Note that the colour of the block is always determined by the maximum temperature across all sensors, not the average. You may need to keep this in mind if you have a misbehaving sensor.
+//!
+//! # Configuration
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `format` | A string to customise the output of this block. See below for available placeholders | No | `"{average} avg, {max} max"`
+//! `interval` | Update interval in seconds | No | `5`
+//! `collapsed` | Whether the block will be collapsed by default | No | `false`
+//! `good` | Maximum temperature to set state to good | No | `20` °C (`68` °F)
+//! `idle` | Maximum temperature to set state to idle | No | `45` °C (`113` °F)
+//! `info` | Maximum temperature to set state to info | No | `60` °C (`140` °F)
+//! `warning` | Maximum temperature to set state to warning. Beyond this temperature, state is set to critical | No | `80` °C (`176` °F)
+//! `chip` | Narrows the results to a given chip name. `*` may be used as a wildcard | No | None
+//!
+//! Placeholder  | Value                                 | Type    | Unit
+//! -------------|---------------------------------------|---------|--------
+//! `{min}`      | Minimum temperature among all sensors | Integer | Degrees
+//! `{average}`  | Average temperature among all sensors | Integer | Degrees
+//! `{max}`      | Maximum temperature among all sensors | Integer | Degrees
+//!
+//! # Example
+//!
+//! ```toml
+//! [[block]]
+//! block = "temperature"
+//! interval = 10
+//! format = "{min} min, {max} max, {average} avg"
+//! chip = "*-isa-*"
+//! ```
+//!
+//! # TODO
+//! - `inputs` config option
+//! - `fahrenheit` config option
+
 use serde::de::Deserialize;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -20,30 +61,15 @@ type InputReadings = HashMap<String, f64>;
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct TemperatureConfig {
-    /// Format string
     format: Option<FormatTemplate>,
-
-    /// Update interval in seconds
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
-
-    /// Narrows the results to a given chip name
-    chip: Option<String>,
-
-    /// Collapsed by default?
     collapsed: bool,
-
-    /// Maximum temperature, below which state is set to good
     good: i64,
-
-    /// Maximum temperature, below which state is set to idle
     idle: i64,
-
-    /// Maximum temperature, below which state is set to info
     info: i64,
-
-    /// Maximum temperature, below which state is set to warning
     warning: i64,
+    chip: Option<String>,
 }
 
 impl Default for TemperatureConfig {
@@ -51,12 +77,12 @@ impl Default for TemperatureConfig {
         Self {
             format: None,
             interval: Duration::from_secs(5),
-            chip: None,
             collapsed: false,
             good: 20,
             idle: 45,
             info: 60,
             warning: 80,
+            chip: None,
         }
     }
 }
@@ -70,7 +96,7 @@ pub async fn run(
 ) -> Result<()> {
     let block_config =
         TemperatureConfig::deserialize(block_config).block_config_error("temperature")?;
-    let format = default_format!(block_config.format, "{avg}")?;
+    let format = default_format!(block_config.format, "{average} avg, {max} max")?;
     let mut text = Widget::new(id, shared_config).with_icon("thermometer")?;
     let mut collapsed = block_config.collapsed;
 

@@ -1,3 +1,26 @@
+//! The current time.
+//!
+//! # Configuration
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `format` | Format string. See [chrono docs](https://docs.rs/chrono/0.3.0/chrono/format/strftime/index.html#specifiers) for all options. | No | `%a %d/%m %R`
+//! `format_short` | Same as `format` but used when there is no enough space on the bar | No | None
+//! `interval` | Update interval in seconds | No | 10
+//! `timezone` | A timezone specifier (e.g. "Europe/Lisbon") | No | Local timezone
+//! `locale` | Locale to apply when formatting the time | No | System locale
+//!
+//! # Example
+//!
+//! ```toml
+//! [[block]]
+//! block = "time"
+//! format = "%d/%m %R"
+//! format_short = "%R"
+//! interval = 60
+//! locale = "fr_BE"
+//! ```
+
 use serde::de::Deserialize;
 use std::convert::TryInto;
 use std::time::Duration;
@@ -15,18 +38,10 @@ use crate::widgets::widget::Widget;
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct TimeConfig {
-    /// Format string.
-    /// See [chrono docs](https://docs.rs/chrono/0.3.0/chrono/format/strftime/index.html#specifiers) for all options.
     format: String,
-
-    /// Same as `format` but used when i3bar/swaystatus doesn't have enough space for every block
     format_short: Option<String>,
-
-    /// Update interval in seconds
     interval: u64,
-
     timezone: Option<Tz>,
-
     locale: Option<String>,
 }
 
@@ -35,7 +50,7 @@ impl Default for TimeConfig {
         Self {
             format: "%a %d/%m %R".to_string(),
             format_short: None,
-            interval: 5,
+            interval: 10,
             timezone: None,
             locale: None,
         }
@@ -70,13 +85,9 @@ pub async fn run(
     };
 
     loop {
-        let full_time = get_time(format, timezone, locale)?;
-        match format_short {
-            Some(format_short) => {
-                text.set_text((full_time, Some(get_time(format_short, timezone, locale)?)))
-            }
-            None => text.set_full_text(full_time),
-        }
+        let full_time = get_time(format, timezone, locale);
+        let short_time = format_short.map(|f| get_time(f, timezone, locale));
+        text.set_text((full_time, short_time));
 
         message_sender
             .send(BlockMessage {
@@ -90,8 +101,8 @@ pub async fn run(
     }
 }
 
-fn get_time(format: &str, timezone: Option<Tz>, locale: Option<Locale>) -> Result<String> {
-    Ok(match locale {
+fn get_time(format: &str, timezone: Option<Tz>, locale: Option<Locale>) -> String {
+    match locale {
         Some(locale) => match timezone {
             Some(tz) => Utc::now()
                 .with_timezone(&tz)
@@ -103,5 +114,5 @@ fn get_time(format: &str, timezone: Option<Tz>, locale: Option<Locale>) -> Resul
             Some(tz) => Utc::now().with_timezone(&tz).format(format).to_string(),
             None => Local::now().format(format).to_string(),
         },
-    })
+    }
 }

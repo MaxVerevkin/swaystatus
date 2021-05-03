@@ -1,4 +1,6 @@
-//! A block which uses [`speedtest-cli`](https://github.com/sivel/speedtest-cli) to measure your ping, download, and upload speeds.
+//! Ping, download, and upload speeds
+//!
+//! This block which requires [`speedtest-cli`](https://github.com/sivel/speedtest-cli).
 //!
 //! # Configuration
 //!
@@ -39,10 +41,7 @@ use crate::widgets::widget::Widget;
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct SpeedtestConfig {
-    /// Format string
     format: Option<FormatTemplate>,
-
-    /// Update interval in seconds
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
 }

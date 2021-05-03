@@ -1,4 +1,4 @@
-//! A block which runs a [pomodoro timer](https://en.wikipedia.org/wiki/Pomodoro_Technique).
+//! A [pomodoro timer](https://en.wikipedia.org/wiki/Pomodoro_Technique)
 //!
 //! # Technique
 //!

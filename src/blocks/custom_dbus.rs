@@ -1,3 +1,5 @@
+//! A block controled by the DBus
+//!
 //! This block runs a DBus server with a custom name specified in the configuration. It creates
 //! only one path  `/` that implements `rs.swaystatus.dbus` interface. The interface has three
 //! methods:
@@ -5,7 +7,7 @@
 //! - SetText
 //! - SetState
 //!
-//! ## Example.
+//! # Example
 //!
 //! Config:
 //! ```toml
@@ -23,6 +25,9 @@
 //! # set state to 'good'
 //! busctl --user call my.example.block / rs.swaystatus.dbus SetState s good
 //! ```
+//!
+//! # TODO
+//! - Add `SetShortText` method
 
 use dbus::channel::MatchingReceiver;
 use dbus::message::MatchRule;

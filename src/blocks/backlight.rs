@@ -1,11 +1,34 @@
-//! A block for displaying the brightness of a backlit device.
+//! The brightness of a backlight device
 //!
-//! This module contains the [`Backlight`](./struct.Backlight.html) block, which
-//! can display the brightness level of physical backlit devices. Brightness
-//! levels are read from and written to the `sysfs` filesystem, so this block
-//! does not depend on `xrandr` (and thus it works on Wayland). To set
-//! brightness levels using `xrandr`, see the
-//! [`Xrandr`](../xrandr/struct.Xrandr.html) block.
+//! This block reads brightness information directly from the filesystem, so it works under both
+//! X11 and Wayland. The block uses `inotify` to listen for changes in the device's brightness
+//! directly, so there is no need to set an update interval. This block uses DBus to set brightness
+//! level using the mouse wheel.
+//!
+//! # Root scaling
+//!
+//! Some devices expose raw values that are best handled with nonlinear scaling. The human perception of lightness is close to the cube root of relative luminance, so settings for `root_scaling` between 2.4 and 3.0 are worth trying. For devices with few discrete steps this should be 1.0 (linear). More information: <https://en.wikipedia.org/wiki/Lightness>
+//!
+//!
+//! # Configuration
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `device` | The `/sys/class/backlight` device to read brightness information from.  When there is no `device` specified, this block will display information from the first device found in the `/sys/class/backlight` directory. If you only have one display, this approach should find it correctly.| No | Default device
+//! `step_width` | The brightness increment to use when scrolling, in percent | No | `5`
+//! `root_scaling` | Scaling exponent reciprocal (ie. root) | No | `1.0`
+//! `invert_icons` | Invert icons' ordering, useful if you have colorful emoji | No | `false`
+//!
+//! # Example
+//!
+//! ```toml
+//! [[block]]
+//! block = "backlight"
+//! device = "intel_backlight"
+//! ```
+//!
+//! # TODO
+//! - Add format string config option
 
 use std::cmp::max;
 use std::convert::TryInto;
@@ -17,8 +40,7 @@ use std::time::Duration;
 use inotify::{Inotify, WatchMask};
 use serde::de::Deserialize;
 use serde_derive::Deserialize;
-use tokio::fs::{read_dir, OpenOptions};
-use tokio::io::AsyncWriteExt;
+use tokio::fs::read_dir;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
@@ -64,6 +86,26 @@ const BACKLIGHT_ICONS: &[&str] = &[
     "backlight_13",
     "backlight_full",
 ];
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields, default)]
+pub struct BacklightConfig {
+    pub device: Option<String>,
+    pub step_width: u8,
+    pub root_scaling: f64,
+    pub invert_icons: bool,
+}
+
+impl Default for BacklightConfig {
+    fn default() -> Self {
+        Self {
+            device: None,
+            step_width: 5,
+            root_scaling: 1f64,
+            invert_icons: false,
+        }
+    }
+}
 
 /// Read a brightness value from the given path.
 async fn read_brightness_raw(device_file: &Path) -> Result<u64> {
@@ -157,23 +199,7 @@ impl BacklitDevice {
         let value = value.clamp(0, 100);
         let ratio = (value as f64 / 100.0).powf(self.root_scaling);
         let raw = max(1, (ratio * (self.max_brightness as f64)).round() as u64);
-
-        eprintln!("{}", self.device_path.join("brightness").display());
-
-        if let Ok(mut file) = OpenOptions::new()
-            .write(true)
-            .open(self.brightness_file())
-            .await
-            .map_err(|err| eprintln!("{:?}", err))
-        {
-            file.write_all(format!("{}", raw).as_bytes())
-                .await
-                .block_error("backlight", "Failed to write into brightness file")?;
-
-            Ok(())
-        } else {
-            self.set_brightness_via_dbus(raw).await
-        }
+        self.set_brightness_via_dbus(raw).await
     }
 
     async fn set_brightness_via_dbus(&self, raw_value: u64) -> Result<()> {
@@ -204,41 +230,6 @@ impl BacklitDevice {
                 FILE_BRIGHTNESS
             }
         })
-    }
-}
-
-/// Configuration for the [`Backlight`](./struct.Backlight.html) block.
-#[derive(Deserialize, Debug, Clone)]
-#[serde(deny_unknown_fields, default)]
-pub struct BacklightConfig {
-    /// The backlight device in `/sys/class/backlight/` to read brightness from.
-    pub device: Option<String>,
-
-    /// The steps brightness is in/decreased for the selected screen.
-    /// When greater than 50 it gets limited to 50.
-    pub step_width: u8,
-
-    /// Scaling exponent reciprocal (ie. root). Some devices expose raw values
-    /// that are best handled with nonlinear scaling. The human perception of
-    /// lightness is close to the cube root of relative luminance. Settings
-    /// between 2.4 and 3.0 are worth trying.
-    /// More information: <https://en.wikipedia.org/wiki/Lightness>
-    ///
-    /// For devices with few discrete steps this should be 1.0 (linear).
-    pub root_scaling: f64,
-
-    /// Invert the ordering of displayed icons.
-    pub invert_icons: bool,
-}
-
-impl Default for BacklightConfig {
-    fn default() -> Self {
-        Self {
-            device: None,
-            step_width: 5,
-            root_scaling: 1f64,
-            invert_icons: false,
-        }
     }
 }
 

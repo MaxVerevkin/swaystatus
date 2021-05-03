@@ -1,8 +1,34 @@
-//! A block for displaying information about an internal power supply.
+//! Information about an internal power supply
 //!
-//! This module contains the [`Battery`](./struct.Battery.html) block, which can
-//! display the status, capacity, and time remaining for (dis)charge for an
-//! internal power supply.
+//! This block can display the current battery state (Full, Charging or Discharging), percentage
+//! charged and estimate time until (dis)charged for an internal power supply.
+//!
+//! # Configuration
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `device` | The device in `/sys/class/power_supply/` to read from. When using UPower, this can also be `"DisplayDevice"`. | No | `"BAT0"`
+//! `driver` | One of `"sysfs"` or `"upower"` | No | `"sysfs"`
+//! `interval` | Update interval, in seconds. Only relevant for `driver = "sysfs"`. | No | `10`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{percentage}"`
+//! `full_format` | Same as `format` but for when the battery is full | No | `""`
+//! `missing_format` | Same as `format` but for when the specified battery is missing | No | `"{percentage}"`
+//! `allow_missing` | Don't display errors when the battery cannot be found. Only works with the `sysfs` driver. | No | `false`
+//! `hide_missing` | Completely hide this block if the battery cannot be found. Only works in combination with `allow_missing`. | No | `false`
+//! `info` | Minimum battery level, where state is set to info | No | `60`
+//! `good` | Minimum battery level, where state is set to good | No | `60`
+//! `warning` | Minimum battery level, where state is set to warning | No | `30`
+//! `critical` | Minimum battery level, where state is set to critical | No | `15`
+//!
+//! Placeholder    | Value                                                                   | Type              | Unit
+//! ---------------|-------------------------------------------------------------------------|-------------------|-----
+//! `{percentage}` | Battery level, in percent                                               | String or Integer | Percents
+//! `{time}`       | Time remaining until (dis)charge is complete                            | String            | -
+//! `{power}`      | Power consumption by the battery or from the power supply when charging | String or Float   | Watts
+//!
+//! # TODO
+//! - Use `inotify` for `sysfs` dirver
+//! - remove `interval` option
 
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
@@ -52,6 +78,43 @@ const UPOWER_DBUS_ROOT_INTERFACE: &str = "org.freedesktop.UPower";
 const UPOWER_DBUS_DEVICE_INTERFACE: &str = "org.freedesktop.UPower.Device";
 const UPOWER_DBUS_PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";
 const UPOWER_DBUS_ROOT_PATH: &str = "/org/freedesktop/UPower";
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields, default)]
+struct BatteryConfig {
+    device: String,
+    driver: BatteryDriver,
+    #[serde(deserialize_with = "deserialize_duration")]
+    interval: Duration,
+    format: Option<FormatTemplate>,
+    full_format: Option<FormatTemplate>,
+    missing_format: Option<FormatTemplate>,
+    allow_missing: bool,
+    hide_missing: bool,
+    info: u8,
+    good: u8,
+    warning: u8,
+    critical: u8,
+}
+
+impl Default for BatteryConfig {
+    fn default() -> Self {
+        Self {
+            device: "BAT0".to_string(),
+            driver: BatteryDriver::Sysfs,
+            interval: Duration::from_secs(10),
+            format: None,
+            full_format: None,
+            missing_format: None,
+            allow_missing: false,
+            hide_missing: false,
+            info: 60,
+            good: 60,
+            warning: 30,
+            critical: 15,
+        }
+    }
+}
 
 /// Read value from a file, return None if the file does not exist
 async fn read_value_from_file<P: AsRef<Path>, T: FromStr>(path: P) -> Result<Option<T>>
@@ -408,69 +471,6 @@ impl BatteryDevice for UPowerDevice {
 // ---
 // --- Block
 // ---
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(deny_unknown_fields, default)]
-struct BatteryConfig {
-    /// Update interval in seconds
-    #[serde(deserialize_with = "deserialize_duration")]
-    interval: Duration,
-
-    /// The internal power supply device in `/sys/class/power_supply/` to read from.
-    device: String,
-
-    /// Format string for displaying battery information.
-    /// placeholders: {percentage}, {bar}, {time} and {power}
-    format: Option<FormatTemplate>,
-
-    /// Format string for displaying battery information when battery is full.
-    /// placeholders: {percentage}, {bar}, {time} and {power}
-    full_format: Option<FormatTemplate>,
-
-    /// Format string that's displayed if a battery is missing.
-    /// placeholders: {percentage}, {bar}, {time} and {power}
-    missing_format: Option<FormatTemplate>,
-
-    /// The "driver" to use for powering the block. One of "sysfs" or "upower".
-    driver: BatteryDriver,
-
-    /// The threshold above which the remaining capacity is shown as good
-    good: u8,
-
-    /// The threshold below which the remaining capacity is shown as info
-    info: u8,
-
-    /// The threshold below which the remaining capacity is shown as warning
-    warning: u8,
-
-    /// The threshold below which the remaining capacity is shown as critical
-    critical: u8,
-
-    /// If the battery device cannot be found, do not fail and show the block anyway (sysfs only).
-    allow_missing: bool,
-
-    /// If the battery device cannot be found, completely hide this block.
-    hide_missing: bool,
-}
-
-impl Default for BatteryConfig {
-    fn default() -> Self {
-        Self {
-            interval: Duration::from_secs(10),
-            device: "BAT0".to_string(),
-            format: None,
-            full_format: None,
-            missing_format: None,
-            driver: BatteryDriver::Sysfs,
-            good: 60,
-            info: 60,
-            warning: 30,
-            critical: 15,
-            allow_missing: false,
-            hide_missing: false,
-        }
-    }
-}
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
