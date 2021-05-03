@@ -1,11 +1,61 @@
+//! Memory and swap usage
+//!
+//! This module keeps track of both Swap and Memory. By default, a click switches between them.
+//!
+//! # Configuration
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `format_mem` | A string to customise the output of this block when in "Memory" view. See below for available placeholders. | No | `"{mem_free;M}/{mem_total;M}({mem_total_used_percents})"`
+//! `format_swap` | A string to customise the output of this block when in "Swap" view. See below for available placeholders. | No | `"{swap_free;M}/{swap_total;M}({swap_used_percents})"`
+//! `display_type` | Default view displayed on startup: "`memory`" or "`swap`" | No | `"memory"`
+//! `clickable` | Whether the view should switch between memory and swap on click | No | `true`
+//! `interval` | Update interval in seconds | No | `5`
+//! `warning_mem` | Percentage of memory usage, where state is set to warning | No | `80.0`
+//! `warning_swap` | Percentage of swap usage, where state is set to warning | No | `80.0`
+//! `critical_mem` | Percentage of memory usage, where state is set to critical | No | `95.0`
+//! `critical_swap` | Percentage of swap usage, where state is set to critical | No | `95.0`
+//!
+//! Placeholder                 | Value                                                                         | Type  | Unit
+//! ----------------------------|-------------------------------------------------------------------------------|-------|-------
+//! `{mem_total}`               | Memory total                                                                  | Float | Bytes
+//! `{mem_free}`                | Memory free                                                                   | Float | Bytes
+//! `{mem_free_percents}`       | Memory free                                                                   | Float | Percents
+//! `{mem_total_used}`          | Total memory used                                                             | Float | Bytes
+//! `{mem_total_used_percents}` | Total memory used                                                             | Float | Percents
+//! `{mem_used}`                | Memory used, excluding cached memory and buffers; similar to htop's green bar | Float | Bytes
+//! `{mem_used_percents}`       | Memory used, excluding cached memory and buffers; similar to htop's green bar | Float | Percents
+//! `{mem_avail}`               | Available memory, including cached memory and buffers                         | Float | Bytes
+//! `{mem_avail_percents}`      | Available memory, including cached memory and buffers                         | Float | Percents
+//! `{swap_total}`              | Swap total                                                                    | Float | Bytes
+//! `{swap_free}`               | Swap free                                                                     | Float | Bytes
+//! `{swap_free_percents}`      | Swap free                                                                     | Float | Percents
+//! `{swap_used}`               | Swap used                                                                     | Float | Bytes
+//! `{swap_used_percents}`      | Swap used                                                                     | Float | Percents
+//! `{buffers}`                 | Buffers, similar to htop's blue bar                                           | Float | Bytes
+//! `{buffers_percent}`         | Buffers, similar to htop's blue bar                                           | Float | Percents
+//! `{cached}`                  | Cached memory, similar to htop's yellow bar                                   | Float | Bytes
+//! `{cached_percent}`          | Cached memory, similar to htop's yellow bar                                   | Float | Percents
+//!
+//! # Example
+//!
+//! ```toml
+//! [[block]]
+//! block = "memory"
+//! format_mem = "{mem_used_percents:1}"
+//! clickable = false
+//! interval = 30
+//! warning_mem = 70
+//! critical_mem = 90
+//! ```
+
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::sync::mpsc;
 
 use serde::de::Deserialize;
-
-use tokio::sync::mpsc;
 
 use super::{BlockEvent, BlockMessage};
 use crate::click::MouseButton;
@@ -17,24 +67,16 @@ use crate::widgets::State;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
-pub struct MemoryConfig {
-    /// Format string for Memory view. All format values are described below.
-    pub format_mem: Option<FormatTemplate>,
-
-    /// Format string for Swap view.
-    pub format_swap: Option<FormatTemplate>,
-
-    /// Default view displayed on startup. Options are <br/> memory, swap
-    pub display_type: Memtype,
-
-    /// Whether the format string should be prepended with Icons. Options are <br/> true, false
-    pub icons: bool,
-
-    /// Whether the view should switch between memory and swap on click. Options are <br/> true, false
-    pub clickable: bool,
-
-    /// The delay in seconds between an update. If `clickable`, an update is triggered on click. Integer values only.
-    pub interval: u64,
+struct MemoryConfig {
+    format_mem: Option<FormatTemplate>,
+    format_swap: Option<FormatTemplate>,
+    display_type: Memtype,
+    clickable: bool,
+    interval: u64,
+    warning_mem: f64,
+    warning_swap: f64,
+    critical_mem: f64,
+    critical_swap: f64,
 }
 
 impl Default for MemoryConfig {
@@ -43,9 +85,12 @@ impl Default for MemoryConfig {
             format_mem: None,
             format_swap: None,
             display_type: Memtype::Memory,
-            icons: true,
             clickable: true,
             interval: 5,
+            warning_mem: 80.,
+            warning_swap: 80.,
+            critical_mem: 95.,
+            critical_swap: 95.,
         }
     }
 }
@@ -122,16 +167,15 @@ pub async fn run(
             Memtype::Swap => &mut text_swap,
         };
 
-        // TODO make it configurable
         text.set_state(match memtype {
             Memtype::Memory => match mem_used / mem_total * 100. {
-                x if x > 95.0 => State::Critical,
-                x if x > 80.0 => State::Warning,
+                x if x > block_config.critical_mem => State::Critical,
+                x if x > block_config.warning_mem => State::Warning,
                 _ => State::Idle,
             },
             Memtype::Swap => match swap_used / swap_total * 100. {
-                x if x > 95.0 => State::Critical,
-                x if x > 80.0 => State::Warning,
+                x if x > block_config.critical_swap => State::Critical,
+                x if x > block_config.warning_swap => State::Warning,
                 _ => State::Idle,
             },
         });
