@@ -10,6 +10,7 @@
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
 //! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{window}"`
+//! `autohide` | Whether to hide the block when no title is available | No | `true`
 //!
 //! Placeholder      | Value                                     | Type   | Unit
 //! -----------------|-------------------------------------------|--------|-----
@@ -29,7 +30,7 @@
 
 use serde::de::Deserialize;
 use serde_derive::Deserialize;
-use swayipc_async::{Connection, Event, EventType, Node, WindowChange, WorkspaceChange};
+use swayipc_async::{Connection, Event, EventType, WindowChange, WorkspaceChange};
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
@@ -40,10 +41,19 @@ use crate::formatting::{value::Value, FormatTemplate};
 use crate::widgets::widget::Widget;
 
 #[derive(Deserialize, Debug, Clone)]
-#[serde(deny_unknown_fields)]
-pub struct FocusedWindowConfig {
-    #[serde(default)]
-    pub format: Option<FormatTemplate>,
+#[serde(deny_unknown_fields, default)]
+struct FocusedWindowConfig {
+    format: Option<FormatTemplate>,
+    autohide: bool,
+}
+
+impl Default for FocusedWindowConfig {
+    fn default() -> Self {
+        Self {
+            format: None,
+            autohide: true,
+        }
+    }
 }
 
 pub async fn run(
@@ -60,7 +70,7 @@ pub async fn run(
     let format = default_format!(block_config.format.clone(), "{window^21}")?;
     let mut widget = Widget::new(id, shared_config);
 
-    let mut title = "".to_string();
+    let mut title = None;
     let mut marks = Vec::new();
 
     let conn = Connection::new()
@@ -80,71 +90,51 @@ pub async fn run(
             .block_error("focused_window", "swayipc channel closed")?
             .block_error("focused_window", "bad event")?;
 
-        dbg!(&event);
-
         let updated = match event {
-            Event::Window(e) => match (e.change, e.container) {
-                (
-                    WindowChange::Mark,
-                    Node {
-                        marks: new_marks, ..
-                    },
-                ) => {
-                    marks = new_marks;
+            Event::Window(e) => match e.change {
+                WindowChange::Mark => {
+                    marks = e.container.marks;
                     true
                 }
-                (
-                    WindowChange::Focus,
-                    Node {
-                        name,
-                        marks: new_marks,
-                        ..
-                    },
-                ) => {
-                    title = name.unwrap_or_default();
-                    marks = new_marks;
+                WindowChange::Focus => {
+                    title = e.container.name;
+                    marks = e.container.marks;
                     true
                 }
-                (
-                    WindowChange::Title,
-                    Node {
-                        focused: true,
-                        name: Some(name),
-                        ..
-                    },
-                ) => {
-                    title = name;
-                    true
+                WindowChange::Title => {
+                    if e.container.focused {
+                        title = e.container.name;
+                        true
+                    } else {
+                        false
+                    }
                 }
-                (
-                    WindowChange::Close,
-                    Node {
-                        name: Some(name), ..
-                    },
-                ) if name == title => {
-                    title.clear();
+                WindowChange::Close => {
+                    title = None;
                     marks.clear();
                     true
                 }
                 _ => false,
             },
             Event::Workspace(e) if e.change == WorkspaceChange::Init => {
-                title.clear();
+                title = None;
                 marks.clear();
                 true
             }
             _ => false,
         };
 
-        // Render and send widget (send empty vec when text is empty to hide the block)
+        // Render and send widget
         if updated {
             let mut widgets = vec![];
-            widget.set_text(format.render(&map! {
-                "title" => Value::from_string(title.clone()),
-                "marks" => Value::from_string(marks.iter().map(|m| format!("[{}]",m)).collect()),
-                "visible_marks" => Value::from_string(marks.iter().filter(|m| !m.starts_with('_')).map(|m| format!("[{}]",m)).collect()),
-            })?);
-            widgets.push(widget.get_data());
+            if title.is_some() || !block_config.autohide {
+                widget.set_text(format.render(&map! {
+                    "title" => Value::from_string(title.clone().unwrap_or_default()),
+                    "marks" => Value::from_string(marks.iter().map(|m| format!("[{}]",m)).collect()),
+                    "visible_marks" => Value::from_string(marks.iter().filter(|m| !m.starts_with('_')).map(|m| format!("[{}]",m)).collect()),
+                })?);
+                widgets.push(widget.get_data());
+            }
             message_sender
                 .send(BlockMessage { id, widgets })
                 .await
