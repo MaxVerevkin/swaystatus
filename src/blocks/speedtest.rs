@@ -6,7 +6,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders | No | `"{ping}{speed_down}{speed_up}"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{ping}{speed_down}{speed_up}"`
 //! `interval` | Update interval in seconds | No | `1800`
 //!
 //! Placeholder    | Value          | Type  | Unit

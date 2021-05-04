@@ -1,3 +1,32 @@
+//! Currently focused window
+//!
+//! This block displays the title or the active marks of the currently focused window. Uses push
+//! updates from i3 IPC, so no need to worry about resource usage. The block only updates when the
+//! focused window changes title or the focus changes. Also works with sway, due to it having
+//! compatibility with i3's IPC.
+//!
+//! # Configuration
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{window}"`
+//!
+//! Placeholder      | Value                                     | Type   | Unit
+//! -----------------|-------------------------------------------|--------|-----
+//! `{title}`        | Window's titile                           | String | -
+//! `{marks}`        | Window's marks                            | String | -
+//! `{visible_marks}`| Window's marks that do not start with `_` | String | -
+//!
+//! # Example
+//!
+//! ```toml
+//! [[block]]
+//! block = "focused_window"
+//! [block.format]
+//! full = "{title^40}"
+//! short = "{title^20}"
+//! ```
+
 use serde::de::Deserialize;
 use serde_derive::Deserialize;
 use swayipc_async::{Connection, Event, EventType, Node, WindowChange, WorkspaceChange};
@@ -10,31 +39,11 @@ use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
 use crate::widgets::widget::Widget;
 
-#[derive(Copy, Clone, Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum MarksType {
-    All,
-    Visible,
-    None,
-}
-
 #[derive(Deserialize, Debug, Clone)]
-#[serde(deny_unknown_fields, default)]
+#[serde(deny_unknown_fields)]
 pub struct FocusedWindowConfig {
-    /// Format string
+    #[serde(default)]
     pub format: Option<FormatTemplate>,
-
-    /// Show marks in place of title (if exist)
-    pub show_marks: MarksType,
-}
-
-impl Default for FocusedWindowConfig {
-    fn default() -> Self {
-        Self {
-            format: None,
-            show_marks: MarksType::None,
-        }
-    }
 }
 
 pub async fn run(
@@ -44,11 +53,12 @@ pub async fn run(
     message_sender: mpsc::Sender<BlockMessage>,
     events_receiver: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
-    std::mem::drop(events_receiver);
+    drop(events_receiver);
 
     let block_config =
         FocusedWindowConfig::deserialize(block_config).block_config_error("focused_window")?;
     let format = default_format!(block_config.format.clone(), "{window^21}")?;
+    let mut widget = Widget::new(id, shared_config);
 
     let mut title = "".to_string();
     let mut marks = Vec::new();
@@ -62,25 +72,6 @@ pub async fn run(
         .await
         .block_error("focused_window", "could not subscribe to window events")?;
 
-    // Render text for marks
-    let marks_str = |marks: &[String]| -> String {
-        let mut result = "".to_string();
-
-        for mark in marks {
-            match block_config.show_marks {
-                MarksType::All => {
-                    result.push_str(&format!("[{}]", mark));
-                }
-                MarksType::Visible if !mark.starts_with('_') => {
-                    result.push_str(&format!("[{}]", mark));
-                }
-                _ => {}
-            }
-        }
-
-        result
-    };
-
     // Main loop
     loop {
         let event = events
@@ -88,6 +79,8 @@ pub async fn run(
             .await
             .block_error("focused_window", "swayipc channel closed")?
             .block_error("focused_window", "bad event")?;
+
+        dbg!(&event);
 
         let updated = match event {
             Event::Window(e) => match (e.change, e.container) {
@@ -143,24 +136,17 @@ pub async fn run(
             _ => false,
         };
 
-        // Render and send widget
+        // Render and send widget (send empty vec when text is empty to hide the block)
         if updated {
-            let text: String = match block_config.show_marks {
-                MarksType::None => title.to_string(),
-                _ => marks_str(&marks),
-            };
-
-            let widget = Widget::new(id, shared_config.clone())
-                .with_text(format.render(&map! {
-                    "window" => Value::from_string(text),
-                })?)
-                .get_data();
-
+            let mut widgets = vec![];
+            widget.set_text(format.render(&map! {
+                "title" => Value::from_string(title.clone()),
+                "marks" => Value::from_string(marks.iter().map(|m| format!("[{}]",m)).collect()),
+                "visible_marks" => Value::from_string(marks.iter().filter(|m| !m.starts_with('_')).map(|m| format!("[{}]",m)).collect()),
+            })?);
+            widgets.push(widget.get_data());
             message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![widget],
-                })
+                .send(BlockMessage { id, widgets })
                 .await
                 .internal_error("focused_window", "failed to send message")?;
         }
