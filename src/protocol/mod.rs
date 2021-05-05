@@ -23,7 +23,7 @@ pub fn print_blocks(blocks: &[Vec<I3BarBlock>], config: &SharedConfig) -> Result
     // The right most block should never be alternated
     let mut alt = true;
     for x in blocks.iter() {
-        if x.len() != 0 {
+        if !x.is_empty() {
             alt = !alt;
         }
     }

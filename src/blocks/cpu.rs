@@ -17,7 +17,7 @@ use crate::widgets::State;
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 pub struct CpuConfig {
-    pub format: Option<FormatTemplate>,
+    pub format: FormatTemplate,
     pub format_alt: Option<FormatTemplate>,
 
     /// The delay in seconds between an update
@@ -27,7 +27,7 @@ pub struct CpuConfig {
 impl Default for CpuConfig {
     fn default() -> Self {
         Self {
-            format: None,
+            format: Default::default(),
             format_alt: None,
             interval: 5,
         }
@@ -42,7 +42,7 @@ pub async fn run(
     mut events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
     let block_config = CpuConfig::deserialize(block_config).block_config_error("cpu")?;
-    let mut format = default_format!(block_config.format, "{utilization}")?;
+    let mut format = block_config.format.or_default("{utilization}")?;
     let mut format_alt = block_config.format_alt;
 
     let mut text = Widget::new(id, shared_config).with_icon("cpu")?;

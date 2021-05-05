@@ -44,7 +44,7 @@ use crate::widgets::State;
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct LoadConfig {
-    format: Option<FormatTemplate>,
+    format: FormatTemplate,
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
     info: f64,
@@ -55,7 +55,7 @@ struct LoadConfig {
 impl Default for LoadConfig {
     fn default() -> Self {
         Self {
-            format: None,
+            format: Default::default(),
             interval: Duration::from_secs(3),
             info: 0.3,
             warning: 0.6,
@@ -76,7 +76,7 @@ pub async fn run(
 
     let block_config = LoadConfig::deserialize(block_config).block_config_error("cpu")?;
     let mut text = Widget::new(id, shared_config).with_icon("cogs")?;
-    let format = default_format!(block_config.format, "{1m}")?;
+    let format = block_config.format.or_default("{1m}")?;
     let mut interval = tokio::time::interval(block_config.interval);
 
     // borrowed from https://docs.rs/cpuinfo/0.1.1/src/cpuinfo/count/logical.rs.html#4-6

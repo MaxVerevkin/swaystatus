@@ -1,12 +1,11 @@
 #[macro_use]
 mod util;
-#[macro_use]
-mod formatting;
 mod blocks;
 mod click;
 mod config;
 mod de;
 mod errors;
+mod formatting;
 mod icons;
 mod netlink;
 mod protocol;
@@ -71,8 +70,8 @@ fn main() {
         .get_matches();
 
     // Build the runtime adn run the program
-    let result = tokio::runtime::Builder::new_current_thread()
-        //.worker_threads(2)
+    let result = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
         .max_blocking_threads(2)
         .enable_all()
         .build()

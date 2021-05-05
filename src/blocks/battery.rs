@@ -86,9 +86,9 @@ struct BatteryConfig {
     driver: BatteryDriver,
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
-    format: Option<FormatTemplate>,
-    full_format: Option<FormatTemplate>,
-    missing_format: Option<FormatTemplate>,
+    format: FormatTemplate,
+    full_format: FormatTemplate,
+    missing_format: FormatTemplate,
     allow_missing: bool,
     hide_missing: bool,
     info: u8,
@@ -103,9 +103,9 @@ impl Default for BatteryConfig {
             device: "BAT0".to_string(),
             driver: BatteryDriver::Sysfs,
             interval: Duration::from_secs(10),
-            format: None,
-            full_format: None,
-            missing_format: None,
+            format: Default::default(),
+            full_format: Default::default(),
+            missing_format: Default::default(),
             allow_missing: false,
             hide_missing: false,
             info: 60,
@@ -495,9 +495,12 @@ pub async fn run(
     std::mem::drop(events_receiver);
     let block_config = BatteryConfig::deserialize(block_config).block_config_error("battery")?;
 
-    let format = default_format!(block_config.format.clone(), "{percentage}")?;
-    let format_full = default_format!(block_config.full_format.clone(), "")?;
-    let format_missing = default_format!(block_config.missing_format.clone(), "{percentage}")?;
+    let format = block_config.format.clone().or_default("{percentage}")?;
+    let format_full = block_config.full_format.clone().or_default("")?;
+    let format_missing = block_config
+        .missing_format
+        .clone()
+        .or_default("{percentage}")?;
 
     let mut device: Box<dyn BatteryDevice + Send> = match block_config.driver {
         BatteryDriver::Sysfs => Box::new(PowerSupplyDevice::from_device(

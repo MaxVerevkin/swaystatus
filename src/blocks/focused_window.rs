@@ -43,14 +43,14 @@ use crate::widgets::widget::Widget;
 #[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct FocusedWindowConfig {
-    format: Option<FormatTemplate>,
+    format: FormatTemplate,
     autohide: bool,
 }
 
 impl Default for FocusedWindowConfig {
     fn default() -> Self {
         Self {
-            format: None,
+            format: Default::default(),
             autohide: true,
         }
     }
@@ -67,7 +67,7 @@ pub async fn run(
 
     let block_config =
         FocusedWindowConfig::deserialize(block_config).block_config_error("focused_window")?;
-    let format = default_format!(block_config.format.clone(), "{window^21}")?;
+    let format = block_config.format.clone().or_default("{window^21}")?;
     let mut widget = Widget::new(id, shared_config);
 
     let mut title = None;

@@ -61,7 +61,7 @@ type InputReadings = HashMap<String, f64>;
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct TemperatureConfig {
-    format: Option<FormatTemplate>,
+    format: FormatTemplate,
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
     collapsed: bool,
@@ -75,7 +75,7 @@ struct TemperatureConfig {
 impl Default for TemperatureConfig {
     fn default() -> Self {
         Self {
-            format: None,
+            format: Default::default(),
             interval: Duration::from_secs(5),
             collapsed: false,
             good: 20,
@@ -96,7 +96,7 @@ pub async fn run(
 ) -> Result<()> {
     let block_config =
         TemperatureConfig::deserialize(block_config).block_config_error("temperature")?;
-    let format = default_format!(block_config.format, "{average} avg, {max} max")?;
+    let format = block_config.format.or_default("{average} avg, {max} max")?;
     let mut text = Widget::new(id, shared_config).with_icon("thermometer")?;
     let mut collapsed = block_config.collapsed;
 

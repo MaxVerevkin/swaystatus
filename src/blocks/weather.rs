@@ -208,7 +208,7 @@ fn convert_wind_direction(direction_opt: Option<f64>) -> String {
 struct WeatherConfig {
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
-    format: Option<FormatTemplate>,
+    format: FormatTemplate,
     service: WeatherService,
     autolocate: bool,
 }
@@ -217,7 +217,7 @@ impl Default for WeatherConfig {
     fn default() -> Self {
         Self {
             interval: Duration::from_secs(600),
-            format: None,
+            format: Default::default(),
             service: WeatherService::default(),
             autolocate: false,
         }
@@ -233,7 +233,10 @@ pub async fn run(
 ) -> Result<()> {
     std::mem::drop(events_receiver);
     let block_config = WeatherConfig::deserialize(block_config).block_config_error("weather")?;
-    let format = default_format!(block_config.format.clone(), "{weather} {temp}\u{00b0}")?;
+    let format = block_config
+        .format
+        .clone()
+        .or_default("{weather} {temp}\u{00b0}")?;
 
     let update = || async {
         let data = block_config.service.get(block_config.autolocate).await?;

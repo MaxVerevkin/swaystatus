@@ -68,8 +68,8 @@ use crate::widgets::State;
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct MemoryConfig {
-    format_mem: Option<FormatTemplate>,
-    format_swap: Option<FormatTemplate>,
+    format_mem: FormatTemplate,
+    format_swap: FormatTemplate,
     display_type: Memtype,
     clickable: bool,
     interval: u64,
@@ -82,8 +82,8 @@ struct MemoryConfig {
 impl Default for MemoryConfig {
     fn default() -> Self {
         Self {
-            format_mem: None,
-            format_swap: None,
+            format_mem: Default::default(),
+            format_swap: Default::default(),
             display_type: Memtype::Memory,
             clickable: true,
             interval: 5,
@@ -105,14 +105,12 @@ pub async fn run(
     let block_config = MemoryConfig::deserialize(block_config).block_config_error("memory")?;
 
     let format = (
-        default_format!(
-            block_config.format_mem,
-            "{mem_free;M}/{mem_total;M}({mem_total_used_percents})"
-        )?,
-        default_format!(
-            block_config.format_swap,
-            "{swap_free;M}/{swap_total;M}({swap_used_percents})"
-        )?,
+        block_config
+            .format_mem
+            .or_default("{mem_free;M}/{mem_total;M}({mem_total_used_percents})")?,
+        block_config
+            .format_swap
+            .or_default("{swap_free;M}/{swap_total;M}({swap_used_percents})")?,
     );
 
     let mut text_mem = Widget::new(id, shared_config.clone()).with_icon("memory_mem")?;

@@ -17,7 +17,7 @@ pub struct GithubConfig {
     pub interval: u64,
 
     #[serde(default)]
-    pub format: Option<FormatTemplate>,
+    pub format: FormatTemplate,
 
     // A GitHub personal access token with the "notifications" scope is requried
     pub token: String,
@@ -46,7 +46,7 @@ pub async fn run(
 
     let block_config = GithubConfig::deserialize(block_config).block_config_error("github")?;
     let interval = Duration::from_secs(block_config.interval);
-    let format = default_format!(block_config.format, "{total:1}")?;
+    let format = block_config.format.or_default("{total:1}")?;
     let mut text = Widget::new(id, shared_config).with_icon("github")?;
 
     // Http client

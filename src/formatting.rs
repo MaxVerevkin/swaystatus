@@ -15,35 +15,56 @@ use placeholder::unexpected_token;
 use placeholder::Placeholder;
 use value::Value;
 
-macro_rules! default_format {
-    ($format:expr,$default:expr) => {
-        match $format {
-            Some(format) => Ok(format),
-            None => crate::formatting::FormatTemplate::new($default, None),
-        }
-    };
-}
-
 #[derive(Debug, Clone, PartialEq)]
 enum Token {
     Text(String),
     Var(Placeholder),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct FormatTemplate {
-    full: Vec<Token>,
+    full: Option<Vec<Token>>,
     short: Option<Vec<Token>>,
 }
 
 impl FormatTemplate {
-    pub fn new(full: &str, short: Option<&str>) -> Result<Self> {
-        let full = Self::tokens_from_string(full)?;
+    pub fn new(full: Option<&str>, short: Option<&str>) -> Result<Self> {
+        let full = match full {
+            Some(full) => Some(Self::tokens_from_string(full)?),
+            None => None,
+        };
         let short = match short {
             Some(short) => Some(Self::tokens_from_string(short)?),
             None => None,
         };
         Ok(Self { full, short })
+    }
+
+    /// Initialize `full` filed if it is `None`
+    pub fn or_default(mut self, default_full: &str) -> Result<Self> {
+        if self.full.is_none() {
+            self.full = Some(Self::tokens_from_string(default_full)?);
+        }
+        Ok(self)
+    }
+
+    /// Whether the format string contains given placeholder
+    #[allow(dead_code)]
+    pub fn contains(&self, var: &str) -> bool {
+        Self::format_contains(&self.full, var) || Self::format_contains(&self.short, var)
+    }
+
+    fn format_contains(format: &Option<Vec<Token>>, var: &str) -> bool {
+        if let Some(tokens) = format {
+            for token in tokens {
+                if let Token::Var(ref placeholder) = token {
+                    if placeholder.name == var {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
     }
 
     fn tokens_from_string(s: &str) -> Result<Vec<Token>> {
@@ -96,14 +117,15 @@ impl FormatTemplate {
     }
 
     pub fn render(&self, vars: &HashMap<&str, Value>) -> Result<(String, Option<String>)> {
-        let full = Self::render_tokens(&self.full, vars)?;
-        Ok((
-            full,
-            match &self.short {
-                Some(short) => Some(Self::render_tokens(short, vars)?),
-                None => None,
-            },
-        ))
+        let full = match &self.full {
+            Some(tokens) => Self::render_tokens(tokens, vars)?,
+            None => String::new(), // TODO: throw an error instead that says that it's a bug?
+        };
+        let short = match &self.short {
+            Some(short) => Some(Self::render_tokens(short, vars)?),
+            None => None,
+        };
+        Ok((full, short))
     }
 
     fn render_tokens(tokens: &[Token], vars: &HashMap<&str, Value>) -> Result<String> {
@@ -156,7 +178,7 @@ impl<'de> Deserialize<'de> for FormatTemplate {
             where
                 E: de::Error,
             {
-                FormatTemplate::new(full, None).map_err(|e| de::Error::custom(e.to_string()))
+                FormatTemplate::new(Some(full), None).map_err(|e| de::Error::custom(e.to_string()))
             }
 
             /// Handle configs like:
@@ -189,12 +211,139 @@ impl<'de> Deserialize<'de> for FormatTemplate {
                     }
                 }
 
-                let full = full.ok_or_else(|| de::Error::missing_field("full"))?;
-                FormatTemplate::new(&full, short.as_deref())
+                // TODO impl From<Error> for de::Error
+                FormatTemplate::new(full.as_deref(), short.as_deref())
                     .map_err(|e| de::Error::custom(e.to_string()))
             }
         }
 
         deserializer.deserialize_any(FormatTemplateVisitor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use prefix::Prefix;
+    use unit::Unit;
+
+    #[test]
+    fn from_string() {
+        let ft = FormatTemplate::new(
+            Some("some text {var} var again {var*_}{new_var:3} {bar:2#100} {freq;1}."),
+            None,
+        );
+        assert!(ft.is_ok());
+
+        let mut tokens = ft.unwrap().full.unwrap().into_iter();
+        assert_eq!(
+            tokens.next().unwrap(),
+            Token::Text("some text ".to_string())
+        );
+        assert_eq!(
+            tokens.next().unwrap(),
+            Token::Var(Placeholder {
+                name: "var".to_string(),
+                min_width: None,
+                max_width: None,
+                pad_with: None,
+                min_prefix: None,
+                unit: None,
+                unit_hidden: false,
+                bar_max_value: None
+            })
+        );
+        assert_eq!(
+            tokens.next().unwrap(),
+            Token::Text(" var again ".to_string())
+        );
+        assert_eq!(
+            tokens.next().unwrap(),
+            Token::Var(Placeholder {
+                name: "var".to_string(),
+                min_width: None,
+                max_width: None,
+                pad_with: None,
+                min_prefix: None,
+                unit: Some(Unit::None),
+                unit_hidden: true,
+                bar_max_value: None
+            })
+        );
+        assert_eq!(
+            tokens.next().unwrap(),
+            Token::Var(Placeholder {
+                name: "new_var".to_string(),
+                min_width: Some(3),
+                max_width: None,
+                pad_with: None,
+                min_prefix: None,
+                unit: None,
+                unit_hidden: false,
+                bar_max_value: None
+            })
+        );
+        assert_eq!(tokens.next().unwrap(), Token::Text(" ".to_string()));
+        assert_eq!(
+            tokens.next().unwrap(),
+            Token::Var(Placeholder {
+                name: "bar".to_string(),
+                min_width: Some(2),
+                max_width: None,
+                pad_with: None,
+                min_prefix: None,
+                unit: None,
+                unit_hidden: false,
+                bar_max_value: Some(100.)
+            })
+        );
+        assert_eq!(tokens.next().unwrap(), Token::Text(" ".to_string()));
+        assert_eq!(
+            tokens.next().unwrap(),
+            Token::Var(Placeholder {
+                name: "freq".to_string(),
+                min_width: None,
+                max_width: None,
+                pad_with: None,
+                min_prefix: Some(Prefix::One),
+                unit: None,
+                unit_hidden: false,
+                bar_max_value: None
+            })
+        );
+        assert_eq!(tokens.next().unwrap(), Token::Text(".".to_string()));
+        assert!(matches!(tokens.next(), None));
+    }
+
+    #[test]
+    fn render() {
+        let ft = FormatTemplate::new(
+            Some("some text {var} var again {var}{new_var:3} {bar:2#100} {freq;1}."),
+            None,
+        );
+        assert!(ft.is_ok());
+
+        let values = map!(
+            "var" => Value::from_string("|var value|".to_string()),
+            "new_var" => Value::from_integer(12),
+            "bar" => Value::from_integer(25),
+            "freq" => Value::from_float(0.01).hertz(),
+        );
+
+        assert_eq!(
+            ft.unwrap().render(&values).unwrap().0.as_str(),
+            "some text |var value| var again |var value| 12 \u{258c}  0.0Hz."
+        );
+    }
+
+    #[test]
+    fn contains() {
+        let format = FormatTemplate::new(Some("some text {foo} {bar:1} foobar"), None);
+        assert!(format.is_ok());
+        let format = format.unwrap();
+        assert!(format.contains("foo"));
+        assert!(format.contains("bar"));
+        assert!(!format.contains("foobar"));
+        assert!(!format.contains("random string"));
     }
 }
