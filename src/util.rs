@@ -4,11 +4,12 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::prelude::v1::String;
-use std::process::Command;
 
-use crate::errors::*;
 use serde::de::DeserializeOwned;
 use tokio::io::AsyncReadExt;
+use tokio::process::Command;
+
+use crate::errors::*;
 
 /// Tries to find a file in standard locations:
 /// - Fist try to find a file by full path
@@ -112,18 +113,19 @@ pub async fn read_file(path: &Path) -> StdResult<String, std::io::Error> {
 }
 
 #[allow(dead_code)]
-pub fn has_command(block_name: &str, command: &str) -> Result<bool> {
-    let exit_status = Command::new("sh")
+pub async fn has_command(block_name: &str, command: &str) -> Result<bool> {
+    Command::new("sh")
         .args(&[
             "-c",
             format!("command -v {} >/dev/null 2>&1", command).as_ref(),
         ])
         .status()
+        .await
         .block_error(
             block_name,
             format!("failed to start command to check for {}", command).as_ref(),
-        )?;
-    Ok(exit_status.success())
+        )
+        .map(|status| status.success())
 }
 
 macro_rules! map {
@@ -234,7 +236,7 @@ mod tests {
     #[test]
     // we assume sh is always available
     fn test_has_command_ok() {
-        let has_command = has_command("none", "sh");
+        let has_command = tokio_test::block_on(has_command("none", "sh"));
         assert!(has_command.is_ok());
         let has_command = has_command.unwrap();
         assert!(has_command);
@@ -243,7 +245,8 @@ mod tests {
     #[test]
     // we assume thequickbrownfoxjumpsoverthelazydog command does not exist
     fn test_has_command_err() {
-        let has_command = has_command("none", "thequickbrownfoxjumpsoverthelazydog");
+        let has_command =
+            tokio_test::block_on(has_command("none", "thequickbrownfoxjumpsoverthelazydog"));
         assert!(has_command.is_ok());
         let has_command = has_command.unwrap();
         assert!(!has_command)

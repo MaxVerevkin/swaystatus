@@ -65,6 +65,11 @@ features = ["futures"]
 version = "0.11.2"
 features = ["json"]
 
+# Test async code
+[dev-dependencies]
+tokio-test = "*"
+
+# Some optimizations
 [profile.release]
 lto = true
 codegen-units = 1

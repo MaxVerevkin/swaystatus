@@ -13,6 +13,7 @@ mod net;
 mod pomodoro;
 mod speedtest;
 mod sway_kbd;
+mod taskwarrior;
 mod temperature;
 mod time;
 mod weather;
@@ -47,6 +48,7 @@ pub enum BlockType {
     Pomodoro,
     Speedtest,
     SwayKbd,
+    Taskwarrior,
     Temperature,
     Time,
     Weather,
@@ -144,6 +146,9 @@ pub async fn run_block(
         Pomodoro => pomodoro::run(id, block_config, shared_config, message_tx, events_rx).await,
         Speedtest => speedtest::run(id, block_config, shared_config, message_tx, events_rx).await,
         SwayKbd => sway_kbd::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Taskwarrior => {
+            taskwarrior::run(id, block_config, shared_config, message_tx, events_rx).await
+        }
         Temperature => {
             temperature::run(id, block_config, shared_config, message_tx, events_rx).await
         }
