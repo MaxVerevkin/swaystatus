@@ -1,42 +1,109 @@
+//! The output of a custom shell command
+//!
+//! For further customisation, use the `json` option and have the shell command output valid JSON in the schema below:  
+//! `{"icon": "ICON", "state": "STATE", "text": "YOURTEXT", "short_text": "YOUR SHORT TEXT"}
+//! `{"icon": "ICON", "state": "STATE", "text": "YOURTEXT"}`  
+//! `icon` is optional (TODO add a link to the docs) (default "")  
+//! `state` is optional, it may be Idle, Info, Good, Warning, Critical (default Idle)  
+//!
+//! # Configuration
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `command` | Shell command to execute & display | No | None
+//! `cycle` | Commands to execute and change when the button is clicked | No | None
+//! `interval` | Update interval in seconds | No | `10`
+//! `one_shot` | Whether to run the command only once (if set to `true`, `interval` will be ignored) | No | `false`
+//! `json` | Use JSON from command output to format the block. If the JSON is not valid, the block will error out. | No | `false`
+//! `signal` | Signal value that causes an update for this block with 0 corresponding to `-SIGRTMIN+0` and the largest value being `-SIGRTMAX` | No | None
+//! `hide_when_empty` | Hides the block when the command output (or json text field) is empty | No | false
+//! `shell` | Specify the shell to use when running commands | No | `$SHELL` if set, otherwise fallback to `sh`
+//!
+//! # Examples
+//!
+//! Display temperature, update every 10 seconds:
+//!
+//! ```toml
+//! [[block]]
+//! block = "custom"
+//! command = ''' cat /sys/class/thermal/thermal_zone0/temp | awk '{printf("%.1f\n",$1/1000)}' '''
+//! ```
+//!
+//! Cycle between "ON" and "OFF", update every 1 second, run `<command>` when block is clicked:
+//!
+//! ```toml
+//! [[block]]
+//! block = "custom"
+//! cycle = ["echo ON", "echo OFF"]
+//! interval = 1
+//! ```
+//!
+//! Use JSON output:
+//!
+//! ```toml
+//! [[block]]
+//! block = "custom"
+//! command = "echo '{\"icon\":\"weather_thunder\",\"state\":\"Critical\", \"text\": \"Danger!\"}'"
+//! json = true
+//! ```
+//!
+//! Display kernel, update the block only once:
+//!
+//! ```toml
+//! [[block]]
+//! block = "custom"
+//! command = "uname -r"
+//! one_shot = true
+//! ```
+//!
+//! Display the screen brightness on an intel machine and update this only when `pkill -SIGRTMIN+4 i3status-rs` is called:
+//!
+//! ```toml
+//! [[block]]
+//! block = "custom"
+//! command = ''' cat /sys/class/backlight/intel_backlight/brightness | awk '{print $1}' '''
+//! signal = 4
+//! one_shot = true
+//! ```
+
 use serde::de::Deserialize;
 use std::collections::HashMap;
+use std::env;
 use std::time::Duration;
-
 use tokio::process::Command;
 use tokio::sync::mpsc;
 
 use super::{BlockEvent, BlockMessage};
-use crate::click::MouseButton;
 use crate::config::SharedConfig;
 use crate::errors::*;
-use crate::formatting::{value::Value, FormatTemplate};
-use crate::subprocess::spawn_shell;
+use crate::signals::Signal;
 use crate::widgets::widget::Widget;
-use crate::widgets::Spacing;
+use crate::widgets::State;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 pub struct CustomConfig {
-    /// The command to run
-    command: String,
-
-    /// Format string
-    format: FormatTemplate,
-
-    /// Interval between command runs
+    command: Option<String>,
+    cycle: Option<Vec<String>>,
     interval: u64,
-
-    /// Json support
     json: bool,
+    hide_when_empty: bool,
+    shell: Option<String>,
+    one_shot: bool,
+    signal: Option<i32>,
 }
 
 impl Default for CustomConfig {
     fn default() -> Self {
         Self {
-            command: "uname -r".to_string(),
-            format: Default::default(),
-            interval: 5,
+            command: None,
+            cycle: None,
+            interval: 10,
             json: false,
+            hide_when_empty: false,
+            shell: None,
+            one_shot: false,
+            signal: None,
         }
     }
 }
@@ -49,97 +116,66 @@ pub async fn run(
     mut events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
     let block_config = CustomConfig::deserialize(block_config).block_config_error("custom")?;
-    let format = block_config.format.or_default("{stdout}")?;
-    let interval = Duration::from_secs(block_config.interval);
+    let CustomConfig {
+        command,
+        cycle,
+        interval,
+        json,
+        hide_when_empty,
+        shell,
+        one_shot,
+        signal,
+    } = block_config;
+
+    let interval = Duration::from_secs(interval);
+    let mut widget = Widget::new(id, shared_config);
+
+    // Choose the shell in this priority:
+    // 1) `shell` config option
+    // 2) `SHELL` environment varialble
+    // 3) `"sh"`
+    let shell = shell
+        .or_else(|| env::var("SHELL").ok())
+        .unwrap_or("sh".to_string());
+
+    let mut cycle = cycle
+        .or_else(|| command.clone().map(|cmd| vec![cmd]))
+        .block_error("custom", "either 'command' or 'cycle' must be specified")?
+        .into_iter()
+        .cycle();
 
     loop {
         // Run command
-        let output = Command::new("sh")
-            .args(&["-c", block_config.command.as_str()])
+        let output = Command::new(&shell)
+            .args(&["-c", &cycle.next().unwrap()])
             .output()
             .await
             .block_error("custom", "failed to run command")?;
-
-        // Get basic info
         let stdout = std::str::from_utf8(&output.stdout)
             .block_error("custom", "the output of command is invalid UTF-8")?
             .trim();
-        let stderr = std::str::from_utf8(&output.stderr)
-            .block_error("custom", "the output of command is invalid UTF-8")?
-            .trim();
-        let exit_code = output
-            .status
-            .code()
-            .block_error("custom", "failed to get command's exit code")?;
 
-        // TODO add `state` into JSON
-        let (widgets, click_handlers) = if block_config.json {
-            // If JSON is enabled, stdout should contain this data:
-            // ```json
-            // [
-            //     {
-            //         "text": "<text>",
-            //         "icon": "<icon>",
-            //         "on_click": "<command>",
-            //         "on_right_click": "<command>"
-            //         "on_scroll_up": "<command>",
-            //         "on_scroll_down": "<command>",
-            //     },
-            //     { ... },
-            //     { ... }
-            // ]
-            // ```
-            // All the fields are optional
-            let json_data: Vec<HashMap<String, String>> =
-                serde_json::from_str(stdout).block_error("custom", "failed to parse JSON")?;
-            let mut widgets = Vec::new();
-            let mut click_handlers = HashMap::new(); // TODO use `crate::click::ClickHandler`
-
-            for (instance, widget_data) in json_data.into_iter().enumerate() {
-                // Add click handlers
-                widget_data
-                    .get("on_click")
-                    .cloned()
-                    .map(|cmd| click_handlers.insert((instance, MouseButton::Left), cmd));
-                widget_data
-                    .get("on_right_click")
-                    .cloned()
-                    .map(|cmd| click_handlers.insert((instance, MouseButton::Right), cmd));
-                widget_data
-                    .get("on_scroll_up")
-                    .cloned()
-                    .map(|cmd| click_handlers.insert((instance, MouseButton::WheelUp), cmd));
-                widget_data
-                    .get("on_scroll_down")
-                    .cloned()
-                    .map(|cmd| click_handlers.insert((instance, MouseButton::WheelDown), cmd));
-
-                // Create widget
-                let mut widget = Widget::new(id, shared_config.clone()).with_instance(instance);
-
-                // Maybe set text
-                if let Some(text) = widget_data.get("text") {
-                    widget.set_full_text(text.clone());
-                }
-
-                // Maybe set icon
-                if let Some(icon) = widget_data.get("icon") {
-                    widget.set_icon(icon)?;
-                }
-
-                // Add widget
-                widgets.push(widget.with_spacing(Spacing::Hidden).get_data());
-            }
-
-            (widgets, Some(click_handlers))
+        // {"icon": "ICON", "state": "STATE", "text": "YOURTEXT", "short_text": "YOUR SHORT TEXT"}
+        let widgets = if stdout.is_empty() && hide_when_empty {
+            vec![]
+        } else if json {
+            let vals: HashMap<String, String> =
+                serde_json::from_str(stdout).block_error("custom", "invalid JSON")?;
+            widget.set_icon(vals.get("icon").map(|s| s.as_str()).unwrap_or(""))?;
+            widget.set_state(match vals.get("state").map(|s| s.as_str()).unwrap_or("") {
+                "Info" => State::Info,
+                "Good" => State::Good,
+                "Warning" => State::Warning,
+                "Critical" => State::Critical,
+                _ => State::Idle,
+            });
+            let text = vals.get("text").cloned().unwrap_or_default();
+            let short_text = vals.get("short_text").cloned();
+            widget.set_text((text, short_text));
+            vec![widget.get_data()]
         } else {
-            // No JSON, use standard output
-            let text = Widget::new(id, shared_config.clone()).with_text(format.render(&map! {
-                "stdout" => Value::from_string(stdout.to_string()),
-                "stderr" => Value::from_string(stderr.to_string()),
-                "exit_code" => Value::from_integer(exit_code as i64),
-            })?);
-            (vec![text.get_data()], None)
+            widget.set_full_text(stdout.to_string());
+            vec![widget.get_data()]
         };
 
         message_sender
@@ -147,16 +183,20 @@ pub async fn run(
             .await
             .internal_error("custom", "failed to send message")?;
 
-        tokio::select! {
-            _ = tokio::time::sleep(interval) =>(),
-            Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
-                if let Some(click_handlers) = click_handlers {
-                    if let Some(instance) = click.instance {
-                        if let Some(cmd) = click_handlers.get(&(instance, click.button)) {
-                            spawn_shell(cmd).block_error("custom", "failed to run command")?;
-                        }
+        loop {
+            tokio::select! {
+                _ = tokio::time::sleep(interval) => {
+                    if !one_shot {
+                        break;
                     }
-                }
+                },
+                Some(event) = events_reciever.recv() => {
+                    match (event, signal) {
+                        (BlockEvent::Signal(Signal::Custom(s)), Some(signal)) if s == signal => break,
+                        (BlockEvent::I3Bar(_), _) => break,
+                        _ => (),
+                    }
+                },
             }
         }
     }
