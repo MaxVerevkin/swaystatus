@@ -15,10 +15,11 @@
 //! ```toml
 //! [[block]]
 //! block = "time"
-//! format = "%d/%m %R"
-//! format_short = "%R"
 //! interval = 60
 //! locale = "fr_BE"
+//! [block.format]
+//! full = "%d/%m %R"
+//! short = "%R"
 //! ```
 
 use serde::de::Deserialize;
@@ -33,13 +34,13 @@ use chrono_tz::Tz;
 use super::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
 use crate::errors::*;
+use crate::formatting::FormatTemplate;
 use crate::widgets::widget::Widget;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct TimeConfig {
-    format: String,
-    format_short: Option<String>,
+    format: FormatTemplate,
     interval: u64,
     timezone: Option<Tz>,
     locale: Option<String>,
@@ -48,8 +49,7 @@ struct TimeConfig {
 impl Default for TimeConfig {
     fn default() -> Self {
         Self {
-            format: "%a %d/%m %R".to_string(),
-            format_short: None,
+            format: Default::default(),
             interval: 10,
             timezone: None,
             locale: None,
@@ -70,9 +70,15 @@ pub async fn run(
     let block_config = TimeConfig::deserialize(block_config).block_config_error("time")?;
     let mut interval = tokio::time::interval(Duration::from_secs(block_config.interval));
     let mut text = Widget::new(id, shared_config).with_icon("time")?;
+    // `FormatTemplate` doesn't do much stuff here - we just want to get the original "full" and
+    // "short" formats, so we "render" it without providing any placeholders.
+    let (format, format_short) = block_config
+        .format
+        .or_default("")?
+        .render(&Default::default())?;
+    let format = format.as_str();
+    let format_short = format_short.as_deref();
 
-    let format = block_config.format.as_str();
-    let format_short = block_config.format_short.as_deref();
     let timezone = block_config.timezone;
     let locale = match block_config.locale.as_deref() {
         Some(locale) => Some(
