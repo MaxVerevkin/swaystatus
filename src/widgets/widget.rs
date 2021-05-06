@@ -35,6 +35,10 @@ impl Widget {
         }
     }
 
+    /*
+     * Consturctors
+     */
+
     pub fn with_instance(mut self, instance: usize) -> Self {
         self.inner.instance = Some(instance.to_string());
         self
@@ -64,8 +68,16 @@ impl Widget {
         self
     }
 
+    /*
+     * Setters
+     */
+
     pub fn set_icon(&mut self, name: &str) -> Result<()> {
-        self.icon = Some(self.shared_config.get_icon(name)?);
+        if name.is_empty() {
+            self.icon = None;
+        } else {
+            self.icon = Some(self.shared_config.get_icon(name)?);
+        }
         Ok(())
     }
 
@@ -104,6 +116,7 @@ impl Widget {
         self.short_spacing = spacing;
     }
 
+    /// Constuct `I3BarBlock` from this widget
     pub fn get_data(&self) -> I3BarBlock {
         let mut data = self.inner.clone();
 
