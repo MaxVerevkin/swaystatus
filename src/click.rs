@@ -38,6 +38,7 @@ impl ClickHandler {
 }
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct ClickConfigEntry {
     // Which button to handle
     button: MouseButton,
