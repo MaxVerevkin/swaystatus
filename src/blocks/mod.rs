@@ -11,6 +11,7 @@ mod memory;
 mod music;
 mod net;
 mod pomodoro;
+mod sound;
 mod speedtest;
 mod sway_kbd;
 mod taskwarrior;
@@ -46,6 +47,7 @@ pub enum BlockType {
     Music,
     Net,
     Pomodoro,
+    Sound,
     Speedtest,
     SwayKbd,
     Taskwarrior,
@@ -144,6 +146,7 @@ pub async fn run_block(
         Music => music::run(id, block_config, shared_config, message_tx, events_rx).await,
         Net => net::run(id, block_config, shared_config, message_tx, events_rx).await,
         Pomodoro => pomodoro::run(id, block_config, shared_config, message_tx, events_rx).await,
+        Sound => sound::run(id, block_config, shared_config, message_tx, events_rx).await,
         Speedtest => speedtest::run(id, block_config, shared_config, message_tx, events_rx).await,
         SwayKbd => sway_kbd::run(id, block_config, shared_config, message_tx, events_rx).await,
         Taskwarrior => {
