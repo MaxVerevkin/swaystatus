@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::fs::File;
@@ -11,16 +12,18 @@ use crate::click::MouseButton;
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
+use crate::util::read_file;
 use crate::widgets::widget::Widget;
 use crate::widgets::State;
+
+const CPU_BOOST_PATH: &'static str = "/sys/devices/system/cpu/cpufreq/boost";
+const CPU_NO_TURBO_PATH: &'static str = "/sys/devices/system/cpu/intel_pstate/no_turbo";
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 pub struct CpuConfig {
     pub format: FormatTemplate,
     pub format_alt: Option<FormatTemplate>,
-
-    /// The delay in seconds between an update
     pub interval: u64,
 }
 
@@ -44,6 +47,9 @@ pub async fn run(
     let block_config = CpuConfig::deserialize(block_config).block_config_error("cpu")?;
     let mut format = block_config.format.or_default("{utilization}")?;
     let mut format_alt = block_config.format_alt;
+
+    let boost_icon_on = shared_config.get_icon("cpu_boost_on")?;
+    let boost_icon_off = shared_config.get_icon("cpu_boost_off")?;
 
     let mut text = Widget::new(id, shared_config).with_icon("cpu")?;
     let interval = Duration::from_secs(block_config.interval);
@@ -88,11 +94,19 @@ pub async fn run(
             barchart.push(BOXCHARS[(7.5 * utilization) as usize]);
         }
 
-        // TODO (maybe) add per-core info
+        // Read boot state on intel CPUs
+        let boost = match boost_status().await {
+            Some(true) => &boost_icon_on,
+            Some(false) => &boost_icon_off,
+            _ => "",
+        };
+
+        // TODO add per-core info
         let values = map! {
             "freq" => Value::from_float(freq_avg).hertz(),
             "utilization" => Value::from_integer((utilization_avg * 100.) as i64).percents(),
             "barchart" => Value::from_string(barchart),
+            "boost" => Value::from_string(boost.to_string()),
         };
         text.set_text(format.render(&values)?);
 
@@ -207,4 +221,16 @@ async fn read_proc_stat() -> Result<(CpuTime, Vec<CpuTime>)> {
         total.block_error("cpu", "failed to parse /proc/stat")?,
         utilizations,
     ))
+}
+
+/// Read the cpu turbo boost status from kernel sys interface
+/// or intel pstate interface
+async fn boost_status() -> Option<bool> {
+    if let Ok(boost) = read_file(Path::new(CPU_BOOST_PATH)).await {
+        Some(boost.starts_with("1"))
+    } else if let Ok(no_turbo) = read_file(Path::new(CPU_NO_TURBO_PATH)).await {
+        Some(no_turbo.starts_with("0"))
+    } else {
+        None
+    }
 }
