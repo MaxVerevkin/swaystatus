@@ -49,12 +49,14 @@
 //! critical_mem = 90
 //! ```
 
+use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::mpsc;
 
+use regex::Regex;
 use serde::de::Deserialize;
 
 use super::{BlockEvent, BlockMessage};
@@ -62,6 +64,7 @@ use crate::click::MouseButton;
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
+use crate::util::read_file;
 use crate::widgets::widget::Widget;
 use crate::widgets::State;
 
@@ -130,9 +133,8 @@ pub async fn run(
         let swap_used = swap_total - swap_free;
         let mem_total_used = mem_total - mem_free;
         let buffers = mem_state.buffers as f64 * 1024.;
-        let cached =
-            // TODO revisit
-            (mem_state.cached + mem_state.s_reclaimable - mem_state.shmem) as f64 * 1024.;
+        let cached = (mem_state.cached + mem_state.s_reclaimable - mem_state.shmem) as f64 * 1024.
+            + mem_state.zfs_arc_cache as f64;
         let mem_used = mem_total_used - (buffers + cached);
         let mem_avail = mem_total - mem_used;
 
@@ -202,7 +204,7 @@ pub async fn run(
     }
 }
 
-#[derive(serde_derive::Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(serde_derive::Deserialize, Clone, Copy, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum Memtype {
     Swap,
@@ -220,6 +222,7 @@ struct Memstate {
     shmem: u64,
     swap_total: u64,
     swap_free: u64,
+    zfs_arc_cache: u64,
 }
 
 impl Memstate {
@@ -239,6 +242,7 @@ impl Memstate {
             shmem: 0,
             swap_total: 0,
             swap_free: 0,
+            zfs_arc_cache: 0,
         };
 
         let mut line = String::new();
@@ -277,6 +281,17 @@ impl Memstate {
 
             line.clear();
         }
+
+        // Read ZFS arc cache size to add to total cache size
+        if let Ok(arcstats) = read_file(Path::new("/proc/spl/kstat/zfs/arcstats")).await {
+            let size_re = Regex::new(r"size\s+\d+\s+(\d+)").unwrap(); // Valid regex is safe to unwrap.
+            let size = &size_re
+                .captures(&arcstats)
+                .block_error("memory", "failed to find zfs_arc_cache size")?[1];
+            mem_state.zfs_arc_cache =
+                u64::from_str(size).block_error("memory", "failed to parse zfs_arc_cache size")?;
+        }
+
         Ok(mem_state)
     }
 }
