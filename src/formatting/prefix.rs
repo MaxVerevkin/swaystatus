@@ -1,5 +1,5 @@
-use std::convert::TryInto;
 use std::fmt;
+use std::str::FromStr;
 
 use crate::errors::*;
 
@@ -36,11 +36,11 @@ impl fmt::Display for Prefix {
     }
 }
 
-impl TryInto<Prefix> for &str {
-    type Error = crate::errors::Error;
+impl FromStr for Prefix {
+    type Err = Error;
 
-    fn try_into(self) -> Result<Prefix> {
-        match self {
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
             "1" => Ok(Prefix::One),
             // SI prefixes
             "n" => Ok(Prefix::Nano),

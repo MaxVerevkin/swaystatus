@@ -136,7 +136,7 @@ pub async fn run(
     // 3) `"sh"`
     let shell = shell
         .or_else(|| env::var("SHELL").ok())
-        .unwrap_or("sh".to_string());
+        .unwrap_or_else(|| "sh".to_string());
 
     let mut cycle = cycle
         .or_else(|| command.clone().map(|cmd| vec![cmd]))

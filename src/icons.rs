@@ -43,6 +43,8 @@ impl Default for Icons {
             "calendar" => "CAL",
             "cogs" => "LOAD",
             "cpu" => "CPU",
+            "cpu_boost_on" => "BOOST ON",
+            "cpu_boost_off" => "BOOST OFF",
             "disk_drive" => "DISK",
             "docker" => "DOCKER",
             "github" => "GITHUB",

@@ -16,8 +16,8 @@ use crate::util::read_file;
 use crate::widgets::widget::Widget;
 use crate::widgets::State;
 
-const CPU_BOOST_PATH: &'static str = "/sys/devices/system/cpu/cpufreq/boost";
-const CPU_NO_TURBO_PATH: &'static str = "/sys/devices/system/cpu/intel_pstate/no_turbo";
+const CPU_BOOST_PATH: &str = "/sys/devices/system/cpu/cpufreq/boost";
+const CPU_NO_TURBO_PATH: &str = "/sys/devices/system/cpu/intel_pstate/no_turbo";
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
@@ -244,9 +244,9 @@ async fn read_proc_stat() -> Result<(CpuTime, Vec<CpuTime>)> {
 /// or intel pstate interface
 async fn boost_status() -> Option<bool> {
     if let Ok(boost) = read_file(Path::new(CPU_BOOST_PATH)).await {
-        Some(boost.starts_with("1"))
+        Some(boost.starts_with('1'))
     } else if let Ok(no_turbo) = read_file(Path::new(CPU_NO_TURBO_PATH)).await {
-        Some(no_turbo.starts_with("0"))
+        Some(no_turbo.starts_with('0'))
     } else {
         None
     }

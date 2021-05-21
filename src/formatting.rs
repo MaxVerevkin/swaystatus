@@ -4,7 +4,6 @@ pub mod unit;
 pub mod value;
 
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::fmt;
 
 use serde::de::{MapAccess, Visitor};
@@ -40,7 +39,7 @@ impl FormatTemplate {
         Ok(Self { full, short })
     }
 
-    /// Initialize `full` filed if it is `None`
+    /// Initialize `full` field if it is `None`
     pub fn or_default(mut self, default_full: &str) -> Result<Self> {
         if self.full.is_none() {
             self.full = Some(Self::tokens_from_string(default_full)?);
@@ -67,50 +66,57 @@ impl FormatTemplate {
         false
     }
 
-    fn tokens_from_string(s: &str) -> Result<Vec<Token>> {
+    fn tokens_from_string(mut s: &str) -> Result<Vec<Token>> {
         let mut tokens = vec![];
 
-        let mut text_buf = String::new();
-        let mut var_buf = String::new();
-        let mut inside_var = false;
-
-        let mut current_buf = &mut text_buf;
-
-        for c in s.chars() {
-            match c {
-                '{' => {
-                    if inside_var {
-                        return unexpected_token(c);
-                    }
-                    if !text_buf.is_empty() {
-                        tokens.push(Token::Text(text_buf.clone()));
-                        text_buf.clear();
-                    }
-                    current_buf = &mut var_buf;
-                    inside_var = true;
-                }
-                '}' => {
-                    if !inside_var {
-                        return unexpected_token(c);
-                    }
-                    tokens.push(Token::Var(var_buf.as_str().try_into()?));
-                    var_buf.clear();
-                    current_buf = &mut text_buf;
-                    inside_var = false;
-                }
-                x => current_buf.push(x),
+        // Push text into tokens vector. Check the text for correctness and don't push empty strings
+        let push_text = |tokens: &mut Vec<Token>, x: &str| {
+            if x.contains('{') {
+                unexpected_token('{')
+            } else if x.contains('}') {
+                unexpected_token('}')
+            } else if !x.is_empty() {
+                tokens.push(Token::Text(x.to_string()));
+                Ok(())
+            } else {
+                Ok(())
             }
-        }
-        if inside_var {
-            return Err(InternalError {
-                context: "format parser".to_string(),
-                message: "missing '}'".to_string(),
-                cause: None,
-                cause_dbg: None,
-            });
-        }
-        if !text_buf.is_empty() {
-            tokens.push(Token::Text(text_buf.clone()));
+        };
+
+        while !s.is_empty() {
+            // Split `"text {key:1} {key}"` into `"text "` and `"key:1} {key}"`
+            match s.split_once('{') {
+                // No placeholders found -> the whole string is just text
+                None => {
+                    push_text(&mut tokens, s)?;
+                    break;
+                }
+                // Found placeholder
+                Some((before, after)) => {
+                    // `before` is just a text
+                    push_text(&mut tokens, before)?;
+                    // Split `"key:1} {key}"` into `"key:1"` and `" {key}"`
+                    match after.split_once('}') {
+                        // No matching `}`!
+                        None => {
+                            return Err(InternalError {
+                                context: "format parser".to_string(),
+                                message: "missing '}'".to_string(),
+                                cause: None,
+                                cause_dbg: None,
+                            });
+                        }
+                        // Found the entire placeholder
+                        Some((placeholder, rest)) => {
+                            // `placeholder.parse()` parses the placeholder's configuration string
+                            // (e.g. something like `"key:1;K"`) into `Placeholder` struct. We don't
+                            // need to think about that in this code.
+                            tokens.push(Token::Var(placeholder.parse()?));
+                            s = rest;
+                        }
+                    }
+                }
+            }
         }
 
         Ok(tokens)
@@ -138,7 +144,7 @@ impl FormatTemplate {
                         .get(&*var.name)
                         .internal_error(
                             "util",
-                            &format!("Unknown placeholder in format string: {}", var.name),
+                            &format!("Unknown placeholder in format string: '{}'", var.name),
                         )?
                         .format(&var)?,
                 ),

@@ -1,6 +1,6 @@
 use crate::errors::*;
 
-use super::placeholder::Placeholder;
+use super::placeholder::{MinPrefixConfig, Placeholder};
 use super::prefix::Prefix;
 use super::unit::Unit;
 
@@ -22,10 +22,11 @@ enum InternalValue {
 fn format_number(
     raw_value: f64,
     min_width: usize,
-    min_prefix: Prefix,
+    min_prefix: MinPrefixConfig,
     unit: Unit,
     pad_with: char,
 ) -> String {
+    let min_prefix = min_prefix.value.unwrap_or(Prefix::Nano);
     let is_byte = unit.is_byte();
 
     let mut min_exp_level = match min_prefix {
@@ -155,7 +156,6 @@ impl Value {
         self.unit = Unit::Bytes;
         self
     }
-    #[allow(dead_code)]
     pub fn bits(mut self) -> Self {
         self.unit = Unit::Bits;
         self
@@ -168,12 +168,10 @@ impl Value {
         self.unit = Unit::Percents;
         self
     }
-    #[allow(dead_code)]
     pub fn seconds(mut self) -> Self {
         self.unit = Unit::Seconds;
         self
     }
-    #[allow(dead_code)]
     pub fn watts(mut self) -> Self {
         self.unit = Unit::Watts;
         self
@@ -184,9 +182,11 @@ impl Value {
     }
 
     pub fn format(&self, var: &Placeholder) -> Result<String> {
-        let min_width = var.min_width.unwrap_or(self.min_width);
-        let pad_with = var.pad_with.unwrap_or(' ');
-        let unit = var.unit.unwrap_or(self.unit);
+        // Get user-specified min_width and pad_with values. Use defaults instead
+        let min_width = var.min_width.min_width.unwrap_or(self.min_width);
+        let pad_with = var.min_width.pad_with;
+        // Apply unit override
+        let unit = var.unit.unit.unwrap_or(self.unit);
 
         // Draw the bar instead of usual formatting if `bar_max_value` is set
         // (olny for integers and floats)
@@ -202,6 +202,8 @@ impl Value {
 
         let value = match self.value {
             InternalValue::Text(ref text) => {
+                // Format text value. First pad it to the left with `pad_with` symbol. Then apply
+                // `max_width` option.
                 let mut text = text.clone();
                 for _ in (text.chars().count())..min_width {
                     text.push(pad_with);
@@ -214,8 +216,11 @@ impl Value {
                 text
             }
             InternalValue::Integer(value) => {
+                // Convert the value
+                // TODO better convertion mechanism
                 let value = (value as f64 * self.unit.convert(unit)?) as i64;
 
+                // Pad the restulting string to the right
                 let text = value.to_string();
                 let mut retval = String::new();
                 let text_len = text.len();
@@ -226,23 +231,25 @@ impl Value {
                 retval
             }
             InternalValue::Float(value) => {
+                // Convert the value
+                // TODO better convertion mechanism
                 let value = value * self.unit.convert(unit)?;
 
-                format_number(
-                    value,
-                    min_width,
-                    var.min_prefix.unwrap_or(Prefix::Nano),
-                    unit,
-                    pad_with,
-                )
+                // Apply engineering notation (Float-only)
+                format_number(value, min_width, var.min_prefix, unit, pad_with)
             }
         };
 
+        // We prepend the resulting string with the icon if it is set
         let icon_str = self.icon.as_deref().unwrap_or("");
 
-        let unit = unit.to_string();
-        let unit_str = if var.unit_hidden { "" } else { unit.as_str() };
+        // Hide the unit if a corresponding option is set
+        let unit = if var.unit.hidden {
+            String::new()
+        } else {
+            unit.to_string()
+        };
 
-        Ok(format!("{}{}{}", icon_str, value, unit_str))
+        Ok(format!("{}{}{}", icon_str, value, unit))
     }
 }
