@@ -47,7 +47,7 @@ impl FormatTemplate {
         Ok(self)
     }
 
-    /// Whether the format string contains given placeholder
+    /// Whether the format string contains a given placeholder
     #[allow(dead_code)]
     pub fn contains(&self, var: &str) -> bool {
         Self::format_contains(&self.full, var) || Self::format_contains(&self.short, var)
@@ -125,7 +125,7 @@ impl FormatTemplate {
     pub fn render(&self, vars: &HashMap<&str, Value>) -> Result<(String, Option<String>)> {
         let full = match &self.full {
             Some(tokens) => Self::render_tokens(tokens, vars)?,
-            None => String::new(), // TODO: throw an error instead that says that it's a bug?
+            None => String::new(), // TODO: throw an error that says that it's a bug?
         };
         let short = match &self.short {
             Some(short) => Some(Self::render_tokens(short, vars)?),
@@ -184,7 +184,7 @@ impl<'de> Deserialize<'de> for FormatTemplate {
             where
                 E: de::Error,
             {
-                FormatTemplate::new(Some(full), None).map_err(|e| de::Error::custom(e.to_string()))
+                FormatTemplate::new(Some(full), None).map_err(de::Error::custom)
             }
 
             /// Handle configs like:
@@ -217,9 +217,7 @@ impl<'de> Deserialize<'de> for FormatTemplate {
                     }
                 }
 
-                // TODO impl From<Error> for de::Error
-                FormatTemplate::new(full.as_deref(), short.as_deref())
-                    .map_err(|e| de::Error::custom(e.to_string()))
+                FormatTemplate::new(full.as_deref(), short.as_deref()).map_err(de::Error::custom)
             }
         }
 

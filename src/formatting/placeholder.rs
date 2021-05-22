@@ -137,14 +137,27 @@ impl FromStr for UnitConfig {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MinPrefixConfig {
     pub value: Option<Prefix>,
+    pub space: bool,
+    pub hidden: bool,
 }
 
 impl FromStr for MinPrefixConfig {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self> {
+    fn from_str(mut s: &str) -> Result<Self> {
+        let space = s.starts_with(" ");
+        if space {
+            s = &s[1..];
+        }
+        let hidden = s.starts_with('_');
+        if hidden {
+            s = &s[1..];
+        }
+
         Ok(Self {
             value: if s.is_empty() { None } else { Some(s.parse()?) },
+            space,
+            hidden,
         })
     }
 }

@@ -22,11 +22,11 @@ enum InternalValue {
 fn format_number(
     raw_value: f64,
     min_width: usize,
-    min_prefix: MinPrefixConfig,
+    min_prefix_config: MinPrefixConfig,
     unit: Unit,
     pad_with: char,
 ) -> String {
-    let min_prefix = min_prefix.value.unwrap_or(Prefix::Nano);
+    let min_prefix = min_prefix_config.value.unwrap_or(Prefix::Nano);
     let is_byte = unit.is_byte();
 
     let mut min_exp_level = match min_prefix {
@@ -78,16 +78,26 @@ fn format_number(
         prefix = Prefix::One;
     }
 
+    // Apply prefix' configuration
+    let mut prefix_str = if min_prefix_config.space {
+        " ".to_string()
+    } else {
+        String::new()
+    };
+    if !min_prefix_config.hidden {
+        prefix_str.push_str(&prefix.to_string());
+    }
+
     // The length of the integer part of a number
     let digits = (value.log10().floor() + 1.0).max(1.0) as isize;
     // How many characters is left for "." and the fractional part?
     match min_width as isize - digits {
         // No characters left
-        x if x <= 0 => format!("{:.0}{}", value, prefix),
+        x if x <= 0 => format!("{:.0}{}", value, prefix_str),
         // Only one character -> pad text to the right
-        x if x == 1 => format!("{}{:.0}{}", pad_with, value, prefix),
+        x if x == 1 => format!("{}{:.0}{}", pad_with, value, prefix_str),
         // There is space for fractional part
-        rest => format!("{:.*}{}", (rest as usize) - 1, value, prefix),
+        rest => format!("{:.*}{}", (rest as usize) - 1, value, prefix_str),
     }
 }
 
