@@ -94,7 +94,7 @@ impl<'de> Deserialize<'de> for MouseButton {
             /// ```toml
             /// button = 1
             /// ```
-            fn visit_u64<E>(self, number: u64) -> Result<MouseButton, E>
+            fn visit_i64<E>(self, number: i64) -> Result<MouseButton, E>
             where
                 E: de::Error,
             {
@@ -109,6 +109,12 @@ impl<'de> Deserialize<'de> for MouseButton {
                     8 => Back,
                     _ => Unknown,
                 })
+            }
+            fn visit_u64<E>(self, number: u64) -> Result<MouseButton, E>
+            where
+                E: de::Error,
+            {
+                self.visit_i64(number as i64)
             }
         }
 
