@@ -13,6 +13,8 @@ pub enum MouseButton {
     Forward,
     Back,
     Unknown,
+    /// Experemental
+    DoubleLeft,
 }
 
 #[derive(serde_derive::Deserialize, Debug, Clone, Default)]
@@ -40,15 +42,15 @@ impl ClickHandler {
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct ClickConfigEntry {
-    // Which button to handle
+    /// Which button to handle
     button: MouseButton,
-    // Which command to run
+    /// Which command to run
     #[serde(default)]
     cmd: Option<String>,
-    // Whether to wait for command to exit or not (default is `false`)
+    /// Whether to wait for command to exit or not (default is `false`)
     #[serde(default)]
     sync: bool,
-    // Whether to update the block on click (default is `true`)
+    /// Whether to update the block on click (default is `true`)
     #[serde(default = "return_true")]
     update: bool,
 }
@@ -71,9 +73,9 @@ impl<'de> Deserialize<'de> for MouseButton {
                 formatter.write_str("u64 or string")
             }
 
-            /// ```toml
-            /// button = "left"
-            /// ```
+            // ```toml
+            // button = "left"
+            // ```
             fn visit_str<E>(self, name: &str) -> Result<MouseButton, E>
             where
                 E: de::Error,
@@ -87,13 +89,15 @@ impl<'de> Deserialize<'de> for MouseButton {
                     "down" => WheelDown,
                     "forward" => Forward,
                     "back" => Back,
+                    // Experemental
+                    "double_left" => DoubleLeft,
                     _ => Unknown,
                 })
             }
 
-            /// ```toml
-            /// button = 1
-            /// ```
+            // ```toml
+            // button = 1
+            // ```
             fn visit_i64<E>(self, number: i64) -> Result<MouseButton, E>
             where
                 E: de::Error,

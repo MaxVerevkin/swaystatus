@@ -1,9 +1,8 @@
-use std::option::Option;
-use std::string::*;
+use std::time::Duration;
 
 use serde_derive::Deserialize;
 
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, BufReader, Stdin};
 use tokio::sync::mpsc::Sender;
 
 use crate::click::MouseButton;
@@ -15,22 +14,20 @@ struct I3BarEventInternal {
     pub button: MouseButton,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct I3BarEvent {
     pub id: usize,
     pub instance: Option<usize>,
     pub button: MouseButton,
 }
 
-pub async fn process_events(sender: Sender<I3BarEvent>, invert_scrolling: bool) {
-    let mut stdin = BufReader::new(tokio::io::stdin());
-    let mut input = String::new();
-
+async fn get_event(input: &mut BufReader<Stdin>, invert_scrolling: bool) -> I3BarEvent {
+    let mut buf = String::new();
     loop {
-        stdin.read_line(&mut input).await.unwrap();
+        input.read_line(&mut buf).await.unwrap();
 
         // Take only the valid JSON object betweem curly braces (cut off leading bracket, commas and whitespace)
-        let slice = input.trim_start_matches(|c| c != '{');
+        let slice = buf.trim_start_matches(|c| c != '{');
         let slice = slice.trim_end_matches(|c| c != '}');
 
         if !slice.is_empty() {
@@ -48,16 +45,41 @@ pub async fn process_events(sender: Sender<I3BarEvent>, invert_scrolling: bool) 
                 (other, _) => other,
             };
 
-            sender
-                .send(I3BarEvent {
-                    id,
-                    instance,
-                    button,
-                })
-                .await
-                .expect("channel closed while sending event");
+            return I3BarEvent {
+                id,
+                instance,
+                button,
+            };
+        }
+    }
+}
+
+pub async fn process_events(sender: Sender<I3BarEvent>, invert_scrolling: bool) {
+    let mut stdin = BufReader::new(tokio::io::stdin());
+
+    loop {
+        // Get next event
+        let mut event = get_event(&mut stdin, invert_scrolling).await;
+
+        // Handle double left click. Max delay between two clicks is 150ms.
+        // TODO: make delay configurable
+        if event.button == MouseButton::Left {
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_millis(150)) => (),
+                new_event = get_event(&mut stdin, invert_scrolling) => {
+                    if event == new_event {
+                        event.button = MouseButton::DoubleLeft;
+                    } else {
+                        sender.send(event).await.unwrap();
+                        event = new_event;
+                    }
+                }
+            }
         }
 
-        input.clear();
+        sender
+            .send(event)
+            .await
+            .expect("channel closed while sending event");
     }
 }
