@@ -7,7 +7,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `device` | The device in `/sys/class/power_supply/` to read from. When using UPower, this can also be `"DisplayDevice"`. | No | `"BAT0"`
+//! `device` | The device in `/sys/class/power_supply/` to read from. When using UPower, this can also be `"DisplayDevice"`. | No | Any battery device
 //! `driver` | One of `"sysfs"` or `"upower"` | No | `"sysfs"`
 //! `interval` | Update interval, in seconds. Only relevant for `driver = "sysfs"`. | No | `10`
 //! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{percentage}"`
@@ -41,7 +41,7 @@ use dbus::nonblock::stdintf::org_freedesktop_dbus::Properties;
 use futures::StreamExt;
 use serde::de::Deserialize;
 use serde_derive::Deserialize;
-use tokio::fs::read_dir;
+use tokio::fs::{read_dir, read_to_string};
 use tokio::sync::mpsc;
 use tokio::time::{Instant, Interval};
 
@@ -82,7 +82,7 @@ const UPOWER_DBUS_ROOT_PATH: &str = "/org/freedesktop/UPower";
 #[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct BatteryConfig {
-    device: String,
+    device: Option<String>,
     driver: BatteryDriver,
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
@@ -100,7 +100,7 @@ struct BatteryConfig {
 impl Default for BatteryConfig {
     fn default() -> Self {
         Self {
-            device: "BAT0".to_string(),
+            device: None,
             driver: BatteryDriver::Sysfs,
             interval: Duration::from_secs(10),
             format: Default::default(),
@@ -502,12 +502,38 @@ pub async fn run(
         .clone()
         .or_default("{percentage}")?;
 
+    // Get _any_ battery device if not set in the config
+    let device = match block_config.device {
+        Some(d) => d,
+        None => {
+            let mut sysfs_dir = read_dir("/sys/class/power_supply")
+                .await
+                .block_error("battery", "failed to read /sys/class/power_supply direcory")?;
+            let mut device = None;
+            while let Some(dir) = sysfs_dir
+                .next_entry()
+                .await
+                .block_error("battery", "failed to read /sys/class/power_supply direcory")?
+            {
+                if read_to_string(dir.path().join("type"))
+                    .await
+                    .map(|t| t.trim() == "Battery")
+                    .unwrap_or(false)
+                {
+                    device = Some(dir.file_name().to_str().unwrap().to_string());
+                    break;
+                }
+            }
+            device.block_error("battery", "failed to determine default battery - please set your battery device in the configuration file")?
+        }
+    };
+
     let mut device: Box<dyn BatteryDevice + Send> = match block_config.driver {
         BatteryDriver::Sysfs => Box::new(PowerSupplyDevice::from_device(
-            &block_config.device,
+            &device,
             block_config.interval,
         )),
-        BatteryDriver::Upower => Box::new(UPowerDevice::from_device(&block_config.device).await?),
+        BatteryDriver::Upower => Box::new(UPowerDevice::from_device(&device).await?),
     };
 
     loop {
