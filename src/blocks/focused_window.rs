@@ -9,7 +9,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{window}"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{title^21}"`
 //! `autohide` | Whether to hide the block when no title is available | No | `true`
 //!
 //! Placeholder      | Value                                     | Type   | Unit
@@ -67,7 +67,7 @@ pub async fn run(
 
     let block_config =
         FocusedWindowConfig::deserialize(block_config).block_config_error("focused_window")?;
-    let format = block_config.format.clone().or_default("{window^21}")?;
+    let format = block_config.format.clone().or_default("{title^21}")?;
     let mut widget = Widget::new(id, shared_config);
 
     let mut title = None;
