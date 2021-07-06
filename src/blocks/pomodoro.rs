@@ -15,23 +15,24 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `use_nag` | i3-nagbar enabled | No | `false`
-//! `nag_path` | i3-nagbar binary path | No | `i3-nagbar`
 //! `message` | Message when timer expires | No | `Pomodoro over! Take a break!`
 //! `break_message` | Message when break is over | No | `Break over! Time to work!`
+//! `notify_cmd` | A shell command to run as a notifier. `{msg}` will be substituted with either `message` or `break_message`. | No | `swaynag -m '{msg}'`
+//! `blocking_cmd` | Is `notify_cmd` blocking? If it is, then pomodoro block will wait until the command finishes before proceeding. Otherwise, you will have to click on the block in order to proceed. | No | `true`
 //!
 //! # Example
+//!
+//! Use `notify-send` as a notifier:
 //!
 //! ```toml
 //! [[block]]
 //! block = "pomodoro"
-//! use_nag = true
-//! nag_path = "swaynag"
+//! notify_cmd = "notify-send '{msg}'"
+//! blocking_cmd = false
 //! ```
 //!
 //! # TODO
 //!
-//! - Automaticaly select between "i3-nagbar" and "swaynag".
 //! - Use different icons.
 //! - Use format strings.
 
@@ -42,6 +43,7 @@ use tokio::sync::mpsc;
 use super::{BlockEvent, BlockMessage};
 use crate::click::MouseButton;
 use crate::config::SharedConfig;
+use crate::subprocess::{spawn_shell_sync, spawn_shell};
 use crate::errors::*;
 use crate::widgets::widget::Widget;
 use crate::widgets::State;
@@ -49,19 +51,19 @@ use crate::widgets::State;
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct PomodoroConfig {
-    use_nag: bool,
-    nag_path: String,
     message: String,
     break_message: String,
+    notify_cmd: Option<String>,
+    blocking_cmd: bool
 }
 
 impl Default for PomodoroConfig {
     fn default() -> Self {
         Self {
-            use_nag: false,
-            nag_path: "i3-nagbar".to_string(),
             message: "Pomodoro over! Take a break!".to_string(),
             break_message: "Break over! Time to work!".to_string(),
+            notify_cmd: Some("swaynag -m '{msg}'".to_string()),
+            blocking_cmd: true,
         }
     }
 }
@@ -162,8 +164,14 @@ impl Block {
             // Show break message
             self.widget.set_state(State::Good);
             self.set_text(self.block_config.message.clone()).await?;
-            if self.block_config.use_nag {
-                self.nag(&self.block_config.message).await?;
+            if let Some(cmd) = &self.block_config.notify_cmd {
+                let cmd = cmd.replace("{msg}", &self.block_config.message);
+                if self.block_config.blocking_cmd {
+                    spawn_shell_sync(&cmd).await.block_error("pomodoro", "failed to run notify_cmd")?;
+                } else {
+                    spawn_shell(&cmd).block_error("pomodoro", "failed to run notify_cmd")?;
+                    self.wait_for_click(MouseButton::Left).await;
+                }
             } else {
                 self.wait_for_click(MouseButton::Left).await;
             }
@@ -193,29 +201,23 @@ impl Block {
                 }
             }
 
+
             // Show task message
             self.widget.set_state(State::Good);
-            self.set_text(self.block_config.break_message.clone())
-                .await?;
-            if self.block_config.use_nag {
-                self.nag(&self.block_config.break_message).await?;
+            self.set_text(self.block_config.break_message.clone()).await?;
+            if let Some(cmd) = &self.block_config.notify_cmd {
+                let cmd = cmd.replace("{msg}", &self.block_config.break_message);
+                if self.block_config.blocking_cmd {
+                    spawn_shell_sync(&cmd).await.block_error("pomodoro", "failed to run notify_cmd")?;
+                } else {
+                    spawn_shell(&cmd).block_error("pomodoro", "failed to run notify_cmd")?;
+                    self.wait_for_click(MouseButton::Left).await;
+                }
             } else {
                 self.wait_for_click(MouseButton::Left).await;
             }
         }
 
-        Ok(())
-    }
-
-    async fn nag(&self, msg: &str) -> Result<()> {
-        tokio::process::Command::new(&self.block_config.nag_path)
-            .arg("-m")
-            .arg(msg)
-            .spawn()
-            .block_error("pomodoro", "failed to run nag command")?
-            .wait()
-            .await
-            .block_error("pomodoro", "failed to wait for nag command to run")?;
         Ok(())
     }
 }
