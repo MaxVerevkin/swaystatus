@@ -43,8 +43,8 @@ use tokio::sync::mpsc;
 use super::{BlockEvent, BlockMessage};
 use crate::click::MouseButton;
 use crate::config::SharedConfig;
-use crate::subprocess::{spawn_shell_sync, spawn_shell};
 use crate::errors::*;
+use crate::subprocess::{spawn_shell, spawn_shell_sync};
 use crate::widgets::widget::Widget;
 use crate::widgets::State;
 
@@ -54,7 +54,7 @@ struct PomodoroConfig {
     message: String,
     break_message: String,
     notify_cmd: Option<String>,
-    blocking_cmd: bool
+    blocking_cmd: bool,
 }
 
 impl Default for PomodoroConfig {
@@ -167,7 +167,9 @@ impl Block {
             if let Some(cmd) = &self.block_config.notify_cmd {
                 let cmd = cmd.replace("{msg}", &self.block_config.message);
                 if self.block_config.blocking_cmd {
-                    spawn_shell_sync(&cmd).await.block_error("pomodoro", "failed to run notify_cmd")?;
+                    spawn_shell_sync(&cmd)
+                        .await
+                        .block_error("pomodoro", "failed to run notify_cmd")?;
                 } else {
                     spawn_shell(&cmd).block_error("pomodoro", "failed to run notify_cmd")?;
                     self.wait_for_click(MouseButton::Left).await;
@@ -201,14 +203,16 @@ impl Block {
                 }
             }
 
-
             // Show task message
             self.widget.set_state(State::Good);
-            self.set_text(self.block_config.break_message.clone()).await?;
+            self.set_text(self.block_config.break_message.clone())
+                .await?;
             if let Some(cmd) = &self.block_config.notify_cmd {
                 let cmd = cmd.replace("{msg}", &self.block_config.break_message);
                 if self.block_config.blocking_cmd {
-                    spawn_shell_sync(&cmd).await.block_error("pomodoro", "failed to run notify_cmd")?;
+                    spawn_shell_sync(&cmd)
+                        .await
+                        .block_error("pomodoro", "failed to run notify_cmd")?;
                 } else {
                     spawn_shell(&cmd).block_error("pomodoro", "failed to run notify_cmd")?;
                     self.wait_for_click(MouseButton::Left).await;
