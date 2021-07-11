@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use crate::errors::*;
 use crate::util;
-use crate::util::{decode_escaped_unicode, escape_pango_text};
+use crate::util::escape_pango_text;
 
 #[derive(Debug)]
 pub struct NetDevice {
@@ -98,7 +98,9 @@ impl NetDevice {
                         continue;
                     }
 
-                    let ssid = Some(escape_pango_text(decode_escaped_unicode(&ssid)));
+                    let ssid = String::from_utf8(ssid)
+                        .internal_error("netlink.rs", "SSID is not valid UTF8")?;
+                    let ssid = Some(escape_pango_text(ssid));
                     let freq = interface
                         .frequency
                         .map(|f| nl80211::parse_u32(&f) as f64 * 1e6);
