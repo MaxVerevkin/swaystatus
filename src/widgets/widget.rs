@@ -19,8 +19,8 @@ impl Widget {
         let (key_bg, key_fg) = State::Idle.theme_keys(&shared_config.theme); // Initial colors
         let inner = I3BarBlock {
             name: Some(id.to_string()),
-            color: key_fg.clone(),
-            background: key_bg.clone(),
+            color: key_fg,
+            background: key_bg,
             ..I3BarBlock::default()
         };
 
@@ -107,8 +107,8 @@ impl Widget {
     pub fn set_state(&mut self, state: State) {
         let (key_bg, key_fg) = state.theme_keys(&self.shared_config.theme);
 
-        self.inner.background = key_bg.clone();
-        self.inner.color = key_fg.clone();
+        self.inner.background = key_bg;
+        self.inner.color = key_fg;
     }
 
     pub fn set_spacing(&mut self, spacing: Spacing) {

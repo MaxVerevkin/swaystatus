@@ -37,23 +37,23 @@ impl Add for Color {
 
 impl FromStr for Color {
     type Err = crate::errors::Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s == "none" || s.is_empty() {
+    fn from_str(color: &str) -> Result<Self, Self::Err> {
+        if color == "none" || color.is_empty() {
             Ok(Color::None)
-        } else if s == "auto" {
+        } else if color == "auto" {
             Ok(Color::Auto)
         } else {
             use crate::errors::{OptionExt, ResultExt};
-            let err_msg = "invaild RGBA color";
-            let r = s.get(1..3).config_error(err_msg)?;
-            let g = s.get(3..5).config_error(err_msg)?;
-            let b = s.get(5..7).config_error(err_msg)?;
-            let a = s.get(7..9).unwrap_or("FF");
+            let err_msg = format!("'{}' is not a vaild RGBA color", color);
+            let r = color.get(1..3).config_error(&err_msg)?;
+            let g = color.get(3..5).config_error(&err_msg)?;
+            let b = color.get(5..7).config_error(&err_msg)?;
+            let a = color.get(7..9).unwrap_or("FF");
             Ok(Color::Rgba(
-                u8::from_str_radix(r, 16).internal_error("color parser", err_msg)?,
-                u8::from_str_radix(g, 16).internal_error("color parser", err_msg)?,
-                u8::from_str_radix(b, 16).internal_error("color parser", err_msg)?,
-                u8::from_str_radix(a, 16).internal_error("color parser", err_msg)?,
+                u8::from_str_radix(r, 16).internal_error("color parser", &err_msg)?,
+                u8::from_str_radix(g, 16).internal_error("color parser", &err_msg)?,
+                u8::from_str_radix(b, 16).internal_error("color parser", &err_msg)?,
+                u8::from_str_radix(a, 16).internal_error("color parser", &err_msg)?,
             ))
         }
     }
