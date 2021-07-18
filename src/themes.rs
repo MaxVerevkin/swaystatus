@@ -45,15 +45,16 @@ impl FromStr for Color {
         } else {
             use crate::errors::{OptionExt, ResultExt};
             let err_msg = format!("'{}' is not a vaild RGBA color", color);
-            let r = color.get(1..3).config_error(&err_msg)?;
-            let g = color.get(3..5).config_error(&err_msg)?;
-            let b = color.get(5..7).config_error(&err_msg)?;
+            let err_cntxt = "color parser";
+            let r = color.get(1..3).internal_error(err_cntxt, &err_msg)?;
+            let g = color.get(3..5).internal_error(err_cntxt, &err_msg)?;
+            let b = color.get(5..7).internal_error(err_cntxt, &err_msg)?;
             let a = color.get(7..9).unwrap_or("FF");
             Ok(Color::Rgba(
-                u8::from_str_radix(r, 16).internal_error("color parser", &err_msg)?,
-                u8::from_str_radix(g, 16).internal_error("color parser", &err_msg)?,
-                u8::from_str_radix(b, 16).internal_error("color parser", &err_msg)?,
-                u8::from_str_radix(a, 16).internal_error("color parser", &err_msg)?,
+                u8::from_str_radix(r, 16).internal_error(err_cntxt, &err_msg)?,
+                u8::from_str_radix(g, 16).internal_error(err_cntxt, &err_msg)?,
+                u8::from_str_radix(b, 16).internal_error(err_cntxt, &err_msg)?,
+                u8::from_str_radix(a, 16).internal_error(err_cntxt, &err_msg)?,
             ))
         }
     }
