@@ -236,7 +236,7 @@ impl BacklitDevice {
 pub async fn run(
     id: usize,
     block_config: toml::Value,
-    shared_config: SharedConfig,
+    shared_config: SharedConfig<'_>,
     message_sender: mpsc::Sender<BlockMessage>,
     mut events_receiver: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {

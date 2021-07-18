@@ -98,17 +98,20 @@ pub async fn run_block(
     id: usize,
     block_type: BlockType,
     mut block_config: Value,
-    mut shared_config: SharedConfig,
+    mut shared_config: SharedConfig<'_>,
     message_tx: mpsc::Sender<BlockMessage>,
     mut events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
     let common_config = CommonConfig::new(&mut block_config)?;
 
     if let Some(icons_format) = common_config.icons_format {
-        shared_config.icons_format_override(icons_format);
+        *shared_config.icons_format.to_mut() = icons_format;
     }
     if let Some(theme_overrides) = common_config.theme_overrides {
-        shared_config.theme_override(&theme_overrides)?;
+        shared_config
+            .theme
+            .to_mut()
+            .apply_overrides(&theme_overrides)?;
     }
     let click_handler = common_config.click;
 

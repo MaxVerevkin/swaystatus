@@ -1,46 +1,40 @@
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::borrow::Cow;
 
 use serde::de::{Deserialize, Deserializer};
 use serde_derive::Deserialize;
 use toml::value;
 
 use crate::blocks::BlockType;
-use crate::errors;
 use crate::icons::Icons;
 use crate::themes::Theme;
 
-// TODO use `Cow` insted of `Arc`?
-#[derive(Debug)]
-pub struct SharedConfig {
-    pub theme: Arc<Theme>,
-    icons: Arc<Icons>,
-    icons_format: String,
+#[derive(Debug, Clone)]
+pub struct SharedConfig<'a> {
+    pub theme: Cow<'a, Theme>,
+    pub icons: Cow<'a, Icons>,
+    pub icons_format: Cow<'a, String>,
 }
 
-impl SharedConfig {
-    pub fn new(config: &Config) -> Self {
+impl<'a> SharedConfig<'a> {
+    pub fn new(config: &'a Config) -> Self {
         Self {
-            theme: Arc::new(config.theme.clone()),
-            icons: Arc::new(config.icons.clone()),
-            icons_format: config.icons_format.clone(),
+            theme: Cow::Borrowed(&config.theme),
+            icons: Cow::Borrowed(&config.icons),
+            icons_format: Cow::Borrowed(&config.icons_format),
         }
     }
 
-    pub fn icons_format_override(&mut self, icons_format: String) {
-        self.icons_format = icons_format;
-    }
-
-    pub fn theme_override(&mut self, overrides: &HashMap<String, String>) -> errors::Result<()> {
-        let mut theme = self.theme.as_ref().clone();
-        theme.apply_overrides(overrides)?;
-        self.theme = Arc::new(theme);
-        Ok(())
+    pub fn into_owned(self) -> SharedConfig<'static> {
+        SharedConfig {
+            theme: Cow::Owned(self.theme.into_owned()),
+            icons: Cow::Owned(self.icons.into_owned()),
+            icons_format: Cow::Owned(self.icons_format.into_owned()),
+        }
     }
 
     pub fn get_icon(&self, icon: &str) -> crate::errors::Result<String> {
         use crate::errors::OptionExt;
-        Ok(self.icons_format.clone().replace(
+        Ok(self.icons_format.replace(
             "{icon}",
             self.icons
                 .0
@@ -50,22 +44,12 @@ impl SharedConfig {
     }
 }
 
-impl Default for SharedConfig {
+impl Default for SharedConfig<'_> {
     fn default() -> Self {
         Self {
-            theme: Arc::new(Theme::default()),
-            icons: Arc::new(Icons::default()),
-            icons_format: " {icon} ".to_string(),
-        }
-    }
-}
-
-impl Clone for SharedConfig {
-    fn clone(&self) -> Self {
-        Self {
-            theme: Arc::clone(&self.theme),
-            icons: Arc::clone(&self.icons),
-            icons_format: self.icons_format.clone(),
+            theme: Cow::Owned(Theme::default()),
+            icons: Cow::Owned(Icons::default()),
+            icons_format: Cow::Owned(" {icon} ".to_string()),
         }
     }
 }

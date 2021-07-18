@@ -4,18 +4,18 @@ use crate::errors::*;
 use crate::protocol::i3bar_block::I3BarBlock;
 
 #[derive(Clone, Debug)]
-pub struct Widget {
+pub struct Widget<'a> {
     full_text: Option<String>,
     short_text: Option<String>,
     icon: Option<String>,
     full_spacing: Spacing,
     short_spacing: Spacing,
-    shared_config: SharedConfig,
+    shared_config: SharedConfig<'a>,
     inner: I3BarBlock,
 }
 
-impl Widget {
-    pub fn new(id: usize, shared_config: SharedConfig) -> Self {
+impl<'a> Widget<'a> {
+    pub fn new(id: usize, shared_config: SharedConfig<'a>) -> Self {
         let (key_bg, key_fg) = State::Idle.theme_keys(&shared_config.theme); // Initial colors
         let inner = I3BarBlock {
             name: Some(id.to_string()),

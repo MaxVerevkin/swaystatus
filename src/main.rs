@@ -121,14 +121,16 @@ async fn run(config: Option<String>, noinit: bool, never_pause: bool) -> Result<
         .internal_error("run()", "configuration file not found")?;
 
     let config: Config = deserialize_file(&config_path)?;
-    let shared_config = SharedConfig::new(&config);
+    let block_list = config.blocks.clone();
+    let config: &'static Config = Box::leak(Box::new(config));
+    let shared_config = SharedConfig::new(config);
 
     // Initialize the blocks
     let mut blocks_events: Vec<mpsc::Sender<BlockEvent>> = Vec::new();
     let mut blocks_tasks = FuturesUnordered::new();
     let (message_sender, mut message_receiver) = mpsc::channel(64);
 
-    for (block_type, block_config) in config.blocks {
+    for (block_type, block_config) in block_list {
         let (events_sender, events_reciever) = mpsc::channel(64);
         blocks_events.push(events_sender);
 

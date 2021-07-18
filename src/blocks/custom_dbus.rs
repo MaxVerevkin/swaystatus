@@ -51,9 +51,9 @@ struct CustomDBusConfig {
     name: String,
 }
 
-struct Block {
+struct Block<'a> {
     id: usize,
-    text: Widget,
+    text: Widget<'a>,
     sender: mpsc::Sender<BlockMessage>,
 }
 
@@ -61,12 +61,15 @@ struct Block {
 pub async fn run(
     id: usize,
     block_config: toml::Value,
-    shared_config: SharedConfig,
+    shared_config: SharedConfig<'_>,
     message_sender: mpsc::Sender<BlockMessage>,
     events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
     // Drop the reciever if we don't what to recieve events
     drop(events_reciever);
+
+    // Get 'static lifetime
+    let shared_config: SharedConfig<'static> = shared_config.into_owned();
 
     // Parse config
     let dbus_name = CustomDBusConfig::deserialize(block_config)
