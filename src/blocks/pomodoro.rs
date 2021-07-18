@@ -68,15 +68,15 @@ impl Default for PomodoroConfig {
     }
 }
 
-struct Block<'a> {
+struct Block {
     id: usize,
-    widget: Widget<'a>,
+    widget: Widget,
     block_config: PomodoroConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     events_receiver: mpsc::Receiver<BlockEvent>,
 }
 
-impl<'a> Block<'a> {
+impl Block {
     async fn set_text(&mut self, text: String) -> Result<()> {
         self.widget.set_full_text(text);
         self.message_sender
@@ -229,7 +229,7 @@ impl<'a> Block<'a> {
 pub async fn run(
     id: usize,
     block_config: toml::Value,
-    shared_config: SharedConfig<'_>,
+    shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     events_receiver: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {

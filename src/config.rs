@@ -9,26 +9,18 @@ use crate::icons::Icons;
 use crate::themes::Theme;
 
 #[derive(Debug, Clone)]
-pub struct SharedConfig<'a> {
-    pub theme: Cow<'a, Theme>,
-    pub icons: Cow<'a, Icons>,
-    pub icons_format: Cow<'a, String>,
+pub struct SharedConfig {
+    pub theme: Cow<'static, Theme>,
+    pub icons: Cow<'static, Icons>,
+    pub icons_format: Cow<'static, String>,
 }
 
-impl<'a> SharedConfig<'a> {
-    pub fn new(config: &'a Config) -> Self {
+impl SharedConfig {
+    pub fn new(config: &'static Config) -> Self {
         Self {
             theme: Cow::Borrowed(&config.theme),
             icons: Cow::Borrowed(&config.icons),
             icons_format: Cow::Borrowed(&config.icons_format),
-        }
-    }
-
-    pub fn into_owned(self) -> SharedConfig<'static> {
-        SharedConfig {
-            theme: Cow::Owned(self.theme.into_owned()),
-            icons: Cow::Owned(self.icons.into_owned()),
-            icons_format: Cow::Owned(self.icons_format.into_owned()),
         }
     }
 
@@ -44,7 +36,7 @@ impl<'a> SharedConfig<'a> {
     }
 }
 
-impl Default for SharedConfig<'_> {
+impl Default for SharedConfig {
     fn default() -> Self {
         Self {
             theme: Cow::Owned(Theme::default()),

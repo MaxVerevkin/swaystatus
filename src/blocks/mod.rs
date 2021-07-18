@@ -98,7 +98,7 @@ pub async fn run_block(
     id: usize,
     block_type: BlockType,
     mut block_config: Value,
-    mut shared_config: SharedConfig<'_>,
+    mut shared_config: SharedConfig,
     message_tx: mpsc::Sender<BlockMessage>,
     mut events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {

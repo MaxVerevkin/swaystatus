@@ -58,7 +58,7 @@ impl Default for SpeedtestConfig {
 pub async fn run(
     id: usize,
     block_config: toml::Value,
-    shared_config: SharedConfig<'_>,
+    shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     events_reciever: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {

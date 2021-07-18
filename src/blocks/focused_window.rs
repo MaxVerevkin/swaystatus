@@ -59,7 +59,7 @@ impl Default for FocusedWindowConfig {
 pub async fn run(
     id: usize,
     block_config: toml::Value,
-    shared_config: SharedConfig<'_>,
+    shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     events_receiver: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
