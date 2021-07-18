@@ -267,8 +267,6 @@ impl<'de> Deserialize<'de> for Theme {
                     theme.apply_overrides(overrides).serde_error()?;
                 }
 
-                dbg!(&theme);
-
                 Ok(theme)
             }
         }
