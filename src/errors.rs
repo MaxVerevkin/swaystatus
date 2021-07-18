@@ -79,6 +79,7 @@ where
 
 pub trait OptionExt<T> {
     fn block_error(self, block: &str, message: &str) -> Result<T>;
+    fn config_error(self, message: &str) -> Result<T>;
     fn internal_error(self, context: &str, message: &str) -> Result<T>;
 }
 
@@ -89,6 +90,14 @@ impl<T> OptionExt<T> for Option<T> {
             message: message.to_owned(),
             cause: None,
             cause_dbg: None,
+        })
+    }
+
+    fn config_error(self, message: &str) -> Result<T> {
+        self.ok_or_else(|| ConfigError {
+            block: None,
+            cause: message.to_string(),
+            cause_dbg: message.to_string(),
         })
     }
 
@@ -157,3 +166,30 @@ impl fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+// impl serde::de::Error for Error {
+//     fn custom<T>(msg: T) -> Self
+//     where
+//         T: fmt::Display,
+//     {
+//         Error::InternalError {
+//             context: "None".to_string(),
+//             message: msg.to_string(),
+//             cause: None,
+//             cause_dbg: None,
+//         }
+//     }
+// }
+
+pub trait ToSerdeError<T> {
+    fn serde_error<E: serde::de::Error>(self) -> StdResult<T, E>;
+}
+
+impl<T, F> ToSerdeError<T> for StdResult<T, F>
+where
+    F: fmt::Display,
+{
+    fn serde_error<E: serde::de::Error>(self) -> StdResult<T, E> {
+        self.map_err(|e| E::custom(e.to_string()))
+    }
+}
