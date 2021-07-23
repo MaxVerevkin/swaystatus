@@ -36,7 +36,7 @@ cmd = "alacritty"
 
 ### Hsv color support
 
-It is possible to specify theme's colors in HSV color space instead of RGB. The format is `"hsv:<hue>:<saturation>:<value>[:<alpha>]"`, where hue is in range `0..360` and all the other values are in range `0..100`.
+It is possible to specify theme's colors in HSV color space instead of RGB. The format is `"hsv:<hue>:<saturation>:<value>[:<alpha>]"`, where hue is in range `0..360`, saturation and value are in range `0..=100` and alpha is in `0..=255`.
 
 ```toml
 [theme]
