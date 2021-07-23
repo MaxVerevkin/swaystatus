@@ -10,9 +10,17 @@ use serde::de::{MapAccess, Visitor};
 use serde::{de, Deserialize, Deserializer};
 
 use crate::errors::*;
-use placeholder::unexpected_token;
 use placeholder::Placeholder;
 use value::Value;
+
+pub fn unexpected_token<T>(token: char) -> Result<T> {
+    Err(InternalError {
+        context: "format parser".to_string(),
+        message: format!("unexpected token '{}'", token),
+        cause: None,
+        cause_dbg: None,
+    })
+}
 
 #[derive(Debug, Clone, PartialEq)]
 enum Token {

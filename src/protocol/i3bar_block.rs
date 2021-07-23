@@ -53,20 +53,8 @@ impl I3BarBlock {
 
         json_add_str!(retval, Some(&self.full_text), full_text);
         json_add_str!(retval, self.short_text, short_text);
-        if let Color::Rgba(r, g, b, a) = self.color {
-            json_add_str!(
-                retval,
-                Some(format!("#{:02X}{:02X}{:02X}{:02X}", r, g, b, a)),
-                color
-            );
-        }
-        if let Color::Rgba(r, g, b, a) = self.background {
-            json_add_str!(
-                retval,
-                Some(format!("#{:02X}{:02X}{:02X}{:02X}", r, g, b, a)),
-                background
-            );
-        }
+        json_add_str!(retval, self.color.to_hex(), color);
+        json_add_str!(retval, self.background.to_hex(), background);
         json_add_str!(retval, self.border, border);
         json_add_val!(retval, self.border_top, border_top);
         json_add_val!(retval, self.border_right, border_right);

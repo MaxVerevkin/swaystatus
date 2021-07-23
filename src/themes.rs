@@ -7,30 +7,71 @@ use std::str::FromStr;
 use serde::de::{self, Deserialize, Deserializer, MapAccess, Visitor};
 use serde_derive::Deserialize;
 
+use color_space::{Hsv, Rgb};
+
 use crate::errors::ToSerdeError;
 use crate::util;
 
 // TODO docs
 // TODO tests
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Color {
     None,
     Auto,
-    Rgba(u8, u8, u8, u8),
+    Rgba(Rgb, u8),
+    Hsva(Hsv, u8),
+}
+
+impl Color {
+    pub fn to_hex(self) -> Option<String> {
+        let format_rgb = |rgb: Rgb, a: u8| {
+            format!(
+                "#{:02X}{:02X}{:02X}{:02X}",
+                rgb.r as u8, rgb.g as u8, rgb.b as u8, a
+            )
+        };
+        match self {
+            Color::Auto | Color::None => None,
+            Color::Rgba(rgb, a) => Some(format_rgb(rgb, a)),
+            Color::Hsva(hsv, a) => Some(format_rgb(hsv.into(), a)),
+        }
+    }
 }
 
 impl Add for Color {
     type Output = Color;
     fn add(self, rhs: Self) -> Self::Output {
+        let add_hsv = |a: Hsv, b: Hsv| {
+            Hsv::new(
+                (a.h + b.h) % 360.,
+                (a.s + b.s).clamp(0., 1.),
+                (a.v + b.v).clamp(0., 1.),
+            )
+        };
+
         match (self, rhs) {
+            // Do nothing
             (x, Color::None | Color::Auto) => x,
             (Color::None | Color::Auto, x) => x,
-            (Color::Rgba(r1, g1, b1, a1), Color::Rgba(r2, g2, b2, a2)) => Color::Rgba(
-                r1.saturating_add(r2),
-                g1.saturating_add(g2),
-                b1.saturating_add(b2),
+            // Hsv + Hsv => Hsv
+            (Color::Hsva(hsv1, a1), Color::Hsva(hsv2, a2)) => {
+                Color::Hsva(add_hsv(hsv1, hsv2), a1.saturating_add(a2))
+            }
+            // Rgb + Rgb => Rgb
+            (Color::Rgba(rgb1, a1), Color::Rgba(rgb2, a2)) => Color::Rgba(
+                Rgb::new(
+                    (rgb1.r + rgb2.r).clamp(0., 255.),
+                    (rgb1.g + rgb2.g).clamp(0., 255.),
+                    (rgb1.b + rgb2.b).clamp(0., 255.),
+                ),
                 a1.saturating_add(a2),
             ),
+            // Hsv + Rgb => Hsv
+            // Rgb + Hsv => Hsv
+            (Color::Hsva(hsv, a1), Color::Rgba(rgb, a2))
+            | (Color::Rgba(rgb, a1), Color::Hsva(hsv, a2)) => {
+                Color::Hsva(add_hsv(hsv, rgb.into()), a1.saturating_add(a2))
+            }
         }
     }
 }
@@ -38,22 +79,34 @@ impl Add for Color {
 impl FromStr for Color {
     type Err = crate::errors::Error;
     fn from_str(color: &str) -> Result<Self, Self::Err> {
+        use crate::errors::{OptionExt, ResultExt};
+        let err_cntxt = "color parser";
+
         if color == "none" || color.is_empty() {
             Ok(Color::None)
         } else if color == "auto" {
             Ok(Color::Auto)
+        } else if color.starts_with("hsv:") {
+            let err_msg = format!("'{}' is not a vaild HSVA color", color);
+            let mut components = color.split_at(4).1.split(':');
+            let h = components.next().internal_error(err_cntxt, &err_msg)?;
+            let s = components.next().internal_error(err_cntxt, &err_msg)?;
+            let v = components.next().internal_error(err_cntxt, &err_msg)?;
+            let a = components.next().unwrap_or("255");
+            Ok(Color::Hsva(
+                Hsv::new(
+                    h.parse::<f64>().internal_error(err_cntxt, &err_msg)?,
+                    s.parse::<f64>().internal_error(err_cntxt, &err_msg)? / 100.,
+                    v.parse::<f64>().internal_error(err_cntxt, &err_msg)? / 100.,
+                ),
+                a.parse::<u8>().internal_error(err_cntxt, &err_msg)?,
+            ))
         } else {
-            use crate::errors::{OptionExt, ResultExt};
             let err_msg = format!("'{}' is not a vaild RGBA color", color);
-            let err_cntxt = "color parser";
-            let r = color.get(1..3).internal_error(err_cntxt, &err_msg)?;
-            let g = color.get(3..5).internal_error(err_cntxt, &err_msg)?;
-            let b = color.get(5..7).internal_error(err_cntxt, &err_msg)?;
+            let rgb = color.get(1..7).internal_error(err_cntxt, &err_msg)?;
             let a = color.get(7..9).unwrap_or("FF");
             Ok(Color::Rgba(
-                u8::from_str_radix(r, 16).internal_error(err_cntxt, &err_msg)?,
-                u8::from_str_radix(g, 16).internal_error(err_cntxt, &err_msg)?,
-                u8::from_str_radix(b, 16).internal_error(err_cntxt, &err_msg)?,
+                Rgb::from_hex(u32::from_str_radix(rgb, 16).internal_error(err_cntxt, &err_msg)?),
                 u8::from_str_radix(a, 16).internal_error(err_cntxt, &err_msg)?,
             ))
         }

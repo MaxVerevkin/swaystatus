@@ -21,15 +21,6 @@ pub struct Placeholder {
     pub bar_max_value: Option<f64>,
 }
 
-pub(super) fn unexpected_token<T>(token: char) -> Result<T> {
-    Err(InternalError {
-        context: "format parser".to_string(),
-        message: format!("unexpected token '{}'", token),
-        cause: None,
-        cause_dbg: None,
-    })
-}
-
 impl FromStr for Placeholder {
     type Err = Error;
 
