@@ -9,7 +9,7 @@ use serde_derive::Deserialize;
 
 use color_space::{Hsv, Rgb};
 
-use crate::errors::ToSerdeError;
+use crate::errors::{OptionExt, ResultExt, ToSerdeError};
 use crate::util;
 
 // TODO docs
@@ -79,37 +79,30 @@ impl Add for Color {
 impl FromStr for Color {
     type Err = crate::errors::Error;
     fn from_str(color: &str) -> Result<Self, Self::Err> {
-        use crate::errors::{OptionExt, ResultExt};
         let err_cntxt = "color parser";
 
-        if color == "none" || color.is_empty() {
-            Ok(Color::None)
+        Ok(if color == "none" || color.is_empty() {
+            Color::None
         } else if color == "auto" {
-            Ok(Color::Auto)
+            Color::Auto
         } else if color.starts_with("hsv:") {
             let err_msg = format!("'{}' is not a vaild HSVA color", color);
-            let mut components = color.split_at(4).1.split(':');
+            let color = color.split_at(4).1;
+            let mut components = color.split(':').map(|x| x.parse::<f64>()).flatten();
             let h = components.next().internal_error(err_cntxt, &err_msg)?;
             let s = components.next().internal_error(err_cntxt, &err_msg)?;
             let v = components.next().internal_error(err_cntxt, &err_msg)?;
-            let a = components.next().unwrap_or("255");
-            Ok(Color::Hsva(
-                Hsv::new(
-                    h.parse::<f64>().internal_error(err_cntxt, &err_msg)?,
-                    s.parse::<f64>().internal_error(err_cntxt, &err_msg)? / 100.,
-                    v.parse::<f64>().internal_error(err_cntxt, &err_msg)? / 100.,
-                ),
-                a.parse::<u8>().internal_error(err_cntxt, &err_msg)?,
-            ))
+            let a = components.next().unwrap_or(100.);
+            Color::Hsva(Hsv::new(h, s / 100., v / 100.), (a / 100. * 255.) as u8)
         } else {
             let err_msg = format!("'{}' is not a vaild RGBA color", color);
             let rgb = color.get(1..7).internal_error(err_cntxt, &err_msg)?;
             let a = color.get(7..9).unwrap_or("FF");
-            Ok(Color::Rgba(
+            Color::Rgba(
                 Rgb::from_hex(u32::from_str_radix(rgb, 16).internal_error(err_cntxt, &err_msg)?),
                 u8::from_str_radix(a, 16).internal_error(err_cntxt, &err_msg)?,
-            ))
-        }
+            )
+        })
     }
 }
 
