@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::default::Default;
 use std::fmt;
 use std::ops::Add;
 use std::str::FromStr;
@@ -9,7 +8,7 @@ use serde_derive::Deserialize;
 
 use color_space::{Hsv, Rgb};
 
-use crate::errors::{OptionExt, ResultExt, ToSerdeError};
+use crate::errors::{self, OptionExt, ResultExt, ToSerdeError};
 use crate::util;
 
 // TODO docs
@@ -35,6 +34,12 @@ impl Color {
             Color::Rgba(rgb, a) => Some(format_rgb(rgb, a)),
             Color::Hsva(hsv, a) => Some(format_rgb(hsv.into(), a)),
         }
+    }
+}
+
+impl Default for Color {
+    fn default() -> Self {
+        Self::None
     }
 }
 
@@ -79,8 +84,6 @@ impl Add for Color {
 impl FromStr for Color {
     type Err = crate::errors::Error;
     fn from_str(color: &str) -> Result<Self, Self::Err> {
-        let err_cntxt = "color parser";
-
         Ok(if color == "none" || color.is_empty() {
             Color::None
         } else if color == "auto" {
@@ -89,18 +92,18 @@ impl FromStr for Color {
             let err_msg = format!("'{}' is not a vaild HSVA color", color);
             let color = color.split_at(4).1;
             let mut components = color.split(':').map(|x| x.parse::<f64>()).flatten();
-            let h = components.next().internal_error(err_cntxt, &err_msg)?;
-            let s = components.next().internal_error(err_cntxt, &err_msg)?;
-            let v = components.next().internal_error(err_cntxt, &err_msg)?;
+            let h = components.next().with_message(&err_msg)?;
+            let s = components.next().with_message(&err_msg)?;
+            let v = components.next().with_message(&err_msg)?;
             let a = components.next().unwrap_or(100.);
             Color::Hsva(Hsv::new(h, s / 100., v / 100.), (a / 100. * 255.) as u8)
         } else {
             let err_msg = format!("'{}' is not a vaild RGBA color", color);
-            let rgb = color.get(1..7).internal_error(err_cntxt, &err_msg)?;
+            let rgb = color.get(1..7).with_message(&err_msg)?;
             let a = color.get(7..9).unwrap_or("FF");
             Color::Rgba(
-                Rgb::from_hex(u32::from_str_radix(rgb, 16).internal_error(err_cntxt, &err_msg)?),
-                u8::from_str_radix(a, 16).internal_error(err_cntxt, &err_msg)?,
+                Rgb::from_hex(u32::from_str_radix(rgb, 16).with_message(&err_msg)?),
+                u8::from_str_radix(a, 16).with_message(&err_msg)?,
             )
         })
     }
@@ -132,9 +135,8 @@ impl<'de> Deserialize<'de> for Color {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
-#[serde(default, deny_unknown_fields)]
-pub struct InternalTheme {
+#[derive(Debug, Clone, Default)]
+pub struct Theme {
     pub idle_bg: Color,
     pub idle_fg: Color,
     pub info_bg: Color,
@@ -152,54 +154,14 @@ pub struct InternalTheme {
     pub alternating_tint_fg: Color,
 }
 
-impl Default for InternalTheme {
-    fn default() -> Self {
-        Self {
-            idle_bg: Color::None,
-            idle_fg: Color::None,
-            info_bg: Color::None,
-            info_fg: Color::None,
-            good_bg: Color::None,
-            good_fg: Color::None,
-            warning_bg: Color::None,
-            warning_fg: Color::None,
-            critical_bg: Color::None,
-            critical_fg: Color::None,
-            separator: None,
-            separator_bg: Color::None,
-            separator_fg: Color::None,
-            alternating_tint_bg: Color::None,
-            alternating_tint_fg: Color::None,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Theme(pub InternalTheme);
-
-impl Default for Theme {
-    fn default() -> Self {
-        Self(InternalTheme::default())
-    }
-}
-
-impl std::ops::Deref for Theme {
-    type Target = InternalTheme;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::ops::DerefMut for Theme {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
 impl Theme {
-    pub fn from_file(file: &str) -> Option<Theme> {
-        let file = util::find_file(file, Some("themes"), Some("toml"))?;
-        Some(Theme(util::deserialize_file(&file).ok()?))
+    pub fn from_file(file: &str) -> errors::Result<Theme> {
+        let file = util::find_file(file, Some("themes"), Some("toml"))
+            .with_message(&format!("Theme '{}' not found", file))?;
+        let map: HashMap<String, String> = util::deserialize_file(&file)?;
+        let mut theme = Self::default();
+        theme.apply_overrides(&map)?;
+        Ok(theme)
     }
 
     pub fn apply_overrides(
@@ -265,8 +227,7 @@ impl<'de> Deserialize<'de> for Theme {
             where
                 E: de::Error,
             {
-                Theme::from_file(file)
-                    .ok_or_else(|| de::Error::custom(format!("Theme '{}' not found.", file)))
+                Theme::from_file(file).serde_error()
             }
 
             /// Handle configs like:
@@ -306,8 +267,7 @@ impl<'de> Deserialize<'de> for Theme {
                 }
 
                 let theme = theme.unwrap_or_else(|| "plain".to_string());
-                let mut theme = Theme::from_file(&theme)
-                    .ok_or_else(|| de::Error::custom(format!("Theme '{}' not found.", theme)))?;
+                let mut theme = Theme::from_file(&theme).serde_error()?;
 
                 if let Some(ref overrides) = overrides {
                     theme.apply_overrides(overrides).serde_error()?;

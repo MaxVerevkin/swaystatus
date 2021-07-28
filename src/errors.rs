@@ -1,7 +1,8 @@
 use std::error::Error as StdError;
 use std::fmt;
+
 pub use std::result::Result as StdResult;
-pub use Error::{BlockError, ConfigError, InternalError};
+pub use Error::*;
 
 /// Result type returned from functions that can have our `Error`s.
 pub type Result<T> = StdResult<T, Error>;
@@ -29,6 +30,10 @@ pub enum Error {
         cause: Option<String>,
         cause_dbg: Option<String>,
     },
+    /// Just a message, no additional info. Use it when you don't care about what caused the error.
+    /// Also use it when it's know that this error will be propagated and converted to one of more
+    /// specific error types.
+    Message { message: String },
 }
 
 pub trait ResultExt<T, E> {
@@ -36,6 +41,7 @@ pub trait ResultExt<T, E> {
     fn config_error(self) -> Result<T>;
     fn block_config_error(self, block: &str) -> Result<T>;
     fn internal_error(self, context: &str, message: &str) -> Result<T>;
+    fn with_message(self, message: &str) -> Result<T>;
 }
 
 impl<T, E> ResultExt<T, E> for StdResult<T, E>
@@ -75,12 +81,19 @@ where
             cause_dbg: Some(format!("{:?}", e)),
         })
     }
+
+    fn with_message(self, message: &str) -> Result<T> {
+        self.map_err(|_| Message {
+            message: message.to_string(),
+        })
+    }
 }
 
 pub trait OptionExt<T> {
     fn block_error(self, block: &str, message: &str) -> Result<T>;
     fn config_error(self, message: &str) -> Result<T>;
     fn internal_error(self, context: &str, message: &str) -> Result<T>;
+    fn with_message(self, message: &str) -> Result<T>;
 }
 
 impl<T> OptionExt<T> for Option<T> {
@@ -109,15 +122,21 @@ impl<T> OptionExt<T> for Option<T> {
             cause_dbg: None,
         })
     }
+
+    fn with_message(self, message: &str) -> Result<T> {
+        self.ok_or_else(|| Message {
+            message: message.to_string(),
+        })
+    }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
+        match self {
             BlockError {
-                ref block,
-                ref message,
-                ref cause,
+                block,
+                message,
+                cause,
                 ..
             } => {
                 if let Some(cause) = cause {
@@ -130,11 +149,7 @@ impl fmt::Display for Error {
                     write!(f, "Error in block '{}': {}", block, message)
                 }
             }
-            ConfigError {
-                ref block,
-                ref cause,
-                ..
-            } => {
+            ConfigError { block, cause, .. } => {
                 if let Some(block) = block {
                     write!(
                         f,
@@ -146,9 +161,9 @@ impl fmt::Display for Error {
                 }
             }
             InternalError {
-                ref context,
-                ref message,
-                ref cause,
+                context,
+                message,
+                cause,
                 ..
             } => {
                 if let Some(cause) = cause {
@@ -161,25 +176,14 @@ impl fmt::Display for Error {
                     write!(f, "Internal error in '{}': {}", context, message)
                 }
             }
+            Message { message } => {
+                write!(f, "{}", message)
+            }
         }
     }
 }
 
-impl std::error::Error for Error {}
-
-// impl serde::de::Error for Error {
-//     fn custom<T>(msg: T) -> Self
-//     where
-//         T: fmt::Display,
-//     {
-//         Error::InternalError {
-//             context: "None".to_string(),
-//             message: msg.to_string(),
-//             cause: None,
-//             cause_dbg: None,
-//         }
-//     }
-// }
+impl StdError for Error {}
 
 pub trait ToSerdeError<T> {
     fn serde_error<E: serde::de::Error>(self) -> StdResult<T, E>;
