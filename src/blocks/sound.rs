@@ -224,7 +224,7 @@ impl AlsaSoundDevice {
         if self.natural_mapping {
             args.push("-M")
         };
-        let vol_str = &format!("{}%", capped_volume);
+        let vol_str = format!("{}%", capped_volume);
         args.extend(&["-D", &self.device, "set", &self.name, &vol_str]);
 
         Command::new("amixer")

@@ -9,6 +9,7 @@ pub type Result<T> = StdResult<T, Error>;
 
 /// A set of errors that can occur during the runtime of swaystatus
 #[derive(Clone, Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum Error {
     /// An error that occurred in the block
     BlockError {
