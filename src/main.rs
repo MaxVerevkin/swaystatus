@@ -54,13 +54,6 @@ fn main() {
                 .takes_value(false),
         )
         .arg(
-            Arg::with_name("one-shot")
-                .help("Print blocks once and exit")
-                .long("one-shot")
-                .takes_value(false)
-                .hidden(true),
-        )
-        .arg(
             Arg::with_name("no-init")
                 .help("Do not send an init sequence")
                 .long("no-init")
@@ -78,7 +71,7 @@ fn main() {
         .unwrap()
         .block_on(async move {
             if let Err(error) = run(
-                args.value_of("config").map(String::from),
+                args.value_of("config"),
                 args.is_present("no-init"),
                 args.is_present("never_pause"),
             )
@@ -88,6 +81,7 @@ fn main() {
                     eprintln!("{:?}", error);
                     std::process::exit(1);
                 }
+
                 // Create widget with error message
                 let error_widget = Widget::new(0, Default::default())
                     .with_state(State::Critical)
@@ -109,15 +103,15 @@ fn main() {
         });
 }
 
-async fn run(config: Option<String>, noinit: bool, never_pause: bool) -> Result<()> {
+async fn run(config: Option<&str>, noinit: bool, never_pause: bool) -> Result<()> {
     if !noinit {
         // Now we can start to run the i3bar protocol
         protocol::init(never_pause);
     }
 
     // Read & parse the config file
-    let config = config.unwrap_or_else(|| "config.toml".to_string());
-    let config_path = util::find_file(&config, None, Some("toml"))
+    let config = config.unwrap_or_else(|| "config.toml");
+    let config_path = util::find_file(config, None, Some("toml"))
         .internal_error("run()", "configuration file not found")?;
 
     let config: Config = deserialize_file(&config_path)?;
@@ -191,9 +185,7 @@ fn restart() -> ! {
     let exe = CString::new(env::current_exe().unwrap().into_os_string().into_vec()).unwrap();
 
     // Get current arguments
-    let mut arg = env::args()
-        .map(|a| CString::new(a).unwrap())
-        .collect::<Vec<CString>>();
+    let mut arg: Vec<CString> = env::args().map(|a| CString::new(a).unwrap()).collect();
 
     // Add "--no-init" argument if not already added
     let no_init_arg = CString::new("--no-init").unwrap();
