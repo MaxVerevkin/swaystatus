@@ -2,30 +2,28 @@ use std::error::Error as StdError;
 use std::fmt;
 
 pub use std::result::Result as StdResult;
-pub use Error::*;
 
 /// Result type returned from functions that can have our `Error`s.
 pub type Result<T> = StdResult<T, Error>;
 
 /// A set of errors that can occur during the runtime of swaystatus
 #[derive(Clone, Debug)]
-#[allow(clippy::enum_variant_names)]
 pub enum Error {
     /// An error that occurred in the block
-    BlockError {
+    Block {
         block: String,
         message: String,
         cause: Option<String>,
         cause_dbg: Option<String>,
     },
     /// An error that occurred because of mistake in the config file
-    ConfigError {
+    Config {
         block: Option<String>,
         cause: String,
         cause_dbg: String,
     },
     /// An error that occurred outside of any block
-    InternalError {
+    Internal {
         context: String,
         message: String,
         cause: Option<String>,
@@ -35,6 +33,24 @@ pub enum Error {
     /// Also use it when it's know that this error will be propagated and converted to one of more
     /// specific error types.
     Message { message: String },
+}
+
+pub fn block_error<T>(block: &str, message: &str) -> Result<T> {
+    Err(Error::Block {
+        block: block.to_string(),
+        message: message.to_string(),
+        cause: None,
+        cause_dbg: None,
+    })
+}
+
+pub fn internal_error<T>(context: &str, message: &str) -> Result<T> {
+    Err(Error::Internal {
+        context: context.to_string(),
+        message: message.to_string(),
+        cause: None,
+        cause_dbg: None,
+    })
 }
 
 pub trait ResultExt<T, E> {
@@ -50,7 +66,7 @@ where
     E: StdError,
 {
     fn block_error(self, block: &str, message: &str) -> Result<T> {
-        self.map_err(|e| BlockError {
+        self.map_err(|e| Error::Block {
             block: block.to_owned(),
             message: message.to_owned(),
             cause: Some(e.to_string()),
@@ -59,7 +75,7 @@ where
     }
 
     fn config_error(self) -> Result<T> {
-        self.map_err(|e| ConfigError {
+        self.map_err(|e| Error::Config {
             block: None,
             cause: e.to_string(),
             cause_dbg: format!("{:?}", e),
@@ -67,7 +83,7 @@ where
     }
 
     fn block_config_error(self, block: &str) -> Result<T> {
-        self.map_err(|e| ConfigError {
+        self.map_err(|e| Error::Config {
             block: Some(block.to_string()),
             cause: e.to_string(),
             cause_dbg: format!("{:?}", e),
@@ -75,7 +91,7 @@ where
     }
 
     fn internal_error(self, context: &str, message: &str) -> Result<T> {
-        self.map_err(|e| InternalError {
+        self.map_err(|e| Error::Internal {
             context: context.to_string(),
             message: message.to_string(),
             cause: Some(e.to_string()),
@@ -84,7 +100,7 @@ where
     }
 
     fn with_message(self, message: &str) -> Result<T> {
-        self.map_err(|_| Message {
+        self.map_err(|_| Error::Message {
             message: message.to_string(),
         })
     }
@@ -99,7 +115,7 @@ pub trait OptionExt<T> {
 
 impl<T> OptionExt<T> for Option<T> {
     fn block_error(self, block: &str, message: &str) -> Result<T> {
-        self.ok_or_else(|| BlockError {
+        self.ok_or_else(|| Error::Block {
             block: block.to_owned(),
             message: message.to_owned(),
             cause: None,
@@ -108,7 +124,7 @@ impl<T> OptionExt<T> for Option<T> {
     }
 
     fn config_error(self, message: &str) -> Result<T> {
-        self.ok_or_else(|| ConfigError {
+        self.ok_or_else(|| Error::Config {
             block: None,
             cause: message.to_string(),
             cause_dbg: message.to_string(),
@@ -116,7 +132,7 @@ impl<T> OptionExt<T> for Option<T> {
     }
 
     fn internal_error(self, context: &str, message: &str) -> Result<T> {
-        self.ok_or_else(|| InternalError {
+        self.ok_or_else(|| Error::Internal {
             context: context.to_owned(),
             message: message.to_owned(),
             cause: None,
@@ -125,7 +141,7 @@ impl<T> OptionExt<T> for Option<T> {
     }
 
     fn with_message(self, message: &str) -> Result<T> {
-        self.ok_or_else(|| Message {
+        self.ok_or_else(|| Error::Message {
             message: message.to_string(),
         })
     }
@@ -134,7 +150,7 @@ impl<T> OptionExt<T> for Option<T> {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            BlockError {
+            Error::Block {
                 block,
                 message,
                 cause,
@@ -150,7 +166,7 @@ impl fmt::Display for Error {
                     write!(f, "Error in block '{}': {}", block, message)
                 }
             }
-            ConfigError { block, cause, .. } => {
+            Error::Config { block, cause, .. } => {
                 if let Some(block) = block {
                     write!(
                         f,
@@ -161,7 +177,7 @@ impl fmt::Display for Error {
                     write!(f, "Configuration error. Cause: {}", cause)
                 }
             }
-            InternalError {
+            Error::Internal {
                 context,
                 message,
                 cause,
@@ -177,7 +193,7 @@ impl fmt::Display for Error {
                     write!(f, "Internal error in '{}': {}", context, message)
                 }
             }
-            Message { message } => {
+            Error::Message { message } => {
                 write!(f, "{}", message)
             }
         }
@@ -195,6 +211,6 @@ where
     F: fmt::Display,
 {
     fn serde_error<E: serde::de::Error>(self) -> StdResult<T, E> {
-        self.map_err(|e| E::custom(e.to_string()))
+        self.map_err(E::custom)
     }
 }

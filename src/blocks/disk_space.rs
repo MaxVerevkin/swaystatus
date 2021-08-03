@@ -94,14 +94,7 @@ pub async fn run(
         "MB" => Prefix::Mega,
         "KB" => Prefix::Kilo,
         "B" => Prefix::One,
-        x => {
-            return Err(BlockError {
-                block: "disk_space".to_string(),
-                message: format!("cannot set unit to '{}'", x),
-                cause: None,
-                cause_dbg: None,
-            })
-        }
+        x => return block_error("disk_space", &format!("unknown unit: '{}'", x)),
     };
 
     let path = Path::new(block_config.path.as_str());

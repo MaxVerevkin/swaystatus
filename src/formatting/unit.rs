@@ -47,12 +47,7 @@ impl FromStr for Unit {
             "W" => Ok(Unit::Watts),
             "Hz" => Ok(Unit::Hertz),
             "" => Ok(Unit::None),
-            x => Err(InternalError {
-                context: "format parser".to_string(),
-                message: format!("unknown unit: '{}'", x.to_string()),
-                cause: None,
-                cause_dbg: None,
-            }),
+            x => internal_error("unit converter", &format!("unknown unit: '{}'", x)),
         }
     }
 }
@@ -64,12 +59,10 @@ impl Unit {
             Self::Bits if into == Self::Bytes => Ok(1. / 8.),
             Self::Bytes if into == Self::Bits => Ok(8.),
             x if into == *x || into == Self::None => Ok(1.),
-            x => Err(InternalError {
-                context: "unit converter".to_string(),
-                message: format!("it is not possible to convert '{:?}' to '{:?}'", x, into),
-                cause: None,
-                cause_dbg: None,
-            }),
+            x => internal_error(
+                "unit converter",
+                &format!("it is not possible to convert '{:?}' to '{:?}'", x, into),
+            ),
         }
     }
 

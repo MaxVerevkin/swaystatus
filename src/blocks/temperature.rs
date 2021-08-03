@@ -180,6 +180,6 @@ impl ChipInfo {
                 return Ok(Self { temp });
             }
         }
-        None.block_error("temperature", &format!("chip '{}' not found", name))
+        block_error("temperature", &format!("chip '{}' not found", name))
     }
 }

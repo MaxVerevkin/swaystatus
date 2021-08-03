@@ -13,15 +13,6 @@ use crate::errors::*;
 use placeholder::Placeholder;
 use value::Value;
 
-pub fn unexpected_token<T>(token: char) -> Result<T> {
-    Err(InternalError {
-        context: "format parser".to_string(),
-        message: format!("unexpected token '{}'", token),
-        cause: None,
-        cause_dbg: None,
-    })
-}
-
 #[derive(Debug, Clone, PartialEq)]
 enum Token {
     Text(String),
@@ -80,9 +71,9 @@ impl FormatTemplate {
         // Push text into tokens vector. Check the text for correctness and don't push empty strings
         let push_text = |tokens: &mut Vec<Token>, x: &str| {
             if x.contains('{') {
-                unexpected_token('{')
+                internal_error("format parser", "unexpected token '{'")
             } else if x.contains('}') {
-                unexpected_token('}')
+                internal_error("format parser", "unexpected token '}'")
             } else if !x.is_empty() {
                 tokens.push(Token::Text(x.to_string()));
                 Ok(())
@@ -94,7 +85,7 @@ impl FormatTemplate {
         while !s.is_empty() {
             // Split `"text {key:1} {key}"` into `"text "` and `"key:1} {key}"`
             match s.split_once('{') {
-                // No placeholders found -> the whole string is just text
+                // No placeholders found -> the whole string is just a text
                 None => {
                     push_text(&mut tokens, s)?;
                     break;
@@ -106,14 +97,7 @@ impl FormatTemplate {
                     // Split `"key:1} {key}"` into `"key:1"` and `" {key}"`
                     match after.split_once('}') {
                         // No matching `}`!
-                        None => {
-                            return Err(InternalError {
-                                context: "format parser".to_string(),
-                                message: "missing '}'".to_string(),
-                                cause: None,
-                                cause_dbg: None,
-                            });
-                        }
+                        None => return internal_error("format parser", "missing '}'"),
                         // Found the entire placeholder
                         Some((placeholder, rest)) => {
                             // `placeholder.parse()` parses the placeholder's configuration string
@@ -192,7 +176,7 @@ impl<'de> Deserialize<'de> for FormatTemplate {
             where
                 E: de::Error,
             {
-                FormatTemplate::new(Some(full), None).map_err(de::Error::custom)
+                FormatTemplate::new(Some(full), None).serde_error()
             }
 
             /// Handle configs like:
@@ -224,8 +208,7 @@ impl<'de> Deserialize<'de> for FormatTemplate {
                         }
                     }
                 }
-
-                FormatTemplate::new(full.as_deref(), short.as_deref()).map_err(de::Error::custom)
+                FormatTemplate::new(full.as_deref(), short.as_deref()).serde_error()
             }
         }
 

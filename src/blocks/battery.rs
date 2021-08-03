@@ -48,7 +48,7 @@ use tokio::time::{Instant, Interval};
 use crate::blocks::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
 use crate::de::deserialize_duration;
-use crate::errors::{BlockError, OptionExt, Result, ResultExt};
+use crate::errors::*;
 use crate::formatting::value::Value;
 use crate::formatting::FormatTemplate;
 use crate::util::read_file;
@@ -256,12 +256,7 @@ impl BatteryDevice for PowerSupplyDevice {
         ) {
             (Ok(Some(power)), _, _) => Ok(power),
             (_, Ok(Some(current)), Ok(Some(voltage))) => Ok((current * voltage) / 1e6),
-            _ => Err(BlockError {
-                block: "battery".to_string(),
-                message: "Device does not support power consumption".to_string(),
-                cause: None,
-                cause_dbg: None,
-            }),
+            _ => block_error("battery", "Device does not support power consumption"),
         }
     }
 
@@ -363,12 +358,7 @@ impl UPowerDevice {
         // https://upower.freedesktop.org/docs/Device.html#Device:Type
         // consider any peripheral, UPS and internal battery
         if upower_type == 1 {
-            return Err(BlockError {
-                block: "battery".to_string(),
-                message: "UPower device is not a battery.".to_string(),
-                cause: None,
-                cause_dbg: None,
-            });
+            return block_error("battery", "UPower device is not a battery.");
         }
 
         Ok(Self {

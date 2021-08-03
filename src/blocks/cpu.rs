@@ -67,12 +67,7 @@ pub async fn run(
         let utilization_avg = new_cputime.0.utilization(cputime.0);
         let mut utilizations = Vec::new();
         if new_cputime.1.len() != cores {
-            return Err(BlockError {
-                block: "cpu".to_string(),
-                message: "new cputime length is incorrect".to_string(),
-                cause: None,
-                cause_dbg: None,
-            });
+            return block_error("cpu", "new cputime length is incorrect");
         }
         for i in 0..cores {
             utilizations.push(new_cputime.1[i].utilization(cputime.1[i]));
