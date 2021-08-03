@@ -1,6 +1,6 @@
 //! The system temperature
 //!
-//! This block is based on lm_sensors' `sensors -j` output. Requires `lm_sensors` and appropriate kernel modules for your hardware.
+//! This block simply reads temperatures form `/sys/class/hwmon` direcory.
 //!
 //! This block has two modes: "collapsed", which uses only color as an indicator, and "expanded", which shows the content of a `format` string. The average, minimum, and maximum temperatures are computed using all sensors displayed by `sensors`, or optionally filtered by `chip` and `inputs`.
 //!
@@ -17,13 +17,13 @@
 //! `idle` | Maximum temperature to set state to idle | No | `45` °C (`113` °F)
 //! `info` | Maximum temperature to set state to info | No | `60` °C (`140` °F)
 //! `warning` | Maximum temperature to set state to warning. Beyond this temperature, state is set to critical | No | `80` °C (`176` °F)
-//! `chip` | Narrows the results to a given chip name. `*` may be used as a wildcard | No | None
+//! `chip` | Chip name as shown by `cat /sys/class/hwmon/*/name` | No | `"coretemp"`
 //!
 //! Placeholder  | Value                                 | Type    | Unit
 //! -------------|---------------------------------------|---------|--------
-//! `{min}`      | Minimum temperature among all sensors | Integer | Degrees
-//! `{average}`  | Average temperature among all sensors | Integer | Degrees
-//! `{max}`      | Maximum temperature among all sensors | Integer | Degrees
+//! `{min}`      | Minimum temperature among all inputs | Integer | Degrees
+//! `{average}`  | Average temperature among all inputs | Integer | Degrees
+//! `{max}`      | Maximum temperature among all inputs | Integer | Degrees
 //!
 //! # Example
 //!
@@ -32,17 +32,11 @@
 //! block = "temperature"
 //! interval = 10
 //! format = "{min} min, {max} max, {average} avg"
-//! chip = "*-isa-*"
 //! ```
-//!
-//! # TODO
-//! - `inputs` config option
-//! - `fahrenheit` config option
 
 use serde::de::Deserialize;
-use std::collections::HashMap;
 use std::time::Duration;
-use tokio::process::Command;
+use tokio::fs::{read_dir, read_to_string};
 use tokio::sync::mpsc;
 
 use super::{BlockEvent, BlockMessage};
@@ -54,9 +48,6 @@ use crate::formatting::{value::Value, FormatTemplate};
 use crate::widgets::widget::Widget;
 use crate::widgets::State;
 
-type SensorsOutput = HashMap<String, HashMap<String, serde_json::Value>>;
-type InputReadings = HashMap<String, f64>;
-
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct TemperatureConfig {
@@ -64,11 +55,11 @@ struct TemperatureConfig {
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
     collapsed: bool,
-    good: i64,
-    idle: i64,
-    info: i64,
-    warning: i64,
-    chip: Option<String>,
+    good: i32,
+    idle: i32,
+    info: i32,
+    warning: i32,
+    chip: String,
 }
 
 impl Default for TemperatureConfig {
@@ -81,7 +72,7 @@ impl Default for TemperatureConfig {
             idle: 45,
             info: 60,
             warning: 80,
-            chip: None,
+            chip: "coretemp".to_string(),
         }
     }
 }
@@ -99,47 +90,12 @@ pub async fn run(
     let mut text = Widget::new(id, shared_config).with_icon("thermometer")?;
     let mut collapsed = block_config.collapsed;
 
-    // Construct a command
-    let mut command = Command::new("sensors");
-    command.arg("-j");
-    if let Some(ref chip) = block_config.chip {
-        command.arg(chip);
-    }
-
     loop {
-        // Run command and get output
-        let output = String::from_utf8(
-            command
-                .output()
-                .await
-                .block_error("temperature", "failed to run 'sensors'")?
-                .stdout,
-        )
-        .block_error("temperature", "'sensors' command produced invalid UTF-8")?;
-
-        // Parse output
-        let mut temps = Vec::new();
-        let output_json: SensorsOutput =
-            serde_json::from_str(&output).block_error("temperature", "failed to parse JSON")?;
-        for (_chip, inputs) in output_json {
-            for (input_name, input_values) in inputs {
-                let readings: InputReadings = match serde_json::from_value(input_values) {
-                    Ok(values) => values,
-                    Err(_) => continue, // probably the "Adapter" key, just ignore.
-                };
-                if input_name.contains("Core") {
-                    for (name, value) in readings {
-                        if name.contains("input") {
-                            temps.push(value as i64);
-                        }
-                    }
-                }
-            }
-        }
-
-        let min_temp = temps.iter().min().cloned().unwrap_or(0);
-        let max_temp = temps.iter().max().cloned().unwrap_or(0);
-        let avg_temp = (temps.iter().sum::<i64>() as f64) / (temps.len() as f64);
+        // Get chip info
+        let temp = ChipInfo::new(&block_config.chip).await?.temp;
+        let min_temp = temp.iter().min().cloned().unwrap_or(0);
+        let max_temp = temp.iter().max().cloned().unwrap_or(0);
+        let avg_temp = (temp.iter().sum::<i32>() as f64) / (temp.len() as f64);
 
         // Render!
         let values = map! {
@@ -178,5 +134,52 @@ pub async fn run(
                 }
             }
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ChipInfo {
+    temp: Vec<i32>,
+}
+
+impl ChipInfo {
+    async fn new(name: &str) -> Result<Self> {
+        let mut sysfs_dir = read_dir("/sys/class/hwmon")
+            .await
+            .block_error("temperature", "failed to read /sys/class/hwmon direcory")?;
+        while let Some(dir) = sysfs_dir
+            .next_entry()
+            .await
+            .block_error("temperature", "failed to read /sys/class/hwmon direcory")?
+        {
+            if read_to_string(dir.path().join("name"))
+                .await
+                .map(|t| t.trim() == name)
+                .unwrap_or(false)
+            {
+                let mut chip_dir = read_dir(dir.path())
+                    .await
+                    .block_error("temperature", "failed to read chip's sysfs direcory")?;
+                let mut temp = Vec::new();
+                while let Some(entry) = chip_dir
+                    .next_entry()
+                    .await
+                    .block_error("temperature", "failed to read chip's sysfs direcory")?
+                {
+                    let entry_str = entry.file_name().to_str().unwrap().to_string();
+                    if entry_str.starts_with("temp") && entry_str.ends_with("_input") {
+                        let val: i32 = read_to_string(entry.path())
+                            .await
+                            .block_error("temperature", "failed to read chip's temperature")?
+                            .trim()
+                            .parse()
+                            .block_error("temperature", "temperature is not an integer")?;
+                        temp.push(val / 1000);
+                    }
+                }
+                return Ok(Self { temp });
+            }
+        }
+        None.block_error("temperature", &format!("chip '{}' not found", name))
     }
 }
