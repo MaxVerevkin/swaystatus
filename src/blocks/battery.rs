@@ -52,8 +52,8 @@ use crate::errors::*;
 use crate::formatting::value::Value;
 use crate::formatting::FormatTemplate;
 use crate::util::read_file;
-use crate::widgets::widget::Widget;
-use crate::widgets::{Spacing, State};
+use crate::widget::Widget;
+use crate::widget::{Spacing, State};
 
 /// Path for the power supply devices
 const POWER_SUPPLY_DEVICES_PATH: &str = "/sys/class/power_supply";

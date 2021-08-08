@@ -42,8 +42,8 @@ use tokio::sync::mpsc;
 use super::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
 use crate::errors::*;
-use crate::widgets::widget::Widget;
-use crate::widgets::State;
+use crate::widget::Widget;
+use crate::widget::State;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]

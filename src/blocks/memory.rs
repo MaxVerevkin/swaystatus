@@ -65,8 +65,8 @@ use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
 use crate::util::read_file;
-use crate::widgets::widget::Widget;
-use crate::widgets::State;
+use crate::widget::Widget;
+use crate::widget::State;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]

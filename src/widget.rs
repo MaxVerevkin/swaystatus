@@ -1,7 +1,41 @@
-use super::{Spacing, State};
+use serde_derive::Deserialize;
+
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::protocol::i3bar_block::I3BarBlock;
+use crate::themes::{Color, Theme};
+
+#[derive(Debug, Copy, Clone, Deserialize)]
+pub enum Spacing {
+    /// Add a leading and trailing space around the widget contents
+    Normal,
+    /// Hide the leading space when the widget is inline
+    Inline,
+    /// Hide both leading and trailing spaces when widget is hidden
+    Hidden,
+}
+
+#[derive(Debug, Copy, Clone, Deserialize)]
+pub enum State {
+    Idle,
+    Info,
+    Good,
+    Warning,
+    Critical,
+}
+
+impl State {
+    pub fn theme_keys(self, theme: &Theme) -> (Color, Color) {
+        use self::State::*;
+        match self {
+            Idle => (theme.idle_bg, theme.idle_fg),
+            Info => (theme.info_bg, theme.info_fg),
+            Good => (theme.good_bg, theme.good_fg),
+            Warning => (theme.warning_bg, theme.warning_fg),
+            Critical => (theme.critical_bg, theme.critical_fg),
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Widget {

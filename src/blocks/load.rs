@@ -38,8 +38,8 @@ use crate::errors::*;
 use crate::formatting::value::Value;
 use crate::formatting::FormatTemplate;
 use crate::util;
-use crate::widgets::widget::Widget;
-use crate::widgets::State;
+use crate::widget::Widget;
+use crate::widget::State;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]

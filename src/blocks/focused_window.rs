@@ -38,7 +38,7 @@ use crate::blocks::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
-use crate::widgets::widget::Widget;
+use crate::widget::Widget;
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]

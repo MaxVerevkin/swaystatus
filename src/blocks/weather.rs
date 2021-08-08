@@ -10,7 +10,7 @@ use crate::de::deserialize_duration;
 use crate::errors::{OptionExt, Result, ResultExt};
 use crate::formatting::value::Value;
 use crate::formatting::FormatTemplate;
-use crate::widgets::widget::Widget;
+use crate::widget::Widget;
 
 const IP_API_URL: &str = "https://ipapi.co/json";
 

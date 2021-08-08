@@ -13,8 +13,8 @@ use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
 use crate::util::read_file;
-use crate::widgets::widget::Widget;
-use crate::widgets::State;
+use crate::widget::Widget;
+use crate::widget::State;
 
 const CPU_BOOST_PATH: &str = "/sys/devices/system/cpu/cpufreq/boost";
 const CPU_NO_TURBO_PATH: &str = "/sys/devices/system/cpu/intel_pstate/no_turbo";

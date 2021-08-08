@@ -36,7 +36,7 @@ use crate::config::SharedConfig;
 use crate::de::deserialize_duration;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
-use crate::widgets::widget::Widget;
+use crate::widget::Widget;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]

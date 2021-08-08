@@ -2,9 +2,13 @@
 //!
 //! This block simply reads temperatures form `/sys/class/hwmon` direcory.
 //!
-//! This block has two modes: "collapsed", which uses only color as an indicator, and "expanded", which shows the content of a `format` string. The average, minimum, and maximum temperatures are computed using all sensors displayed by `sensors`, or optionally filtered by `chip` and `inputs`.
+//! This block has two modes: "collapsed", which uses only color as an indicator, and "expanded",
+//! which shows the content of a `format` string. The average, minimum, and maximum temperatures
+//! are computed using all sensors displayed by `sensors`, or optionally filtered by `chip` and
+//! `inputs`.
 //!
-//! Note that the colour of the block is always determined by the maximum temperature across all sensors, not the average. You may need to keep this in mind if you have a misbehaving sensor.
+//! Note that the colour of the block is always determined by the maximum temperature across all
+//! sensors, not the average. You may need to keep this in mind if you have a misbehaving sensor.
 //!
 //! # Configuration
 //!
@@ -19,8 +23,8 @@
 //! `warning` | Maximum temperature to set state to warning. Beyond this temperature, state is set to critical | No | `80` °C (`176` °F)
 //! `chip` | Chip name as shown by `cat /sys/class/hwmon/*/name` | No | `"coretemp"`
 //!
-//! Placeholder  | Value                                 | Type    | Unit
-//! -------------|---------------------------------------|---------|--------
+//! Placeholder  | Value                                | Type    | Unit
+//! -------------|--------------------------------------|---------|--------
 //! `{min}`      | Minimum temperature among all inputs | Integer | Degrees
 //! `{average}`  | Average temperature among all inputs | Integer | Degrees
 //! `{max}`      | Maximum temperature among all inputs | Integer | Degrees
@@ -45,8 +49,8 @@ use crate::config::SharedConfig;
 use crate::de::deserialize_duration;
 use crate::errors::*;
 use crate::formatting::{value::Value, FormatTemplate};
-use crate::widgets::widget::Widget;
-use crate::widgets::State;
+use crate::widget::Widget;
+use crate::widget::State;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]

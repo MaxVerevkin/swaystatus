@@ -12,7 +12,7 @@ mod protocol;
 mod signals;
 mod subprocess;
 mod themes;
-mod widgets;
+mod widget;
 
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version, Arg};
 
@@ -28,8 +28,7 @@ use crate::protocol::i3bar_block::I3BarBlock;
 use crate::protocol::i3bar_event::process_events;
 use crate::signals::{process_signals, Signal};
 use crate::util::deserialize_file;
-use crate::widgets::widget::Widget;
-use crate::widgets::State;
+use crate::widget::{State, Widget};
 
 fn main() {
     let args = app_from_crate!()
@@ -110,7 +109,7 @@ async fn run(config: Option<&str>, noinit: bool, never_pause: bool) -> Result<()
     }
 
     // Read & parse the config file
-    let config = config.unwrap_or_else(|| "config.toml");
+    let config = config.unwrap_or("config.toml");
     let config_path = util::find_file(config, None, Some("toml"))
         .internal_error("run()", "configuration file not found")?;
 
