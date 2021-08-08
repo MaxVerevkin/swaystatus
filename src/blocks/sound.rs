@@ -12,8 +12,7 @@ use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::formatting::value::Value;
 use crate::formatting::FormatTemplate;
-use crate::widget::Widget;
-use crate::widget::{Spacing, State};
+use crate::widget::{Spacing, State, Widget};
 
 const FILTER: &[char] = &['[', ']', '%'];
 

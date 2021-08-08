@@ -45,8 +45,7 @@ use crate::click::MouseButton;
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::subprocess::{spawn_shell, spawn_shell_sync};
-use crate::widget::Widget;
-use crate::widget::State;
+use crate::widget::{State, Widget};
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]

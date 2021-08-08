@@ -17,8 +17,7 @@ use crate::click::MouseButton;
 use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::util::escape_pango_text;
-use crate::widget::Widget;
-use crate::widget::{Spacing, State};
+use crate::widget::{Spacing, State, Widget};
 
 const PLAY_PAUSE_BTN: usize = 1;
 const NEXT_BTN: usize = 2;

@@ -12,8 +12,7 @@ use crate::de::deserialize_duration;
 use crate::errors::*;
 use crate::formatting::FormatTemplate;
 use crate::formatting::{prefix::Prefix, value::Value};
-use crate::widget::Widget;
-use crate::widget::State;
+use crate::widget::{State, Widget};
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
