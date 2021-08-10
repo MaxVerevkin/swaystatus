@@ -15,6 +15,7 @@
 //! `missing_format` | Same as `format` but for when the specified battery is missing | No | `"{percentage}"`
 //! `allow_missing` | Don't display errors when the battery cannot be found. Only works with the `sysfs` driver. | No | `false`
 //! `hide_missing` | Completely hide this block if the battery cannot be found. Only works in combination with `allow_missing`. | No | `false`
+//! `hide_missing` | Hide the block if battery is full | No | `false`
 //! `info` | Minimum battery level, where state is set to info | No | `60`
 //! `good` | Minimum battery level, where state is set to good | No | `60`
 //! `warning` | Minimum battery level, where state is set to warning | No | `30`
@@ -27,8 +28,7 @@
 //! `{power}`      | Power consumption by the battery or from the power supply when charging | String or Float   | Watts
 //!
 //! # TODO
-//! - Use `inotify` for `sysfs` dirver
-//! - remove `interval` option
+//! - Refactor
 
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
@@ -90,6 +90,7 @@ struct BatteryConfig {
     missing_format: FormatTemplate,
     allow_missing: bool,
     hide_missing: bool,
+    hide_full: bool,
     info: u8,
     good: u8,
     warning: u8,
@@ -107,6 +108,7 @@ impl Default for BatteryConfig {
             missing_format: Default::default(),
             allow_missing: false,
             hide_missing: false,
+            hide_full: false,
             info: 60,
             good: 60,
             warning: 30,
@@ -481,7 +483,7 @@ pub async fn run(
     message_sender: mpsc::Sender<BlockMessage>,
     events_receiver: mpsc::Receiver<BlockEvent>,
 ) -> Result<()> {
-    std::mem::drop(events_receiver);
+    drop(events_receiver);
     let block_config = BatteryConfig::deserialize(block_config).block_config_error("battery")?;
 
     let format = block_config.format.clone().or_default("{percentage}")?;
@@ -525,6 +527,29 @@ pub async fn run(
         BatteryDriver::Upower => Box::new(UPowerDevice::from_device(&device).await?),
     };
 
+    macro_rules! send_widget {
+        () => {
+            message_sender
+                .send(BlockMessage {
+                    id,
+                    widgets: vec![],
+                })
+                .await
+                .internal_error("backlight", "failed to send message")?;
+            device.wait_for_change().await?;
+        };
+        ($widget:ident) => {
+            message_sender
+                .send(BlockMessage {
+                    id,
+                    widgets: vec![$widget.get_data()],
+                })
+                .await
+                .internal_error("backlight", "failed to send message")?;
+            device.wait_for_change().await?;
+        };
+    }
+
     loop {
         let (is_available, status, capacity, time, power) = tokio::join!(
             device.is_available(),
@@ -534,10 +559,18 @@ pub async fn run(
             device.usage()
         );
 
-        let fmt = match status.clone() {
+        let fmt = match status {
+            Err(_) if block_config.hide_missing => {
+                send_widget!();
+                continue;
+            }
             Err(_) => &format_missing,
+            Ok(BatteryStatus::Full) if block_config.hide_full => {
+                send_widget!();
+                continue;
+            }
             Ok(BatteryStatus::Full) => &format_full,
-            _ => &format,
+            Ok(_) => &format,
         };
 
         let vars = {
@@ -614,15 +647,6 @@ pub async fn run(
                 .with_spacing(Spacing::Hidden),
         };
 
-        message_sender
-            .send(BlockMessage {
-                id,
-                widgets: vec![widget.get_data()],
-            })
-            .await
-            .internal_error("backlight", "failed to send message")?;
-
-        let x = device.wait_for_change();
-        x.await?;
+        send_widget!(widget);
     }
 }
