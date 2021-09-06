@@ -95,26 +95,21 @@ pub async fn run(
             _ => "",
         };
 
-        let mut values = map!(
+        let mut values = map_to_owned!(
             "barchart" => Value::from_string(barchart),
             "boost" => Value::from_string(boost.to_string()),
             "frequency" => Value::from_float(freq_avg).hertz(),
             "utilization" => Value::from_integer((utilization_avg * 100.) as i64).percents(),
         );
-        let mut frequency_keys = vec![]; // There should be a better way to dynamically crate keys?
-        for i in 0..freqs.len() {
-            frequency_keys.push(format!("frequency{}", i + 1));
-        }
         for (i, freq) in freqs.iter().enumerate() {
-            values.insert(&frequency_keys[i], Value::from_float(*freq).hertz());
-        }
-        let mut utilization_keys = vec![]; // There should be a better way to dynamically crate keys?
-        for i in 0..utilizations.len() {
-            utilization_keys.push(format!("utilization{}", i + 1));
+            values.insert(
+                format!("frequency{}", i + 1),
+                Value::from_float(*freq).hertz(),
+            );
         }
         for (i, utilization) in utilizations.iter().enumerate() {
             values.insert(
-                &utilization_keys[i],
+                format!("utilization{}", i + 1),
                 Value::from_integer((utilization * 100.) as i64).percents(),
             );
         }

@@ -23,6 +23,7 @@
 //! ```
 
 use serde::de::Deserialize;
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -75,7 +76,7 @@ pub async fn run(
     let (format, format_short) = block_config
         .format
         .or_default("")?
-        .render(&Default::default())?;
+        .render(&HashMap::<&str, _>::new())?;
     let format = format.as_str();
     let format_short = format_short.as_deref();
 
