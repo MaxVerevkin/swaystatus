@@ -10,7 +10,7 @@ Refer to https://github.com/MaxVerevkin/swaystatus/issues/4 for `i3status-rust` 
 
 ### Enhanced clicks handling abilities
 
-Each block supports multiple `click` options to handle bolcks' clicks.
+Each block supports multiple `click` options to handle blocks' clicks.
 
 Example:
 
@@ -24,7 +24,7 @@ sync = false # Whether to wait for command to finish before proceeding (default 
 update = true # Whether to update the block after click (default is true)
 ```
 
-There is also an experemental support for double clicks:
+There is also an experimental support for double clicks:
 
 ```toml
 [[block]]
