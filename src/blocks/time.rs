@@ -27,6 +27,7 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use chrono::offset::{Local, Utc};
 use chrono::Locale;
@@ -58,54 +59,57 @@ impl Default for TimeConfig {
     }
 }
 
-pub async fn run(
+pub fn spawn(
     id: usize,
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     events_reciever: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
+) -> JoinHandle<Result<()>> {
     // Drop the reciever if we don't what to recieve events
     drop(events_reciever);
 
-    let block_config = TimeConfig::deserialize(block_config).block_config_error("time")?;
-    let mut interval = tokio::time::interval(Duration::from_secs(block_config.interval));
-    let mut text = Widget::new(id, shared_config).with_icon("time")?;
-    // `FormatTemplate` doesn't do much stuff here - we just want to get the original "full" and
-    // "short" formats, so we "render" it without providing any placeholders.
-    let (format, format_short) = block_config
-        .format
-        .or_default("")?
-        .render(&HashMap::<&str, _>::new())?;
-    let format = format.as_str();
-    let format_short = format_short.as_deref();
+    tokio::spawn(async move {
+        let block_config = TimeConfig::deserialize(block_config).block_config_error("time")?;
+        let mut interval = tokio::time::interval(Duration::from_secs(block_config.interval));
+        let mut text = Widget::new(id, shared_config).with_icon("time")?;
+        // `FormatTemplate` doesn't do much stuff here - we just want to get the original "full" and
+        // "short" formats, so we "render" it without providing any placeholders.
+        let (format, format_short) = block_config.format.or_default("")?.render(&HashMap::<
+            &str,
+            _,
+        >::new(
+        ))?;
+        let format = format.as_str();
+        let format_short = format_short.as_deref();
 
-    let timezone = block_config.timezone;
-    let locale = match block_config.locale.as_deref() {
-        Some(locale) => Some(
-            locale
-                .try_into()
-                .ok()
-                .block_error("time", "invalid locale")?,
-        ),
-        None => None,
-    };
+        let timezone = block_config.timezone;
+        let locale = match block_config.locale.as_deref() {
+            Some(locale) => Some(
+                locale
+                    .try_into()
+                    .ok()
+                    .block_error("time", "invalid locale")?,
+            ),
+            None => None,
+        };
 
-    loop {
-        let full_time = get_time(format, timezone, locale);
-        let short_time = format_short.map(|f| get_time(f, timezone, locale));
-        text.set_text((full_time, short_time));
+        loop {
+            let full_time = get_time(format, timezone, locale);
+            let short_time = format_short.map(|f| get_time(f, timezone, locale));
+            text.set_text((full_time, short_time));
 
-        message_sender
-            .send(BlockMessage {
-                id,
-                widgets: vec![text.get_data()],
-            })
-            .await
-            .internal_error("time", "failed to send message")?;
+            message_sender
+                .send(BlockMessage {
+                    id,
+                    widgets: vec![text.get_data()],
+                })
+                .await
+                .internal_error("time", "failed to send message")?;
 
-        interval.tick().await;
-    }
+            interval.tick().await;
+        }
+    })
 }
 
 fn get_time(format: &str, timezone: Option<Tz>, locale: Option<Locale>) -> String {

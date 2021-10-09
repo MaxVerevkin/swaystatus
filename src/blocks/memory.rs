@@ -58,6 +58,7 @@ use tokio::sync::mpsc;
 
 use regex::Regex;
 use serde::de::Deserialize;
+use tokio::task::JoinHandle;
 
 use super::{BlockEvent, BlockMessage};
 use crate::click::MouseButton;
@@ -97,110 +98,113 @@ impl Default for MemoryConfig {
     }
 }
 
-pub async fn run(
+pub fn spawn(
     id: usize,
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
-    let block_config = MemoryConfig::deserialize(block_config).block_config_error("memory")?;
+) -> JoinHandle<Result<()>> {
+    tokio::spawn(async move {
+        let block_config = MemoryConfig::deserialize(block_config).block_config_error("memory")?;
 
-    let format = (
-        block_config
-            .format_mem
-            .or_default("{mem_free;M}/{mem_total;M}({mem_total_used_percents})")?,
-        block_config
-            .format_swap
-            .or_default("{swap_free;M}/{swap_total;M}({swap_used_percents})")?,
-    );
-
-    let mut text_mem = Widget::new(id, shared_config.clone()).with_icon("memory_mem")?;
-    let mut text_swap = Widget::new(id, shared_config).with_icon("memory_swap")?;
-
-    let mut memtype = block_config.display_type;
-    let clickable = block_config.clickable;
-
-    let interval = Duration::from_secs(block_config.interval);
-
-    loop {
-        let mem_state = Memstate::new().await?;
-        let mem_total = mem_state.mem_total as f64 * 1024.;
-        let mem_free = mem_state.mem_free as f64 * 1024.;
-        let swap_total = mem_state.swap_total as f64 * 1024.;
-        let swap_free = mem_state.swap_free as f64 * 1024.;
-        let swap_used = swap_total - swap_free;
-        let mem_total_used = mem_total - mem_free;
-        let buffers = mem_state.buffers as f64 * 1024.;
-        let cached = (mem_state.cached + mem_state.s_reclaimable - mem_state.shmem) as f64 * 1024.
-            + mem_state.zfs_arc_cache as f64;
-        let mem_used = mem_total_used - (buffers + cached);
-        let mem_avail = mem_total - mem_used;
-
-        let values = map!(
-            "mem_total" => Value::from_float(mem_total).bytes(),
-            "mem_free" => Value::from_float(mem_free).bytes(),
-            "mem_free_percents" => Value::from_float(mem_free / mem_total * 100.).percents(),
-            "mem_total_used" => Value::from_float(mem_total_used).bytes(),
-            "mem_total_used_percents" => Value::from_float(mem_total_used / mem_total * 100.).percents(),
-            "mem_used" => Value::from_float(mem_used).bytes(),
-            "mem_used_percents" => Value::from_float(mem_used / mem_total * 100.).percents(),
-            "mem_avail" => Value::from_float(mem_avail).bytes(),
-            "mem_avail_percents" => Value::from_float(mem_avail / mem_total * 100.).percents(),
-            "swap_total" => Value::from_float(swap_total).bytes(),
-            "swap_free" => Value::from_float(swap_free).bytes(),
-            "swap_free_percents" => Value::from_float(swap_free / swap_total * 100.).percents(),
-            "swap_used" => Value::from_float(swap_used).bytes(),
-            "swap_used_percents" => Value::from_float(swap_used / swap_total * 100.).percents(),
-            "buffers" => Value::from_float(buffers).bytes(),
-            "buffers_percent" => Value::from_float(buffers / mem_total * 100.).percents(),
-            "cached" => Value::from_float(cached).bytes(),
-            "cached_percent" => Value::from_float(cached / mem_total * 100.).percents(),
+        let format = (
+            block_config
+                .format_mem
+                .or_default("{mem_free;M}/{mem_total;M}({mem_total_used_percents})")?,
+            block_config
+                .format_swap
+                .or_default("{swap_free;M}/{swap_total;M}({swap_used_percents})")?,
         );
 
-        text_mem.set_text(format.0.render(&values)?);
-        text_swap.set_text(format.1.render(&values)?);
+        let mut text_mem = Widget::new(id, shared_config.clone()).with_icon("memory_mem")?;
+        let mut text_swap = Widget::new(id, shared_config).with_icon("memory_swap")?;
 
-        let text = match memtype {
-            Memtype::Memory => &mut text_mem,
-            Memtype::Swap => &mut text_swap,
-        };
+        let mut memtype = block_config.display_type;
+        let clickable = block_config.clickable;
 
-        text.set_state(match memtype {
-            Memtype::Memory => match mem_used / mem_total * 100. {
-                x if x > block_config.critical_mem => State::Critical,
-                x if x > block_config.warning_mem => State::Warning,
-                _ => State::Idle,
-            },
-            Memtype::Swap => match swap_used / swap_total * 100. {
-                x if x > block_config.critical_swap => State::Critical,
-                x if x > block_config.warning_swap => State::Warning,
-                _ => State::Idle,
-            },
-        });
+        let interval = Duration::from_secs(block_config.interval);
 
-        message_sender
-            .send(BlockMessage {
-                id,
-                widgets: vec![text.get_data()],
-            })
-            .await
-            .internal_error("memory", "failed to send message")?;
+        loop {
+            let mem_state = Memstate::new().await?;
+            let mem_total = mem_state.mem_total as f64 * 1024.;
+            let mem_free = mem_state.mem_free as f64 * 1024.;
+            let swap_total = mem_state.swap_total as f64 * 1024.;
+            let swap_free = mem_state.swap_free as f64 * 1024.;
+            let swap_used = swap_total - swap_free;
+            let mem_total_used = mem_total - mem_free;
+            let buffers = mem_state.buffers as f64 * 1024.;
+            let cached = (mem_state.cached + mem_state.s_reclaimable - mem_state.shmem) as f64
+                * 1024.
+                + mem_state.zfs_arc_cache as f64;
+            let mem_used = mem_total_used - (buffers + cached);
+            let mem_avail = mem_total - mem_used;
 
-        tokio::select! {
-            _ = tokio::time::sleep(interval) =>(),
-            event = events_reciever.recv() => {
-                if let BlockEvent::I3Bar(click) = event.unwrap() {
-                    if click.button == MouseButton::Left && clickable {
-                        memtype = match memtype {
-                            Memtype::Swap => Memtype::Memory,
-                            Memtype::Memory => Memtype::Swap,
-                        };
+            let values = map!(
+                "mem_total" => Value::from_float(mem_total).bytes(),
+                "mem_free" => Value::from_float(mem_free).bytes(),
+                "mem_free_percents" => Value::from_float(mem_free / mem_total * 100.).percents(),
+                "mem_total_used" => Value::from_float(mem_total_used).bytes(),
+                "mem_total_used_percents" => Value::from_float(mem_total_used / mem_total * 100.).percents(),
+                "mem_used" => Value::from_float(mem_used).bytes(),
+                "mem_used_percents" => Value::from_float(mem_used / mem_total * 100.).percents(),
+                "mem_avail" => Value::from_float(mem_avail).bytes(),
+                "mem_avail_percents" => Value::from_float(mem_avail / mem_total * 100.).percents(),
+                "swap_total" => Value::from_float(swap_total).bytes(),
+                "swap_free" => Value::from_float(swap_free).bytes(),
+                "swap_free_percents" => Value::from_float(swap_free / swap_total * 100.).percents(),
+                "swap_used" => Value::from_float(swap_used).bytes(),
+                "swap_used_percents" => Value::from_float(swap_used / swap_total * 100.).percents(),
+                "buffers" => Value::from_float(buffers).bytes(),
+                "buffers_percent" => Value::from_float(buffers / mem_total * 100.).percents(),
+                "cached" => Value::from_float(cached).bytes(),
+                "cached_percent" => Value::from_float(cached / mem_total * 100.).percents(),
+            );
+
+            text_mem.set_text(format.0.render(&values)?);
+            text_swap.set_text(format.1.render(&values)?);
+
+            let text = match memtype {
+                Memtype::Memory => &mut text_mem,
+                Memtype::Swap => &mut text_swap,
+            };
+
+            text.set_state(match memtype {
+                Memtype::Memory => match mem_used / mem_total * 100. {
+                    x if x > block_config.critical_mem => State::Critical,
+                    x if x > block_config.warning_mem => State::Warning,
+                    _ => State::Idle,
+                },
+                Memtype::Swap => match swap_used / swap_total * 100. {
+                    x if x > block_config.critical_swap => State::Critical,
+                    x if x > block_config.warning_swap => State::Warning,
+                    _ => State::Idle,
+                },
+            });
+
+            message_sender
+                .send(BlockMessage {
+                    id,
+                    widgets: vec![text.get_data()],
+                })
+                .await
+                .internal_error("memory", "failed to send message")?;
+
+            tokio::select! {
+                _ = tokio::time::sleep(interval) =>(),
+                event = events_reciever.recv() => {
+                    if let BlockEvent::I3Bar(click) = event.unwrap() {
+                        if click.button == MouseButton::Left && clickable {
+                            memtype = match memtype {
+                                Memtype::Swap => Memtype::Memory,
+                                Memtype::Memory => Memtype::Swap,
+                            };
+                        }
                     }
                 }
             }
         }
-    }
+    })
 }
 
 #[derive(serde_derive::Deserialize, Clone, Copy, Debug)]

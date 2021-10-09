@@ -3,6 +3,7 @@ use std::time::Duration;
 use serde::de::Deserialize;
 use serde_derive::Deserialize;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use crate::blocks::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
@@ -224,74 +225,78 @@ impl Default for WeatherConfig {
     }
 }
 
-pub async fn run(
+pub fn spawn(
     id: usize,
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     events_receiver: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
-    std::mem::drop(events_receiver);
-    let block_config = WeatherConfig::deserialize(block_config).block_config_error("weather")?;
-    let format = block_config
-        .format
-        .clone()
-        .or_default("{weather} {temp}\u{00b0}")?;
+) -> JoinHandle<Result<()>> {
+    drop(events_receiver);
 
-    let update = || async {
-        let data = block_config.service.get(block_config.autolocate).await?;
+    tokio::spawn(async move {
+        let block_config =
+            WeatherConfig::deserialize(block_config).block_config_error("weather")?;
+        let format = block_config
+            .format
+            .clone()
+            .or_default("{weather} {temp}\u{00b0}")?;
 
-        let apparent_temp = australian_apparent_temp(
-            data.main.temp,
-            data.main.humidity,
-            data.wind.speed,
-            block_config.service.units(),
-        );
+        let update = || async {
+            let data = block_config.service.get(block_config.autolocate).await?;
 
-        let kmh_wind_speed = (3600. / 1000.)
-            * match block_config.service.units() {
-                OpenWeatherMapUnits::Metric => data.wind.speed,
-                OpenWeatherMapUnits::Imperial => 0.447 * data.wind.speed,
+            let apparent_temp = australian_apparent_temp(
+                data.main.temp,
+                data.main.humidity,
+                data.wind.speed,
+                block_config.service.units(),
+            );
+
+            let kmh_wind_speed = (3600. / 1000.)
+                * match block_config.service.units() {
+                    OpenWeatherMapUnits::Metric => data.wind.speed,
+                    OpenWeatherMapUnits::Imperial => 0.447 * data.wind.speed,
+                };
+
+            let keys = map! {
+                "weather" => Value::from_string(data.weather[0].main.to_string()),
+                "temp" => Value::from_float(data.main.temp),
+                "humidity" => Value::from_float(data.main.humidity),
+                "apparent" => Value::from_float(apparent_temp),
+                "wind" => Value::from_float(kmh_wind_speed),
+                "wind_kmh" => Value::from_float(kmh_wind_speed),
+                "direction" => Value::from_string(convert_wind_direction(data.wind.deg)),
+                "location" => Value::from_string(data.name),
             };
 
-        let keys = map! {
-            "weather" => Value::from_string(data.weather[0].main.to_string()),
-            "temp" => Value::from_float(data.main.temp),
-            "humidity" => Value::from_float(data.main.humidity),
-            "apparent" => Value::from_float(apparent_temp),
-            "wind" => Value::from_float(kmh_wind_speed),
-            "wind_kmh" => Value::from_float(kmh_wind_speed),
-            "direction" => Value::from_string(convert_wind_direction(data.wind.deg)),
-            "location" => Value::from_string(data.name),
+            let icon = match data.weather[0].main.as_str() {
+                "Clear" => "weather_sun",
+                "Rain" | "Drizzle" => "weather_rain",
+                "Clouds" | "Fog" | "Mist" => "weather_clouds",
+                "Thunderstorm" => "weather_thunder",
+                "Snow" => "weather_snow",
+                _ => "weather_default",
+            };
+
+            let widget = Widget::new(id, shared_config.clone())
+                .with_text(format.render(&keys)?)
+                .with_icon(icon)?
+                .get_data();
+
+            message_sender
+                .send(BlockMessage {
+                    id,
+                    widgets: vec![widget],
+                })
+                .await
+                .internal_error("backlight", "failed to send message")?;
+
+            Ok(())
         };
 
-        let icon = match data.weather[0].main.as_str() {
-            "Clear" => "weather_sun",
-            "Rain" | "Drizzle" => "weather_rain",
-            "Clouds" | "Fog" | "Mist" => "weather_clouds",
-            "Thunderstorm" => "weather_thunder",
-            "Snow" => "weather_snow",
-            _ => "weather_default",
-        };
-
-        let widget = Widget::new(id, shared_config.clone())
-            .with_text(format.render(&keys)?)
-            .with_icon(icon)?
-            .get_data();
-
-        message_sender
-            .send(BlockMessage {
-                id,
-                widgets: vec![widget],
-            })
-            .await
-            .internal_error("backlight", "failed to send message")?;
-
-        Ok(())
-    };
-
-    loop {
-        update().await?;
-        tokio::time::sleep(block_config.interval).await;
-    }
+        loop {
+            update().await?;
+            tokio::time::sleep(block_config.interval).await;
+        }
+    })
 }

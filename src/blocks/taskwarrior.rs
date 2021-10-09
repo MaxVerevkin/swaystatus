@@ -43,6 +43,7 @@ use serde::de::Deserialize;
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use super::{BlockEvent, BlockMessage};
 use crate::click::MouseButton;
@@ -84,64 +85,66 @@ impl Default for TaskwarriorConfig {
     }
 }
 
-pub async fn run(
+pub fn spawn(
     id: usize,
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
-    let block_config =
-        TaskwarriorConfig::deserialize(block_config).block_config_error("taskwarrior")?;
-    let format = block_config.format.or_default("{count}")?;
-    let format_singular = block_config.format_singular.or_default("{count}")?;
-    let format_everything_done = block_config.format_everything_done.or_default("{count}")?;
-    let mut widget = Widget::new(id, shared_config).with_icon("tasks")?;
+) -> JoinHandle<Result<()>> {
+    tokio::spawn(async move {
+        let block_config =
+            TaskwarriorConfig::deserialize(block_config).block_config_error("taskwarrior")?;
+        let format = block_config.format.or_default("{count}")?;
+        let format_singular = block_config.format_singular.or_default("{count}")?;
+        let format_everything_done = block_config.format_everything_done.or_default("{count}")?;
+        let mut widget = Widget::new(id, shared_config).with_icon("tasks")?;
 
-    let mut filters = block_config.filters.iter().cycle();
-    let mut filter = filters
-        .next()
-        .block_error("taskwarrior", "failed to get next filter")?;
+        let mut filters = block_config.filters.iter().cycle();
+        let mut filter = filters
+            .next()
+            .block_error("taskwarrior", "failed to get next filter")?;
 
-    loop {
-        let number_of_tasks = get_number_of_tasks(&filter.filter).await?;
-        let values = map!(
-            "count" => Value::from_integer(number_of_tasks as i64),
-            "filter_name" => Value::from_string(filter.name.clone()),
-        );
-        widget.set_text(match number_of_tasks {
-            0 => format_everything_done.render(&values)?,
-            1 => format_singular.render(&values)?,
-            _ => format.render(&values)?,
-        });
-        widget.set_state(if number_of_tasks >= block_config.critical_threshold {
-            State::Critical
-        } else if number_of_tasks >= block_config.warning_threshold {
-            State::Warning
-        } else {
-            State::Idle
-        });
+        loop {
+            let number_of_tasks = get_number_of_tasks(&filter.filter).await?;
+            let values = map!(
+                "count" => Value::from_integer(number_of_tasks as i64),
+                "filter_name" => Value::from_string(filter.name.clone()),
+            );
+            widget.set_text(match number_of_tasks {
+                0 => format_everything_done.render(&values)?,
+                1 => format_singular.render(&values)?,
+                _ => format.render(&values)?,
+            });
+            widget.set_state(if number_of_tasks >= block_config.critical_threshold {
+                State::Critical
+            } else if number_of_tasks >= block_config.warning_threshold {
+                State::Warning
+            } else {
+                State::Idle
+            });
 
-        let widgets = if number_of_tasks == 0 && block_config.hide_when_zero {
-            vec![]
-        } else {
-            vec![widget.get_data()]
-        };
+            let widgets = if number_of_tasks == 0 && block_config.hide_when_zero {
+                vec![]
+            } else {
+                vec![widget.get_data()]
+            };
 
-        message_sender
-            .send(BlockMessage { id, widgets })
-            .await
-            .internal_error("taskwarrior", "failed to send message")?;
+            message_sender
+                .send(BlockMessage { id, widgets })
+                .await
+                .internal_error("taskwarrior", "failed to send message")?;
 
-        tokio::select! {
-            _ = tokio::time::sleep(block_config.interval) =>(),
-            Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
-                if click.button == MouseButton::Right {
-                    filter = filters.next().block_error("taskwarrior", "failed to get next filter")?;
+            tokio::select! {
+                _ = tokio::time::sleep(block_config.interval) =>(),
+                Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
+                    if click.button == MouseButton::Right {
+                        filter = filters.next().block_error("taskwarrior", "failed to get next filter")?;
+                    }
                 }
             }
         }
-    }
+    })
 }
 
 async fn get_number_of_tasks(filter: &str) -> Result<u32> {

@@ -30,6 +30,7 @@ use serde::de::Deserialize;
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use super::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
@@ -55,56 +56,58 @@ impl Default for SpeedtestConfig {
     }
 }
 
-pub async fn run(
+pub fn spawn(
     id: usize,
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     events_reciever: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
+) -> JoinHandle<Result<()>> {
     // Drop the reciever if we don't what to recieve events
     drop(events_reciever);
 
-    let icon_ping = shared_config.get_icon("ping")?;
-    let icon_down = shared_config.get_icon("net_down")?;
-    let icon_up = shared_config.get_icon("net_up")?;
-    let block_config =
-        SpeedtestConfig::deserialize(block_config).block_config_error("speedtest")?;
-    let format = block_config
-        .format
-        .or_default("{ping}{speed_down}{speed_up}")?;
-    let mut text = Widget::new(id, shared_config);
+    tokio::spawn(async move {
+        let icon_ping = shared_config.get_icon("ping")?;
+        let icon_down = shared_config.get_icon("net_down")?;
+        let icon_up = shared_config.get_icon("net_up")?;
+        let block_config =
+            SpeedtestConfig::deserialize(block_config).block_config_error("speedtest")?;
+        let format = block_config
+            .format
+            .or_default("{ping}{speed_down}{speed_up}")?;
+        let mut text = Widget::new(id, shared_config);
 
-    let mut command = Command::new("speedtest-cli");
-    command.arg("--json");
+        let mut command = Command::new("speedtest-cli");
+        command.arg("--json");
 
-    loop {
-        let output = command
-            .output()
-            .await
-            .block_error("speedtest", "failed to run 'speedtest-cli'")?
-            .stdout;
-        let output = String::from_utf8(output)
-            .block_error("speedtest", "'speedtest-cli' produced non-UTF8 outupt")?;
-        let output: SpeedtestCliOutput = serde_json::from_str(&output)
-            .block_error("speedtest", "'speedtest-cli' produced wrong JSON")?;
+        loop {
+            let output = command
+                .output()
+                .await
+                .block_error("speedtest", "failed to run 'speedtest-cli'")?
+                .stdout;
+            let output = String::from_utf8(output)
+                .block_error("speedtest", "'speedtest-cli' produced non-UTF8 outupt")?;
+            let output: SpeedtestCliOutput = serde_json::from_str(&output)
+                .block_error("speedtest", "'speedtest-cli' produced wrong JSON")?;
 
-        text.set_text(format.render(&map! {
-            "ping" => Value::from_float(output.ping * 1e-3).seconds().icon(icon_ping.clone()),
-            "speed_down" => Value::from_float(output.download).bits().icon(icon_down.clone()),
-            "speed_up" => Value::from_float(output.upload).bits().icon(icon_up.clone()),
-        })?);
+            text.set_text(format.render(&map! {
+                "ping" => Value::from_float(output.ping * 1e-3).seconds().icon(icon_ping.clone()),
+                "speed_down" => Value::from_float(output.download).bits().icon(icon_down.clone()),
+                "speed_up" => Value::from_float(output.upload).bits().icon(icon_up.clone()),
+            })?);
 
-        message_sender
-            .send(BlockMessage {
-                id,
-                widgets: vec![text.get_data()],
-            })
-            .await
-            .internal_error("speedtest", "failed to send message")?;
+            message_sender
+                .send(BlockMessage {
+                    id,
+                    widgets: vec![text.get_data()],
+                })
+                .await
+                .internal_error("speedtest", "failed to send message")?;
 
-        tokio::time::sleep(block_config.interval).await;
-    }
+            tokio::time::sleep(block_config.interval).await;
+        }
+    })
 }
 
 #[derive(serde_derive::Deserialize, Debug, Clone, Copy)]

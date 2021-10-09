@@ -44,6 +44,7 @@ use serde::de::Deserialize;
 use serde_derive::Deserialize;
 use tokio::fs::read_dir;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tokio_stream::StreamExt;
 
 use crate::blocks::{BlockEvent, BlockMessage};
@@ -238,74 +239,76 @@ impl BacklitDevice {
     }
 }
 
-pub async fn run(
+pub fn spawn(
     id: usize,
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     mut events_receiver: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
-    let block_config =
-        BacklightConfig::deserialize(block_config).block_config_error("backlight")?;
-    let format = block_config.format.or_default("{brightness}")?;
+) -> JoinHandle<Result<()>> {
+    tokio::spawn(async move {
+        let block_config =
+            BacklightConfig::deserialize(block_config).block_config_error("backlight")?;
+        let format = block_config.format.or_default("{brightness}")?;
 
-    let device = match &block_config.device {
-        None => BacklitDevice::default(block_config.root_scaling).await?,
-        Some(path) => BacklitDevice::from_device(path, block_config.root_scaling).await?,
-    };
+        let device = match &block_config.device {
+            None => BacklitDevice::default(block_config.root_scaling).await?,
+            Some(path) => BacklitDevice::from_device(path, block_config.root_scaling).await?,
+        };
 
-    // Watch for brightness changes
-    let mut notify = Inotify::init().block_error("backlight", "Failed to start inotify")?;
-    let mut buffer = [0; 1024];
+        // Watch for brightness changes
+        let mut notify = Inotify::init().block_error("backlight", "Failed to start inotify")?;
+        let mut buffer = [0; 1024];
 
-    notify
-        .add_watch(device.brightness_file(), WatchMask::MODIFY)
-        .block_error("backlight", "Failed to watch brightness file")?;
+        notify
+            .add_watch(device.brightness_file(), WatchMask::MODIFY)
+            .block_error("backlight", "Failed to watch brightness file")?;
 
-    let mut file_changes = notify
-        .event_stream(&mut buffer)
-        .block_error("backlight", "Failed to create event stream")?;
+        let mut file_changes = notify
+            .event_stream(&mut buffer)
+            .block_error("backlight", "Failed to create event stream")?;
 
-    let mut text = Widget::new(id, shared_config);
+        let mut text = Widget::new(id, shared_config);
 
-    loop {
-        let brightness = device.brightness().await?;
-        let mut icon_index = (usize::from(brightness) * BACKLIGHT_ICONS.len()) / 101;
-        if block_config.invert_icons {
-            icon_index = BACKLIGHT_ICONS.len() - icon_index;
-        }
+        loop {
+            let brightness = device.brightness().await?;
+            let mut icon_index = (usize::from(brightness) * BACKLIGHT_ICONS.len()) / 101;
+            if block_config.invert_icons {
+                icon_index = BACKLIGHT_ICONS.len() - icon_index;
+            }
 
-        text.set_icon(BACKLIGHT_ICONS[icon_index])?;
-        text.set_text(format.render(&map! {
-            "brightness" => Value::from_integer(brightness as i64).percents(),
-        })?);
+            text.set_icon(BACKLIGHT_ICONS[icon_index])?;
+            text.set_text(format.render(&map! {
+                "brightness" => Value::from_integer(brightness as i64).percents(),
+            })?);
 
-        message_sender
-            .send(BlockMessage {
-                id,
-                widgets: vec![text.get_data()],
-            })
-            .await
-            .internal_error("backlight", "failed to send message")?;
+            message_sender
+                .send(BlockMessage {
+                    id,
+                    widgets: vec![text.get_data()],
+                })
+                .await
+                .internal_error("backlight", "failed to send message")?;
 
-        tokio::select! {
-            _ = file_changes.next() => (),
-            Some(BlockEvent::I3Bar(event)) = events_receiver.recv() => {
-                let brightness = device.brightness().await?;
-                match event.button {
-                    MouseButton::WheelUp => {
-                        device
-                            .set_brightness(brightness + block_config.step_width)
-                            .await?;
+            tokio::select! {
+                _ = file_changes.next() => (),
+                Some(BlockEvent::I3Bar(event)) = events_receiver.recv() => {
+                    let brightness = device.brightness().await?;
+                    match event.button {
+                        MouseButton::WheelUp => {
+                            device
+                                .set_brightness(brightness + block_config.step_width)
+                                .await?;
+                        }
+                        MouseButton::WheelDown => {
+                            device
+                                .set_brightness(brightness.saturating_sub(block_config.step_width))
+                                .await?;
+                        }
+                        _ => (),
                     }
-                    MouseButton::WheelDown => {
-                        device
-                            .set_brightness(brightness.saturating_sub(block_config.step_width))
-                            .await?;
-                    }
-                    _ => (),
                 }
             }
         }
-    }
+    })
 }

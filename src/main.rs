@@ -20,7 +20,7 @@ use futures::stream::futures_unordered::FuturesUnordered;
 use futures::stream::StreamExt;
 use tokio::sync::mpsc;
 
-use crate::blocks::{run_block, BlockEvent};
+use crate::blocks::{spawn_block, BlockEvent};
 use crate::config::Config;
 use crate::config::SharedConfig;
 use crate::errors::*;
@@ -127,14 +127,14 @@ async fn run(config: Option<&str>, noinit: bool, never_pause: bool) -> Result<()
         let (events_sender, events_reciever) = mpsc::channel(64);
         blocks_events.push(events_sender);
 
-        blocks_tasks.push(tokio::spawn(run_block(
+        blocks_tasks.push(spawn_block(
             blocks_tasks.len(),
             block_type,
             block_config,
             shared_config.clone(),
             message_sender.clone(),
             events_reciever,
-        )));
+        )?);
     }
 
     // Listen to signals and clicks
@@ -159,7 +159,8 @@ async fn run(config: Option<&str>, noinit: bool, never_pause: bool) -> Result<()
             // Handle clicks
             Some(event) = events_receiver.recv() => {
                 let blocks_event = blocks_events.get(event.id).unwrap();
-                blocks_event.send(BlockEvent::I3Bar(event)).await.unwrap();
+                // If reciever is droped, then the blocks is not interested in incoming events
+                let _ = blocks_event.send(BlockEvent::I3Bar(event)).await;
             }
             // Handle signals
             Some(signal) = signals_receiver.recv() => match signal {

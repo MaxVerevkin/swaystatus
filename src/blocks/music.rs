@@ -11,6 +11,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use super::{BlockEvent, BlockMessage};
 use crate::click::MouseButton;
@@ -41,126 +42,129 @@ impl Default for MusicConfig {
     }
 }
 
-pub async fn run(
+pub fn spawn(
     id: usize,
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
-    let block_config = MusicConfig::deserialize(block_config).block_config_error("music")?;
+) -> JoinHandle<Result<()>> {
+    tokio::spawn(async move {
+        let block_config = MusicConfig::deserialize(block_config).block_config_error("music")?;
 
-    let mut text = Widget::new(id, shared_config.clone()).with_icon("music")?;
-    let mut play_pause_button = Widget::new(id, shared_config.clone())
-        .with_instance(PLAY_PAUSE_BTN)
-        .with_spacing(Spacing::Hidden);
-    let mut next_button = Widget::new(id, shared_config.clone())
-        .with_instance(NEXT_BTN)
-        .with_spacing(Spacing::Hidden)
-        .with_icon("music_next")?;
-    let mut prev_button = Widget::new(id, shared_config)
-        .with_instance(PREV_BTN)
-        .with_spacing(Spacing::Hidden)
-        .with_icon("music_prev")?;
+        let mut text = Widget::new(id, shared_config.clone()).with_icon("music")?;
+        let mut play_pause_button = Widget::new(id, shared_config.clone())
+            .with_instance(PLAY_PAUSE_BTN)
+            .with_spacing(Spacing::Hidden);
+        let mut next_button = Widget::new(id, shared_config.clone())
+            .with_instance(NEXT_BTN)
+            .with_spacing(Spacing::Hidden)
+            .with_icon("music_next")?;
+        let mut prev_button = Widget::new(id, shared_config)
+            .with_instance(PREV_BTN)
+            .with_spacing(Spacing::Hidden)
+            .with_icon("music_prev")?;
 
-    // Connect to the D-Bus session bus (this is blocking, unfortunately).
-    let (resource, dbus_conn) =
-        connection::new_session_sync().block_error("music", "failed to open DBUS connection")?;
-    // The resource is a task that should be spawned onto a tokio compatible
-    // reactor ASAP. If the resource ever finishes, you lost connection to D-Bus.
-    tokio::spawn(async {
-        let err = resource.await;
-        panic!("Lost connection to D-Bus: {}", err);
-    });
+        // Connect to the D-Bus session bus (this is blocking, unfortunately).
+        let (resource, dbus_conn) = connection::new_session_sync()
+            .block_error("music", "failed to open DBUS connection")?;
+        // The resource is a task that should be spawned onto a tokio compatible
+        // reactor ASAP. If the resource ever finishes, you lost connection to D-Bus.
+        tokio::spawn(async {
+            let err = resource.await;
+            panic!("Lost connection to D-Bus: {}", err);
+        });
 
-    // Add matches
-    // TODO (maybe?) listen to "owner changed" events
-    let mut dbus_rule = MatchRule::new();
-    dbus_rule.interface = Some(Interface::from_slice("org.freedesktop.DBus.Properties").unwrap());
-    dbus_rule.member = Some(Member::new("PropertiesChanged").unwrap());
-    dbus_rule.path = Some(Path::new("/org/mpris/MediaPlayer2").unwrap());
-    let (_incoming_signal, mut dbus_stream) = dbus_conn
-        .add_match(dbus_rule)
-        .await
-        .block_error("music", "failed to add match")?
-        .msg_stream();
-
-    let mut player = get_any_player(dbus_conn.clone()).await?;
-
-    loop {
-        let widgets = match player {
-            Some(ref player) => {
-                text.set_full_text(escape_pango_text(player.display(block_config.width)));
-
-                match player.status {
-                    PlaybackStatus::Playing => {
-                        text.set_state(State::Info);
-                        play_pause_button.set_state(State::Info);
-                        next_button.set_state(State::Info);
-                        prev_button.set_state(State::Info);
-                        play_pause_button.set_icon("music_pause")?;
-                    }
-                    _ => {
-                        text.set_state(State::Idle);
-                        play_pause_button.set_state(State::Idle);
-                        next_button.set_state(State::Idle);
-                        prev_button.set_state(State::Idle);
-                        play_pause_button.set_icon("music_play")?;
-                    }
-                }
-
-                let mut output = vec![text.get_data()];
-                for button in &block_config.buttons {
-                    match button.as_str() {
-                        "play" => output.push(play_pause_button.get_data()),
-                        "next" => output.push(next_button.get_data()),
-                        "prev" => output.push(prev_button.get_data()),
-                        _ => (),
-                    }
-                }
-                output
-            }
-            None => {
-                text.set_text((String::new(), None));
-                text.set_state(State::Idle);
-                vec![text.get_data()]
-            }
-        };
-
-        message_sender
-            .send(BlockMessage { id, widgets })
+        // Add matches
+        // TODO (maybe?) listen to "owner changed" events
+        let mut dbus_rule = MatchRule::new();
+        dbus_rule.interface =
+            Some(Interface::from_slice("org.freedesktop.DBus.Properties").unwrap());
+        dbus_rule.member = Some(Member::new("PropertiesChanged").unwrap());
+        dbus_rule.path = Some(Path::new("/org/mpris/MediaPlayer2").unwrap());
+        let (_incoming_signal, mut dbus_stream) = dbus_conn
+            .add_match(dbus_rule)
             .await
-            .internal_error("music", "failed to send message")?;
+            .block_error("music", "failed to add match")?
+            .msg_stream();
 
-        if let Some(ref mut player) = player {
-            player.rotating.rotate();
-        }
+        let mut player = get_any_player(dbus_conn.clone()).await?;
 
-        tokio::select! {
-            // Time to update rotating text
-            _ = tokio::time::sleep(Duration::from_secs(1)) => (),
-            // Wait for a DBUS event
-            _ = dbus_stream.next() => player = get_any_player(dbus_conn.clone()).await?,
-            // Wait for a click
-            Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
-                if click.button == MouseButton::Left {
-                    if let Some(ref player) = player {
-                        let command = match click.instance {
-                            Some(PLAY_PAUSE_BTN) => "PlayPause",
-                            Some(NEXT_BTN) => "Next",
-                            Some(PREV_BTN) => "Previous",
-                            _ => continue,
-                        };
-                        // Ignore the error
-                        let _resonce: StdResult<(), _> = player
-                            .dbus_proxy
-                            .method_call("org.mpris.MediaPlayer2.Player", command, ())
-                            .await;
+        loop {
+            let widgets = match player {
+                Some(ref player) => {
+                    text.set_full_text(escape_pango_text(player.display(block_config.width)));
+
+                    match player.status {
+                        PlaybackStatus::Playing => {
+                            text.set_state(State::Info);
+                            play_pause_button.set_state(State::Info);
+                            next_button.set_state(State::Info);
+                            prev_button.set_state(State::Info);
+                            play_pause_button.set_icon("music_pause")?;
+                        }
+                        _ => {
+                            text.set_state(State::Idle);
+                            play_pause_button.set_state(State::Idle);
+                            next_button.set_state(State::Idle);
+                            prev_button.set_state(State::Idle);
+                            play_pause_button.set_icon("music_play")?;
+                        }
+                    }
+
+                    let mut output = vec![text.get_data()];
+                    for button in &block_config.buttons {
+                        match button.as_str() {
+                            "play" => output.push(play_pause_button.get_data()),
+                            "next" => output.push(next_button.get_data()),
+                            "prev" => output.push(prev_button.get_data()),
+                            _ => (),
+                        }
+                    }
+                    output
+                }
+                None => {
+                    text.set_text((String::new(), None));
+                    text.set_state(State::Idle);
+                    vec![text.get_data()]
+                }
+            };
+
+            message_sender
+                .send(BlockMessage { id, widgets })
+                .await
+                .internal_error("music", "failed to send message")?;
+
+            if let Some(ref mut player) = player {
+                player.rotating.rotate();
+            }
+
+            tokio::select! {
+                // Time to update rotating text
+                _ = tokio::time::sleep(Duration::from_secs(1)) => (),
+                // Wait for a DBUS event
+                _ = dbus_stream.next() => player = get_any_player(dbus_conn.clone()).await?,
+                // Wait for a click
+                Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
+                    if click.button == MouseButton::Left {
+                        if let Some(ref player) = player {
+                            let command = match click.instance {
+                                Some(PLAY_PAUSE_BTN) => "PlayPause",
+                                Some(NEXT_BTN) => "Next",
+                                Some(PREV_BTN) => "Previous",
+                                _ => continue,
+                            };
+                            // Ignore the error
+                            let _resonce: StdResult<(), _> = player
+                                .dbus_proxy
+                                .method_call("org.mpris.MediaPlayer2.Player", command, ())
+                                .await;
+                        }
                     }
                 }
             }
         }
-    }
+    })
 }
 
 async fn get_any_player(dbus_conn: Arc<SyncConnection>) -> Result<Option<Player>> {

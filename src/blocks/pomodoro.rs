@@ -39,6 +39,7 @@
 use serde::de::Deserialize;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use super::{BlockEvent, BlockMessage};
 use crate::click::MouseButton;
@@ -225,35 +226,38 @@ impl Block {
     }
 }
 
-pub async fn run(
+pub fn spawn(
     id: usize,
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     events_receiver: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
-    let block_config = PomodoroConfig::deserialize(block_config).block_config_error("pomodoro")?;
-    let widget = Widget::new(id, shared_config).with_icon("pomodoro")?;
-    let mut block = Block {
-        id,
-        widget,
-        block_config,
-        message_sender,
-        events_receiver,
-    };
+) -> JoinHandle<Result<()>> {
+    tokio::spawn(async move {
+        let block_config =
+            PomodoroConfig::deserialize(block_config).block_config_error("pomodoro")?;
+        let widget = Widget::new(id, shared_config).with_icon("pomodoro")?;
+        let mut block = Block {
+            id,
+            widget,
+            block_config,
+            message_sender,
+            events_receiver,
+        };
 
-    loop {
-        // Send collaped block
-        block.widget.set_state(State::Idle);
-        block.set_text(String::new()).await?;
+        loop {
+            // Send collaped block
+            block.widget.set_state(State::Idle);
+            block.set_text(String::new()).await?;
 
-        // Wait for left click
-        block.wait_for_click(MouseButton::Left).await;
+            // Wait for left click
+            block.wait_for_click(MouseButton::Left).await;
 
-        // Read params
-        let (task_len, break_len, pomodoros) = block.read_params().await?;
+            // Read params
+            let (task_len, break_len, pomodoros) = block.read_params().await?;
 
-        // Run!
-        block.run_pomodoro(task_len, break_len, pomodoros).await?;
-    }
+            // Run!
+            block.run_pomodoro(task_len, break_len, pomodoros).await?;
+        }
+    })
 }

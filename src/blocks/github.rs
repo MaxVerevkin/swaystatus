@@ -2,6 +2,7 @@ use reqwest::header;
 use serde::de::Deserialize;
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use super::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
@@ -34,52 +35,54 @@ fn default_hide() -> bool {
     true
 }
 
-pub async fn run(
+pub fn spawn(
     id: usize,
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     events_reciever: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
+) -> JoinHandle<Result<()>> {
     // Drop the reciever if we don't what to recieve events
     drop(events_reciever);
 
-    let block_config = GithubConfig::deserialize(block_config).block_config_error("github")?;
-    let interval = Duration::from_secs(block_config.interval);
-    let format = block_config.format.or_default("{total:1}")?;
-    let mut text = Widget::new(id, shared_config).with_icon("github")?;
+    tokio::spawn(async move {
+        let block_config = GithubConfig::deserialize(block_config).block_config_error("github")?;
+        let interval = Duration::from_secs(block_config.interval);
+        let format = block_config.format.or_default("{total:1}")?;
+        let mut text = Widget::new(id, shared_config).with_icon("github")?;
 
-    // Http client
-    let client = reqwest::Client::new();
-    let request = client
-        .get("https://api.github.com/notifications")
-        .header("Authorization", &format!("token {}", block_config.token))
-        .header(header::USER_AGENT, "swaystatus");
+        // Http client
+        let client = reqwest::Client::new();
+        let request = client
+            .get("https://api.github.com/notifications")
+            .header("Authorization", &format!("token {}", block_config.token))
+            .header(header::USER_AGENT, "swaystatus");
 
-    loop {
-        let total = get_total(&request).await;
+        loop {
+            let total = get_total(&request).await;
 
-        text.set_text(match total {
-            Some(total) => format.render(&map! {
-                "total" => Value::from_integer(total as i64),
-            })?,
-            None => ("x".to_string(), None),
-        });
+            text.set_text(match total {
+                Some(total) => format.render(&map! {
+                    "total" => Value::from_integer(total as i64),
+                })?,
+                None => ("x".to_string(), None),
+            });
 
-        message_sender
-            .send(BlockMessage {
-                id,
-                widgets: if total == Some(0) && block_config.hide {
-                    vec![]
-                } else {
-                    vec![text.get_data()]
-                },
-            })
-            .await
-            .internal_error("github", "failed to send message")?;
+            message_sender
+                .send(BlockMessage {
+                    id,
+                    widgets: if total == Some(0) && block_config.hide {
+                        vec![]
+                    } else {
+                        vec![text.get_data()]
+                    },
+                })
+                .await
+                .internal_error("github", "failed to send message")?;
 
-        tokio::time::sleep(interval).await;
-    }
+            tokio::time::sleep(interval).await;
+        }
+    })
 }
 
 async fn get_total(request: &reqwest::RequestBuilder) -> Option<i64> {

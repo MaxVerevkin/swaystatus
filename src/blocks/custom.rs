@@ -72,6 +72,7 @@ use std::env;
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use super::{BlockEvent, BlockMessage};
 use crate::config::SharedConfig;
@@ -107,96 +108,98 @@ impl Default for CustomConfig {
     }
 }
 
-pub async fn run(
+pub fn spawn(
     id: usize,
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
-    let block_config = CustomConfig::deserialize(block_config).block_config_error("custom")?;
-    let CustomConfig {
-        command,
-        cycle,
-        interval,
-        json,
-        hide_when_empty,
-        shell,
-        one_shot,
-        signal,
-    } = block_config;
+) -> JoinHandle<Result<()>> {
+    tokio::spawn(async move {
+        let block_config = CustomConfig::deserialize(block_config).block_config_error("custom")?;
+        let CustomConfig {
+            command,
+            cycle,
+            interval,
+            json,
+            hide_when_empty,
+            shell,
+            one_shot,
+            signal,
+        } = block_config;
 
-    let interval = Duration::from_secs(interval);
-    let mut widget = Widget::new(id, shared_config);
+        let interval = Duration::from_secs(interval);
+        let mut widget = Widget::new(id, shared_config);
 
-    // Choose the shell in this priority:
-    // 1) `shell` config option
-    // 2) `SHELL` environment varialble
-    // 3) `"sh"`
-    let shell = shell
-        .or_else(|| env::var("SHELL").ok())
-        .unwrap_or_else(|| "sh".to_string());
+        // Choose the shell in this priority:
+        // 1) `shell` config option
+        // 2) `SHELL` environment varialble
+        // 3) `"sh"`
+        let shell = shell
+            .or_else(|| env::var("SHELL").ok())
+            .unwrap_or_else(|| "sh".to_string());
 
-    let mut cycle = cycle
-        .or_else(|| command.clone().map(|cmd| vec![cmd]))
-        .block_error("custom", "either 'command' or 'cycle' must be specified")?
-        .into_iter()
-        .cycle();
-
-    loop {
-        // Run command
-        let output = Command::new(&shell)
-            .args(&["-c", &cycle.next().unwrap()])
-            .output()
-            .await
-            .block_error("custom", "failed to run command")?;
-        let stdout = std::str::from_utf8(&output.stdout)
-            .block_error("custom", "the output of command is invalid UTF-8")?
-            .trim();
-
-        // {"icon": "ICON", "state": "STATE", "text": "YOURTEXT", "short_text": "YOUR SHORT TEXT"}
-        let widgets = if stdout.is_empty() && hide_when_empty {
-            vec![]
-        } else if json {
-            let vals: HashMap<String, String> =
-                serde_json::from_str(stdout).block_error("custom", "invalid JSON")?;
-            widget.set_icon(vals.get("icon").map(|s| s.as_str()).unwrap_or(""))?;
-            widget.set_state(match vals.get("state").map(|s| s.as_str()).unwrap_or("") {
-                "Info" => State::Info,
-                "Good" => State::Good,
-                "Warning" => State::Warning,
-                "Critical" => State::Critical,
-                _ => State::Idle,
-            });
-            let text = vals.get("text").cloned().unwrap_or_default();
-            let short_text = vals.get("short_text").cloned();
-            widget.set_text((text, short_text));
-            vec![widget.get_data()]
-        } else {
-            widget.set_full_text(stdout.to_string());
-            vec![widget.get_data()]
-        };
-
-        message_sender
-            .send(BlockMessage { id, widgets })
-            .await
-            .internal_error("custom", "failed to send message")?;
+        let mut cycle = cycle
+            .or_else(|| command.clone().map(|cmd| vec![cmd]))
+            .block_error("custom", "either 'command' or 'cycle' must be specified")?
+            .into_iter()
+            .cycle();
 
         loop {
-            tokio::select! {
-                _ = tokio::time::sleep(interval) => {
-                    if !one_shot {
-                        break;
-                    }
-                },
-                Some(event) = events_reciever.recv() => {
-                    match (event, signal) {
-                        (BlockEvent::Signal(Signal::Custom(s)), Some(signal)) if s == signal => break,
-                        (BlockEvent::I3Bar(_), _) => break,
-                        _ => (),
-                    }
-                },
+            // Run command
+            let output = Command::new(&shell)
+                .args(&["-c", &cycle.next().unwrap()])
+                .output()
+                .await
+                .block_error("custom", "failed to run command")?;
+            let stdout = std::str::from_utf8(&output.stdout)
+                .block_error("custom", "the output of command is invalid UTF-8")?
+                .trim();
+
+            // {"icon": "ICON", "state": "STATE", "text": "YOURTEXT", "short_text": "YOUR SHORT TEXT"}
+            let widgets = if stdout.is_empty() && hide_when_empty {
+                vec![]
+            } else if json {
+                let vals: HashMap<String, String> =
+                    serde_json::from_str(stdout).block_error("custom", "invalid JSON")?;
+                widget.set_icon(vals.get("icon").map(|s| s.as_str()).unwrap_or(""))?;
+                widget.set_state(match vals.get("state").map(|s| s.as_str()).unwrap_or("") {
+                    "Info" => State::Info,
+                    "Good" => State::Good,
+                    "Warning" => State::Warning,
+                    "Critical" => State::Critical,
+                    _ => State::Idle,
+                });
+                let text = vals.get("text").cloned().unwrap_or_default();
+                let short_text = vals.get("short_text").cloned();
+                widget.set_text((text, short_text));
+                vec![widget.get_data()]
+            } else {
+                widget.set_full_text(stdout.to_string());
+                vec![widget.get_data()]
+            };
+
+            message_sender
+                .send(BlockMessage { id, widgets })
+                .await
+                .internal_error("custom", "failed to send message")?;
+
+            loop {
+                tokio::select! {
+                    _ = tokio::time::sleep(interval) => {
+                        if !one_shot {
+                            break;
+                        }
+                    },
+                    Some(event) = events_reciever.recv() => {
+                        match (event, signal) {
+                            (BlockEvent::Signal(Signal::Custom(s)), Some(signal)) if s == signal => break,
+                            (BlockEvent::I3Bar(_), _) => break,
+                            _ => (),
+                        }
+                    },
+                }
             }
         }
-    }
+    })
 }

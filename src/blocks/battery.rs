@@ -43,6 +43,7 @@ use serde::de::Deserialize;
 use serde_derive::Deserialize;
 use tokio::fs::{read_dir, read_to_string};
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tokio::time::{Instant, Interval};
 
 use crate::blocks::{BlockEvent, BlockMessage};
@@ -476,177 +477,181 @@ impl Default for BatteryDriver {
     }
 }
 
-pub async fn run(
+pub fn spawn(
     id: usize,
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     events_receiver: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
+) -> JoinHandle<Result<()>> {
     drop(events_receiver);
-    let block_config = BatteryConfig::deserialize(block_config).block_config_error("battery")?;
 
-    let format = block_config.format.clone().or_default("{percentage}")?;
-    let format_full = block_config.full_format.clone().or_default("")?;
-    let format_missing = block_config
-        .missing_format
-        .clone()
-        .or_default("{percentage}")?;
+    tokio::spawn(async move {
+        let block_config =
+            BatteryConfig::deserialize(block_config).block_config_error("battery")?;
 
-    // Get _any_ battery device if not set in the config
-    let device = match block_config.device {
-        Some(d) => d,
-        None => {
-            let mut sysfs_dir = read_dir("/sys/class/power_supply")
-                .await
-                .block_error("battery", "failed to read /sys/class/power_supply direcory")?;
-            let mut device = None;
-            while let Some(dir) = sysfs_dir
-                .next_entry()
-                .await
-                .block_error("battery", "failed to read /sys/class/power_supply direcory")?
-            {
-                if read_to_string(dir.path().join("type"))
+        let format = block_config.format.clone().or_default("{percentage}")?;
+        let format_full = block_config.full_format.clone().or_default("")?;
+        let format_missing = block_config
+            .missing_format
+            .clone()
+            .or_default("{percentage}")?;
+
+        // Get _any_ battery device if not set in the config
+        let device = match block_config.device {
+            Some(d) => d,
+            None => {
+                let mut sysfs_dir = read_dir("/sys/class/power_supply")
                     .await
-                    .map(|t| t.trim() == "Battery")
-                    .unwrap_or(false)
+                    .block_error("battery", "failed to read /sys/class/power_supply direcory")?;
+                let mut device = None;
+                while let Some(dir) = sysfs_dir
+                    .next_entry()
+                    .await
+                    .block_error("battery", "failed to read /sys/class/power_supply direcory")?
                 {
-                    device = Some(dir.file_name().to_str().unwrap().to_string());
-                    break;
-                }
-            }
-            device.block_error("battery", "failed to determine default battery - please set your battery device in the configuration file")?
-        }
-    };
-
-    let mut device: Box<dyn BatteryDevice + Send> = match block_config.driver {
-        BatteryDriver::Sysfs => Box::new(PowerSupplyDevice::from_device(
-            &device,
-            block_config.interval,
-        )),
-        BatteryDriver::Upower => Box::new(UPowerDevice::from_device(&device).await?),
-    };
-
-    macro_rules! send_widget {
-        () => {
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![],
-                })
-                .await
-                .internal_error("backlight", "failed to send message")?;
-            device.wait_for_change().await?;
-        };
-        ($widget:ident) => {
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![$widget.get_data()],
-                })
-                .await
-                .internal_error("backlight", "failed to send message")?;
-            device.wait_for_change().await?;
-        };
-    }
-
-    loop {
-        let (is_available, status, capacity, time, power) = tokio::join!(
-            device.is_available(),
-            device.status(),
-            device.capacity(),
-            device.time_remaining(),
-            device.usage()
-        );
-
-        let fmt = match status {
-            Err(_) if block_config.hide_missing => {
-                send_widget!();
-                continue;
-            }
-            Err(_) => &format_missing,
-            Ok(BatteryStatus::Full) if block_config.hide_full => {
-                send_widget!();
-                continue;
-            }
-            Ok(BatteryStatus::Full) => &format_full,
-            Ok(_) => &format,
-        };
-
-        let vars = {
-            if !is_available && block_config.allow_missing {
-                map! {
-                    "percentage" => Value::from_string("X".to_string()),
-                    "time" => Value::from_string("xx:xx".to_string()),
-                    "power" => Value::from_string("N/A".to_string()),
-                }
-            } else {
-                map! {
-                    "percentage" => capacity.clone()
-                        .map(|c| Value::from_integer(c as i64).percents())
-                        .unwrap_or_else(|_| Value::from_string("×".to_string())),
-                    "time" => time
-                        .map(|time| {
-                            if time == 0 {
-                                Value::from_string("".to_string())
-                            } else {
-                                Value::from_string(format!(
-                                    "{}:{:02}",
-                                    (time / 60).clamp(0, 99),
-                                    time % 60,
-                                ))
-                            }
-                        })
-                        .unwrap_or_else(|_| Value::from_string("×".to_string())),
-                    "power" => power
-                        .map(|power| Value::from_float(power / 1e6).watts())
-                        .unwrap_or_else(|_| Value::from_string("×".to_string())),
-                }
-            }
-        };
-
-        let widget = match (
-            status.unwrap_or_default(),
-            capacity.ok().map(|c| c.clamp(0, 100)),
-        ) {
-            (BatteryStatus::Empty, _) => Widget::new(id, shared_config.clone())
-                .with_icon(BATTERY_EMPTY_ICON)?
-                .with_state(State::Critical)
-                .with_spacing(Spacing::Hidden),
-            (BatteryStatus::Full, _) => Widget::new(id, shared_config.clone())
-                .with_icon(BATTERY_FULL_ICON)?
-                .with_spacing(Spacing::Hidden),
-            (status, Some(charge)) => {
-                let index = (charge as usize * BATTERY_CHARGE_ICONS.len()) / 101;
-                let icon = BATTERY_CHARGE_ICONS[index];
-
-                let state = {
-                    if status == BatteryStatus::Charging {
-                        State::Good
-                    } else if charge <= block_config.critical {
-                        State::Critical
-                    } else if charge <= block_config.warning {
-                        State::Warning
-                    } else if charge <= block_config.info {
-                        State::Info
-                    } else if charge > block_config.good {
-                        State::Good
-                    } else {
-                        State::Idle
+                    if read_to_string(dir.path().join("type"))
+                        .await
+                        .map(|t| t.trim() == "Battery")
+                        .unwrap_or(false)
+                    {
+                        device = Some(dir.file_name().to_str().unwrap().to_string());
+                        break;
                     }
-                };
-
-                Widget::new(id, shared_config.clone())
-                    .with_text(fmt.render(&vars)?)
-                    .with_icon(icon)?
-                    .with_state(state)
+                }
+                device.block_error("battery", "failed to determine default battery - please set your battery device in the configuration file")?
             }
-            _ => Widget::new(id, shared_config.clone())
-                .with_icon(BATTERY_UNAVAILABLE_ICON)?
-                .with_state(State::Warning)
-                .with_spacing(Spacing::Hidden),
         };
 
-        send_widget!(widget);
-    }
+        let mut device: Box<dyn BatteryDevice + Send> = match block_config.driver {
+            BatteryDriver::Sysfs => Box::new(PowerSupplyDevice::from_device(
+                &device,
+                block_config.interval,
+            )),
+            BatteryDriver::Upower => Box::new(UPowerDevice::from_device(&device).await?),
+        };
+
+        macro_rules! send_widget {
+            () => {
+                message_sender
+                    .send(BlockMessage {
+                        id,
+                        widgets: vec![],
+                    })
+                    .await
+                    .internal_error("backlight", "failed to send message")?;
+                device.wait_for_change().await?;
+            };
+            ($widget:ident) => {
+                message_sender
+                    .send(BlockMessage {
+                        id,
+                        widgets: vec![$widget.get_data()],
+                    })
+                    .await
+                    .internal_error("backlight", "failed to send message")?;
+                device.wait_for_change().await?;
+            };
+        }
+
+        loop {
+            let (is_available, status, capacity, time, power) = tokio::join!(
+                device.is_available(),
+                device.status(),
+                device.capacity(),
+                device.time_remaining(),
+                device.usage()
+            );
+
+            let fmt = match status {
+                Err(_) if block_config.hide_missing => {
+                    send_widget!();
+                    continue;
+                }
+                Err(_) => &format_missing,
+                Ok(BatteryStatus::Full) if block_config.hide_full => {
+                    send_widget!();
+                    continue;
+                }
+                Ok(BatteryStatus::Full) => &format_full,
+                Ok(_) => &format,
+            };
+
+            let vars = {
+                if !is_available && block_config.allow_missing {
+                    map! {
+                        "percentage" => Value::from_string("X".to_string()),
+                        "time" => Value::from_string("xx:xx".to_string()),
+                        "power" => Value::from_string("N/A".to_string()),
+                    }
+                } else {
+                    map! {
+                        "percentage" => capacity.clone()
+                            .map(|c| Value::from_integer(c as i64).percents())
+                            .unwrap_or_else(|_| Value::from_string("×".to_string())),
+                        "time" => time
+                            .map(|time| {
+                                if time == 0 {
+                                    Value::from_string("".to_string())
+                                } else {
+                                    Value::from_string(format!(
+                                        "{}:{:02}",
+                                        (time / 60).clamp(0, 99),
+                                        time % 60,
+                                    ))
+                                }
+                            })
+                            .unwrap_or_else(|_| Value::from_string("×".to_string())),
+                        "power" => power
+                            .map(|power| Value::from_float(power / 1e6).watts())
+                            .unwrap_or_else(|_| Value::from_string("×".to_string())),
+                    }
+                }
+            };
+
+            let widget = match (
+                status.unwrap_or_default(),
+                capacity.ok().map(|c| c.clamp(0, 100)),
+            ) {
+                (BatteryStatus::Empty, _) => Widget::new(id, shared_config.clone())
+                    .with_icon(BATTERY_EMPTY_ICON)?
+                    .with_state(State::Critical)
+                    .with_spacing(Spacing::Hidden),
+                (BatteryStatus::Full, _) => Widget::new(id, shared_config.clone())
+                    .with_icon(BATTERY_FULL_ICON)?
+                    .with_spacing(Spacing::Hidden),
+                (status, Some(charge)) => {
+                    let index = (charge as usize * BATTERY_CHARGE_ICONS.len()) / 101;
+                    let icon = BATTERY_CHARGE_ICONS[index];
+
+                    let state = {
+                        if status == BatteryStatus::Charging {
+                            State::Good
+                        } else if charge <= block_config.critical {
+                            State::Critical
+                        } else if charge <= block_config.warning {
+                            State::Warning
+                        } else if charge <= block_config.info {
+                            State::Info
+                        } else if charge > block_config.good {
+                            State::Good
+                        } else {
+                            State::Idle
+                        }
+                    };
+
+                    Widget::new(id, shared_config.clone())
+                        .with_text(fmt.render(&vars)?)
+                        .with_icon(icon)?
+                        .with_state(state)
+                }
+                _ => Widget::new(id, shared_config.clone())
+                    .with_icon(BATTERY_UNAVAILABLE_ICON)?
+                    .with_state(State::Warning)
+                    .with_spacing(Spacing::Hidden),
+            };
+
+            send_widget!(widget);
+        }
+    })
 }

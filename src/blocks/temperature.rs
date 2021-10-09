@@ -42,6 +42,7 @@ use serde::de::Deserialize;
 use std::time::Duration;
 use tokio::fs::{read_dir, read_to_string};
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use super::{BlockEvent, BlockMessage};
 use crate::click::MouseButton;
@@ -80,64 +81,66 @@ impl Default for TemperatureConfig {
     }
 }
 
-pub async fn run(
+pub fn spawn(
     id: usize,
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
-    let block_config =
-        TemperatureConfig::deserialize(block_config).block_config_error("temperature")?;
-    let format = block_config.format.or_default("{average} avg, {max} max")?;
-    let mut text = Widget::new(id, shared_config).with_icon("thermometer")?;
-    let mut collapsed = block_config.collapsed;
+) -> JoinHandle<Result<()>> {
+    tokio::spawn(async move {
+        let block_config =
+            TemperatureConfig::deserialize(block_config).block_config_error("temperature")?;
+        let format = block_config.format.or_default("{average} avg, {max} max")?;
+        let mut text = Widget::new(id, shared_config).with_icon("thermometer")?;
+        let mut collapsed = block_config.collapsed;
 
-    loop {
-        // Get chip info
-        let temp = ChipInfo::new(&block_config.chip).await?.temp;
-        let min_temp = temp.iter().min().cloned().unwrap_or(0);
-        let max_temp = temp.iter().max().cloned().unwrap_or(0);
-        let avg_temp = (temp.iter().sum::<i32>() as f64) / (temp.len() as f64);
+        loop {
+            // Get chip info
+            let temp = ChipInfo::new(&block_config.chip).await?.temp;
+            let min_temp = temp.iter().min().cloned().unwrap_or(0);
+            let max_temp = temp.iter().max().cloned().unwrap_or(0);
+            let avg_temp = (temp.iter().sum::<i32>() as f64) / (temp.len() as f64);
 
-        // Render!
-        let values = map! {
-            "average" => Value::from_integer(avg_temp.round() as i64).degrees(),
-            "min" => Value::from_integer(min_temp as i64).degrees(),
-            "max" => Value::from_integer(max_temp as i64).degrees(),
-        };
-        text.set_text(if collapsed {
-            (String::new(), None)
-        } else {
-            format.render(&values)?
-        });
+            // Render!
+            let values = map! {
+                "average" => Value::from_integer(avg_temp.round() as i64).degrees(),
+                "min" => Value::from_integer(min_temp as i64).degrees(),
+                "max" => Value::from_integer(max_temp as i64).degrees(),
+            };
+            text.set_text(if collapsed {
+                (String::new(), None)
+            } else {
+                format.render(&values)?
+            });
 
-        // Set state
-        text.set_state(match max_temp {
-            x if x <= block_config.good => State::Good,
-            x if x <= block_config.idle => State::Idle,
-            x if x <= block_config.info => State::Info,
-            x if x <= block_config.warning => State::Warning,
-            _ => State::Critical,
-        });
+            // Set state
+            text.set_state(match max_temp {
+                x if x <= block_config.good => State::Good,
+                x if x <= block_config.idle => State::Idle,
+                x if x <= block_config.info => State::Info,
+                x if x <= block_config.warning => State::Warning,
+                _ => State::Critical,
+            });
 
-        message_sender
-            .send(BlockMessage {
-                id,
-                widgets: vec![text.get_data()],
-            })
-            .await
-            .internal_error("temperature", "failed to send message")?;
+            message_sender
+                .send(BlockMessage {
+                    id,
+                    widgets: vec![text.get_data()],
+                })
+                .await
+                .internal_error("temperature", "failed to send message")?;
 
-        tokio::select! {
-            _ = tokio::time::sleep(block_config.interval) => (),
-            Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
-                if click.button == MouseButton::Left {
-                    collapsed = !collapsed;
+            tokio::select! {
+                _ = tokio::time::sleep(block_config.interval) => (),
+                Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
+                    if click.button == MouseButton::Left {
+                        collapsed = !collapsed;
+                    }
                 }
             }
         }
-    }
+    })
 }
 
 #[derive(Debug, Clone)]

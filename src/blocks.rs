@@ -22,6 +22,7 @@ mod weather;
 use serde::de::Deserialize;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use toml::value::{Table, Value};
 
 use crate::click::ClickHandler;
@@ -94,14 +95,14 @@ impl CommonConfig {
     }
 }
 
-pub async fn run_block(
+pub fn spawn_block(
     id: usize,
     block_type: BlockType,
     mut block_config: Value,
     mut shared_config: SharedConfig,
     message_tx: mpsc::Sender<BlockMessage>,
     mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
+) -> Result<JoinHandle<Result<()>>> {
     let common_config = CommonConfig::new(&mut block_config)?;
 
     if let Some(icons_format) = common_config.icons_format {
@@ -116,7 +117,7 @@ pub async fn run_block(
     let click_handler = common_config.click;
 
     // Spawn event handler
-    let (evets_tx, events_rx) = mpsc::channel(64);
+    let (events_tx, events_rx) = mpsc::channel(64);
     tokio::spawn(async move {
         while let Some(event) = events_reciever.recv().await {
             if let BlockEvent::I3Bar(click) = event {
@@ -125,40 +126,35 @@ pub async fn run_block(
                     continue;
                 }
             }
-            // Reciever might be droped -- but we don't care
-            let _ = evets_tx.send(event).await;
+            // If events_rx is dropped then the best we can do here is just end this task
+            if events_tx.send(event).await.is_err() {
+                break;
+            }
         }
     });
 
     use BlockType::*;
-    match block_type {
-        Backlight => backlight::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Battery => battery::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Cpu => cpu::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Custom => custom::run(id, block_config, shared_config, message_tx, events_rx).await,
-        CustomDbus => {
-            custom_dbus::run(id, block_config, shared_config, message_tx, events_rx).await
-        }
-        DiskSpace => disk_space::run(id, block_config, shared_config, message_tx, events_rx).await,
-        FocusedWindow => {
-            focused_window::run(id, block_config, shared_config, message_tx, events_rx).await
-        }
-        Github => github::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Load => load::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Memory => memory::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Music => music::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Net => net::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Pomodoro => pomodoro::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Sound => sound::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Speedtest => speedtest::run(id, block_config, shared_config, message_tx, events_rx).await,
-        SwayKbd => sway_kbd::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Taskwarrior => {
-            taskwarrior::run(id, block_config, shared_config, message_tx, events_rx).await
-        }
-        Temperature => {
-            temperature::run(id, block_config, shared_config, message_tx, events_rx).await
-        }
-        Time => time::run(id, block_config, shared_config, message_tx, events_rx).await,
-        Weather => weather::run(id, block_config, shared_config, message_tx, events_rx).await,
-    }
+    Ok(match block_type {
+        Backlight => backlight::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Battery => battery::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Cpu => cpu::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Custom => custom::spawn(id, block_config, shared_config, message_tx, events_rx),
+        CustomDbus => custom_dbus::spawn(id, block_config, shared_config, message_tx, events_rx),
+        DiskSpace => disk_space::spawn(id, block_config, shared_config, message_tx, events_rx),
+        #[rustfmt::skip]
+        FocusedWindow => focused_window::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Github => github::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Load => load::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Memory => memory::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Music => music::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Net => net::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Pomodoro => pomodoro::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Sound => sound::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Speedtest => speedtest::spawn(id, block_config, shared_config, message_tx, events_rx),
+        SwayKbd => sway_kbd::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Taskwarrior => taskwarrior::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Temperature => temperature::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Time => time::spawn(id, block_config, shared_config, message_tx, events_rx),
+        Weather => weather::spawn(id, block_config, shared_config, message_tx, events_rx),
+    })
 }

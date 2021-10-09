@@ -5,6 +5,7 @@ use std::process::Stdio;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use super::{BlockEvent, BlockMessage};
 use crate::click::MouseButton;
@@ -46,106 +47,108 @@ impl Default for SoundConfig {
     }
 }
 
-pub async fn run(
+pub fn spawn(
     id: usize,
     block_config: toml::Value,
     shared_config: SharedConfig,
     message_sender: mpsc::Sender<BlockMessage>,
     mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> Result<()> {
-    let block_config = SoundConfig::deserialize(block_config).block_config_error("sound")?;
-    let format = block_config.format.or_default("{volume}")?;
-    let mut text = Widget::new(id, shared_config);
+) -> JoinHandle<Result<()>> {
+    tokio::spawn(async move {
+        let block_config = SoundConfig::deserialize(block_config).block_config_error("sound")?;
+        let format = block_config.format.or_default("{volume}")?;
+        let mut text = Widget::new(id, shared_config);
 
-    let device_kind = block_config.device_kind;
-    let icon = |volume: u32| -> String {
-        let prefix = match device_kind {
-            DeviceKind::Source => "microphone",
-            DeviceKind::Sink => "volume",
+        let device_kind = block_config.device_kind;
+        let icon = |volume: u32| -> String {
+            let prefix = match device_kind {
+                DeviceKind::Source => "microphone",
+                DeviceKind::Sink => "volume",
+            };
+
+            let suffix = match volume {
+                0 => "muted",
+                1..=20 => "empty",
+                21..=70 => "half",
+                _ => "full",
+            };
+
+            format!("{}_{}", prefix, suffix)
         };
 
-        let suffix = match volume {
-            0 => "muted",
-            1..=20 => "empty",
-            21..=70 => "half",
-            _ => "full",
-        };
+        let step_width = block_config.step_width.clamp(0, 50) as i32;
 
-        format!("{}_{}", prefix, suffix)
-    };
+        let mut device = AlsaSoundDevice::new(
+            block_config.name.unwrap_or_else(|| "Master".into()),
+            block_config.device.unwrap_or_else(|| "default".into()),
+            block_config.natural_mapping,
+        )
+        .await?;
 
-    let step_width = block_config.step_width.clamp(0, 50) as i32;
+        let mut monitor = Command::new("stdbuf")
+            .args(&["-oL", "alsactl", "monitor"])
+            .stdout(Stdio::piped())
+            .spawn()
+            .block_error("sound", "Failed to start alsactl monitor")?
+            .stdout
+            .block_error("sound", "Failed to pipe alsactl monitor output")?;
+        let mut buffer = [0; 1024]; // Should be more than enough.
 
-    let mut device = AlsaSoundDevice::new(
-        block_config.name.unwrap_or_else(|| "Master".into()),
-        block_config.device.unwrap_or_else(|| "default".into()),
-        block_config.natural_mapping,
-    )
-    .await?;
+        loop {
+            device.get_info().await?;
+            let volume = device.volume();
+            let mut output_name = device.output_name();
 
-    let mut monitor = Command::new("stdbuf")
-        .args(&["-oL", "alsactl", "monitor"])
-        .stdout(Stdio::piped())
-        .spawn()
-        .block_error("sound", "Failed to start alsactl monitor")?
-        .stdout
-        .block_error("sound", "Failed to pipe alsactl monitor output")?;
-    let mut buffer = [0; 1024]; // Should be more than enough.
-
-    loop {
-        device.get_info().await?;
-        let volume = device.volume();
-        let mut output_name = device.output_name();
-
-        if let Some(m) = &block_config.mappings {
-            if let Some(mapped) = m.get(&output_name) {
-                output_name = mapped.to_string();
+            if let Some(m) = &block_config.mappings {
+                if let Some(mapped) = m.get(&output_name) {
+                    output_name = mapped.to_string();
+                }
             }
-        }
 
-        text.set_text(format.render(&map! {
-            "volume" => Value::from_integer(volume as i64).percents(),
-            "output_name" => Value::from_string(output_name),
-        })?);
+            text.set_text(format.render(&map! {
+                "volume" => Value::from_integer(volume as i64).percents(),
+                "output_name" => Value::from_string(output_name),
+            })?);
 
-        if device.muted() {
-            text.set_icon(&icon(0))?;
-            text.set_state(State::Warning);
-            if !block_config.show_volume_when_muted {
-                text.set_text((String::new(), None));
+            if device.muted() {
+                text.set_icon(&icon(0))?;
+                text.set_state(State::Warning);
+                if !block_config.show_volume_when_muted {
+                    text.set_text((String::new(), None));
+                }
+            } else {
+                text.set_icon(&icon(volume))?;
+                text.set_spacing(Spacing::Normal);
+                text.set_state(State::Idle);
             }
-        } else {
-            text.set_icon(&icon(volume))?;
-            text.set_spacing(Spacing::Normal);
-            text.set_state(State::Idle);
-        }
 
-        message_sender
-            .send(BlockMessage {
-                id,
-                widgets: vec![text.get_data()],
-            })
-            .await
-            .internal_error("sound", "failed to send message")?;
+            message_sender
+                .send(BlockMessage {
+                    id,
+                    widgets: vec![text.get_data()],
+                })
+                .await
+                .internal_error("sound", "failed to send message")?;
 
-        tokio::select! {
-            _ = monitor.read(&mut buffer) => (),
-            Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
-                match click.button {
-                    MouseButton::Right => {
-                        device.toggle().await?;
+            tokio::select! {
+                _ = monitor.read(&mut buffer) => (),
+                Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
+                    match click.button {
+                        MouseButton::Right => {
+                            device.toggle().await?;
+                        }
+                        MouseButton::WheelUp => {
+                            device.set_volume(step_width, block_config.max_vol).await?;
+                        }
+                        MouseButton::WheelDown => {
+                            device.set_volume(-step_width, block_config.max_vol).await?;
+                        }
+                        _ => ()
                     }
-                    MouseButton::WheelUp => {
-                        device.set_volume(step_width, block_config.max_vol).await?;
-                    }
-                    MouseButton::WheelDown => {
-                        device.set_volume(-step_width, block_config.max_vol).await?;
-                    }
-                    _ => ()
                 }
             }
         }
-    }
+    })
 }
 
 struct AlsaSoundDevice {
