@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::sync::Arc;
 
 use serde::de::{Deserialize, Deserializer};
 use serde_derive::Deserialize;
@@ -8,11 +8,14 @@ use crate::blocks::BlockType;
 use crate::icons::Icons;
 use crate::themes::Theme;
 
-#[derive(Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct SharedConfig {
-    pub theme: Cow<'static, Theme>,
-    pub icons: Cow<'static, Icons>,
-    pub icons_format: Cow<'static, String>,
+    #[serde(default)]
+    pub theme: Arc<Theme>,
+    #[serde(default)]
+    pub icons: Arc<Icons>,
+    #[serde(default = "Config::default_icons_format")]
+    pub icons_format: Arc<String>,
 }
 
 impl SharedConfig {
@@ -31,23 +34,17 @@ impl SharedConfig {
 impl Default for SharedConfig {
     fn default() -> Self {
         Self {
-            theme: Cow::Owned(Theme::default()),
-            icons: Cow::Owned(Icons::default()),
-            icons_format: Cow::Owned(" {icon} ".to_string()),
+            theme: Arc::new(Theme::default()),
+            icons: Arc::new(Icons::default()),
+            icons_format: Arc::new(" {icon} ".to_string()),
         }
     }
 }
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
-    #[serde(default)]
-    pub icons: Icons,
-
-    #[serde(default)]
-    pub theme: Theme,
-
-    #[serde(default = "Config::default_icons_format")]
-    pub icons_format: String,
+    #[serde(flatten)]
+    shared: SharedConfig,
 
     /// Set to `true` to invert mouse wheel direction
     #[serde(default)]
@@ -58,29 +55,16 @@ pub struct Config {
 }
 
 impl Config {
-    fn default_icons_format() -> String {
-        " {icon} ".to_string()
+    fn default_icons_format() -> Arc<String> {
+        Arc::new(" {icon} ".to_string())
     }
 
     pub fn into_parts(self) -> (SharedConfig, Vec<(BlockType, value::Value)>, bool) {
         let Self {
-            icons,
-            theme,
-            icons_format,
+            shared,
             invert_scrolling,
             blocks,
         } = self;
-
-        let theme = Box::leak(Box::new(theme));
-        let icons = Box::leak(Box::new(icons));
-        let icons_format = Box::leak(Box::new(icons_format));
-
-        let shared = SharedConfig {
-            theme: Cow::Borrowed(theme),
-            icons: Cow::Borrowed(icons),
-            icons_format: Cow::Borrowed(icons_format),
-        };
-
         (shared, blocks, invert_scrolling)
     }
 }

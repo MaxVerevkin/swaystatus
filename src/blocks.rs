@@ -23,6 +23,7 @@ pub mod prelude;
 
 use serde::de::Deserialize;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::task::JoinHandle;
 use toml::value::{Table, Value};
 
@@ -106,14 +107,10 @@ pub fn spawn_block(
     let common_config = CommonConfig::new(&mut block_config)?;
 
     if let Some(icons_format) = common_config.icons_format {
-        *swaystatus.shared_config.icons_format.to_mut() = icons_format;
+        *Arc::make_mut(&mut swaystatus.shared_config.icons_format) = icons_format;
     }
     if let Some(theme_overrides) = common_config.theme_overrides {
-        swaystatus
-            .shared_config
-            .theme
-            .to_mut()
-            .apply_overrides(&theme_overrides)?;
+        Arc::make_mut(&mut swaystatus.shared_config.theme).apply_overrides(&theme_overrides)?;
     }
     let click_handler = common_config.click;
 
