@@ -32,10 +32,8 @@ impl Default for NetConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
-    let mut events = swaystatus.request_events_receiver(id);
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+    let mut events = events();
     tokio::spawn(async move {
         let block_config = NetConfig::deserialize(block_config).block_config_error("net")?;
         let mut format = block_config
@@ -43,7 +41,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
             .or_default("{speed_down;K}{speed_up;k}")?;
         let mut format_alt = block_config.format_alt;
 
-        let mut text = Widget::new(id, shared_config.clone());
+        let mut text = api.new_widget();
         let interval = Duration::from_secs(block_config.interval);
 
         // Stats
@@ -91,23 +89,17 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
 
             text.set_icon(device.icon)?;
             text.set_text(format.render(&map! {
-            "ssid" => Value::from_string(wifi.0.unwrap_or_else(|| "N/A".to_string())),
-            "signal_strength" => Value::from_integer(wifi.2.unwrap_or_default()).percents(),
-            "frequency" => Value::from_float(wifi.1.unwrap_or_default()).hertz(),
-            "speed_down" => Value::from_float(speed_down).bytes().icon(shared_config.get_icon("net_down")?),
-            "speed_up" => Value::from_float(speed_up).bytes().icon(shared_config.get_icon("net_up")?),
-            "graph_down" => Value::from_string(util::format_vec_to_bar_graph(&rx_hist)),
-            "graph_up" => Value::from_string(util::format_vec_to_bar_graph(&tx_hist)),
-            "device" => Value::from_string(device.interface),
-        })?);
+                "ssid" => Value::from_string(wifi.0.unwrap_or_else(|| "N/A".to_string())),
+                "signal_strength" => Value::from_integer(wifi.2.unwrap_or_default()).percents(),
+                "frequency" => Value::from_float(wifi.1.unwrap_or_default()).hertz(),
+                "speed_down" => Value::from_float(speed_down).bytes().icon(api.get_icon("net_down")?),
+                "speed_up" => Value::from_float(speed_up).bytes().icon(api.get_icon("net_up")?),
+                "graph_down" => Value::from_string(util::format_vec_to_bar_graph(&rx_hist)),
+                "graph_up" => Value::from_string(util::format_vec_to_bar_graph(&tx_hist)),
+                "device" => Value::from_string(device.interface),
+            })?);
 
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![text.get_data()],
-                })
-                .await
-                .internal_error("net", "failed to send message")?;
+            api.send_widgets(vec![text.get_data()]).await?;
 
             tokio::select! {
                 _ = tokio::time::sleep(interval) =>(),

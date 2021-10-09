@@ -63,17 +63,15 @@ impl Default for DiskSpaceConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config =
             DiskSpaceConfig::deserialize(block_config).block_config_error("disk_space")?;
 
-        let icon = shared_config.get_icon("disk_drive")?;
+        let icon = api.get_icon("disk_drive")?;
         let icon = icon.trim();
 
-        let mut text = Widget::new(id, shared_config);
+        let mut text = api.new_widget();
         let format = block_config.format.or_default("{available}")?;
 
         let unit = match block_config.unit.as_str() {
@@ -154,15 +152,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
             };
             text.set_state(state);
 
-            // Send the widget
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![text.get_data()],
-                })
-                .await
-                .internal_error("disk_space", "failed to send message")?;
-
+            api.send_widgets(vec![text.get_data()]).await?;
             interval.tick().await;
         }
     })

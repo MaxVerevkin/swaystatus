@@ -56,12 +56,10 @@ impl Default for LoadConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config = LoadConfig::deserialize(block_config).block_config_error("cpu")?;
-        let mut text = Widget::new(id, shared_config).with_icon("cogs")?;
+        let mut text = api.new_widget().with_icon("cogs")?;
         let format = block_config.format.or_default("{1m}")?;
         let mut interval = tokio::time::interval(block_config.interval);
 
@@ -108,14 +106,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
                 "15m" => Value::from_float(m15),
             ))?);
 
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![text.get_data()],
-                })
-                .await
-                .internal_error("load", "failed to send message")?;
-
+            api.send_widgets(vec![text.get_data()]).await?;
             interval.tick().await;
         }
     })

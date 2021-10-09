@@ -64,24 +64,16 @@ impl Default for PomodoroConfig {
 }
 
 struct Block {
-    id: usize,
+    api: CommonApi,
     widget: Widget,
     block_config: PomodoroConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
     events_receiver: mpsc::Receiver<BlockEvent>,
 }
 
 impl Block {
     async fn set_text(&mut self, text: String) -> Result<()> {
         self.widget.set_full_text(text);
-        self.message_sender
-            .send(BlockMessage {
-                id: self.id,
-                widgets: vec![self.widget.get_data()],
-            })
-            .await
-            .internal_error("pomodoro", "failed to send message")?;
-        Ok(())
+        self.api.send_widgets(vec![self.widget.get_data()]).await
     }
 
     async fn wait_for_click(&mut self, button: MouseButton) {
@@ -221,19 +213,16 @@ impl Block {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
-    let events = swaystatus.request_events_receiver(id);
+pub fn spawn(block_config: toml::Value, api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+    let events = events();
     tokio::spawn(async move {
         let block_config =
             PomodoroConfig::deserialize(block_config).block_config_error("pomodoro")?;
-        let widget = Widget::new(id, shared_config).with_icon("pomodoro")?;
+        let widget = api.new_widget().with_icon("pomodoro")?;
         let mut block = Block {
-            id,
+            api,
             widget,
             block_config,
-            message_sender,
             events_receiver: events,
         };
 

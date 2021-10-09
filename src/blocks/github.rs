@@ -29,14 +29,12 @@ fn default_hide() -> bool {
     true
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config = GithubConfig::deserialize(block_config).block_config_error("github")?;
         let interval = Duration::from_secs(block_config.interval);
         let format = block_config.format.or_default("{total:1}")?;
-        let mut text = Widget::new(id, shared_config).with_icon("github")?;
+        let mut text = api.new_widget().with_icon("github")?;
 
         // Http client
         let client = reqwest::Client::new();
@@ -48,25 +46,18 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
         loop {
             let total = get_total(&request).await;
 
-            text.set_text(match total {
-                Some(total) => format.render(&map! {
-                    "total" => Value::from_integer(total as i64),
-                })?,
-                None => ("x".to_string(), None),
-            });
+            let mut widgets = Vec::new();
+            if total != Some(0) || !block_config.hide {
+                text.set_text(match total {
+                    Some(total) => format.render(&map! {
+                        "total" => Value::from_integer(total as i64),
+                    })?,
+                    None => ("x".to_string(), None),
+                });
+                widgets.push(text.get_data());
+            }
 
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: if total == Some(0) && block_config.hide {
-                        vec![]
-                    } else {
-                        vec![text.get_data()]
-                    },
-                })
-                .await
-                .internal_error("github", "failed to send message")?;
-
+            api.send_widgets(widgets).await?;
             tokio::time::sleep(interval).await;
         }
     })

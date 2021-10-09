@@ -103,10 +103,8 @@ impl Default for CustomConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
-    let mut events = swaystatus.request_events_receiver(id);
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+    let mut events = events();
     tokio::spawn(async move {
         let block_config = CustomConfig::deserialize(block_config).block_config_error("custom")?;
         let CustomConfig {
@@ -121,7 +119,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
         } = block_config;
 
         let interval = Duration::from_secs(interval);
-        let mut widget = Widget::new(id, shared_config);
+        let mut widget = api.new_widget();
 
         // Choose the shell in this priority:
         // 1) `shell` config option
@@ -171,10 +169,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
                 vec![widget.get_data()]
             };
 
-            message_sender
-                .send(BlockMessage { id, widgets })
-                .await
-                .internal_error("custom", "failed to send message")?;
+            api.send_widgets(widgets).await?;
 
             loop {
                 tokio::select! {

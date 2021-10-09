@@ -1,62 +1,80 @@
-mod backlight;
-mod battery;
-mod cpu;
-mod custom;
-mod custom_dbus;
-mod disk_space;
-mod focused_window;
-mod github;
-mod load;
-mod memory;
-mod music;
-mod net;
-mod pomodoro;
-mod sound;
-mod speedtest;
-mod sway_kbd;
-mod taskwarrior;
-mod temperature;
-mod time;
-mod weather;
-
 pub mod prelude;
 
 use serde::de::Deserialize;
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::task::JoinHandle;
+use tokio::sync::mpsc;
 use toml::value::{Table, Value};
 
 use crate::click::ClickHandler;
+use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::protocol::i3bar_block::I3BarBlock;
 use crate::protocol::i3bar_event::I3BarEvent;
 use crate::signals::Signal;
+use crate::widget::Widget;
 
-#[derive(serde_derive::Deserialize, Debug, Clone, Copy, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum BlockType {
-    Backlight,
-    Battery,
-    Cpu,
-    Custom,
-    CustomDbus,
-    DiskSpace,
-    FocusedWindow,
-    Github,
-    Load,
-    Memory,
-    Music,
-    Net,
-    Pomodoro,
-    Sound,
-    Speedtest,
-    SwayKbd,
-    Taskwarrior,
-    Temperature,
-    Time,
-    Weather,
+macro_rules! define_blocks {
+    ($($type:ident $mod:ident,)*) => {
+        $(mod $mod;)*
+
+        #[derive(serde_derive::Deserialize, Debug, Clone, Copy, PartialEq)]
+        #[serde(rename_all = "snake_case")]
+        pub enum BlockType {
+            $($type,)*
+        }
+
+        const BLOCK_NAMES: &[&str] = &[
+            $(stringify!($mod),)*
+        ];
+
+        const BLOCK_SPAWNERS: &[&BlockSpawnerFn] = &[
+            $(&$mod::spawn as &BlockSpawnerFn,)*
+        ];
+
+        /// Matches the block's type to block's name
+        #[inline(always)]
+        pub fn block_name(block: BlockType) -> &'static str {
+            // SAFETY: The length of BlockType and BLOCK_NAMES must be equal because the number
+            // of $type is equal to the number of $mod (provided by the macro declaration)
+            unsafe { BLOCK_NAMES.get_unchecked(block as isize as usize) }
+        }
+
+        /// Matches the block's type to block's spawner function
+        #[inline(always)]
+        pub fn block_spawner(block: BlockType) -> &'static BlockSpawnerFn {
+            // SAFETY: The length of BlockType and BLOCK_SPAWNERS must be equal because the number
+            // of $type is equal to the number of $mod (provided by the macro declaration)
+            unsafe { BLOCK_SPAWNERS.get_unchecked(block as isize as usize) }
+        }
+    };
 }
+
+define_blocks!(
+    Backlight backlight,
+    Battery battery,
+    Cpu cpu,
+    Custom custom,
+    CustomDbus custom_dbus,
+    DiskSpace disk_space,
+    FocusedWindow focused_window,
+    Github github,
+    Load load,
+    Memory memory,
+    Music music,
+    Net net,
+    Pomodoro pomodoro,
+    Sound sound,
+    Speedtest speedtest,
+    SwayKbd sway_kbd,
+    Taskwarrior taskwarrior,
+    Temperature temperature,
+    Time time,
+    Weather weather,
+);
+
+pub type EventsRxGetter<'a> = &'a mut dyn FnMut() -> mpsc::Receiver<BlockEvent>;
+
+pub type BlockSpawnerFn = dyn Fn(Value, CommonApi, EventsRxGetter) -> BlockHandle;
 
 pub type BlockHandle = tokio::task::JoinHandle<std::result::Result<(), crate::errors::Error>>;
 
@@ -73,13 +91,13 @@ pub enum BlockEvent {
 }
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
-struct CommonConfig {
+pub struct CommonConfig {
     #[serde(default)]
-    click: ClickHandler,
+    pub click: ClickHandler,
     #[serde(default)]
-    icons_format: Option<String>,
+    pub icons_format: Option<String>,
     #[serde(default)]
-    theme_overrides: Option<HashMap<String, String>>,
+    pub theme_overrides: Option<HashMap<String, String>>,
 }
 
 impl CommonConfig {
@@ -98,46 +116,29 @@ impl CommonConfig {
     }
 }
 
-pub fn spawn_block(
-    id: usize,
-    block_type: BlockType,
-    mut block_config: Value,
-    swaystatus: &mut crate::Swaystatus,
-) -> Result<(JoinHandle<Result<()>>, ClickHandler)> {
-    let common_config = CommonConfig::new(&mut block_config)?;
+pub struct CommonApi {
+    pub id: usize,
+    pub block_name: &'static str,
+    pub shared_config: SharedConfig,
+    pub message_sender: mpsc::Sender<BlockMessage>,
+}
 
-    if let Some(icons_format) = common_config.icons_format {
-        *Arc::make_mut(&mut swaystatus.shared_config.icons_format) = icons_format;
+impl CommonApi {
+    pub fn new_widget(&self) -> Widget {
+        Widget::new(self.id, self.shared_config.clone())
     }
-    if let Some(theme_overrides) = common_config.theme_overrides {
-        Arc::make_mut(&mut swaystatus.shared_config.theme).apply_overrides(&theme_overrides)?;
-    }
-    let click_handler = common_config.click;
 
-    use BlockType::*;
-    Ok((
-        match block_type {
-            Backlight => backlight::spawn(id, block_config, swaystatus),
-            Battery => battery::spawn(id, block_config, swaystatus),
-            Cpu => cpu::spawn(id, block_config, swaystatus),
-            Custom => custom::spawn(id, block_config, swaystatus),
-            CustomDbus => custom_dbus::spawn(id, block_config, swaystatus),
-            DiskSpace => disk_space::spawn(id, block_config, swaystatus),
-            FocusedWindow => focused_window::spawn(id, block_config, swaystatus),
-            Github => github::spawn(id, block_config, swaystatus),
-            Load => load::spawn(id, block_config, swaystatus),
-            Memory => memory::spawn(id, block_config, swaystatus),
-            Music => music::spawn(id, block_config, swaystatus),
-            Net => net::spawn(id, block_config, swaystatus),
-            Pomodoro => pomodoro::spawn(id, block_config, swaystatus),
-            Sound => sound::spawn(id, block_config, swaystatus),
-            Speedtest => speedtest::spawn(id, block_config, swaystatus),
-            SwayKbd => sway_kbd::spawn(id, block_config, swaystatus),
-            Taskwarrior => taskwarrior::spawn(id, block_config, swaystatus),
-            Temperature => temperature::spawn(id, block_config, swaystatus),
-            Time => time::spawn(id, block_config, swaystatus),
-            Weather => weather::spawn(id, block_config, swaystatus),
-        },
-        click_handler,
-    ))
+    pub fn get_icon(&self, icon: &str) -> Result<String> {
+        self.shared_config.get_icon(icon)
+    }
+
+    pub async fn send_widgets(&mut self, widgets: Vec<I3BarBlock>) -> Result<()> {
+        self.message_sender
+            .send(BlockMessage {
+                id: self.id,
+                widgets,
+            })
+            .await
+            .internal_error(self.block_name, "failed to send message")
+    }
 }

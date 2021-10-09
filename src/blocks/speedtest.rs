@@ -49,19 +49,17 @@ impl Default for SpeedtestConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
-        let icon_ping = shared_config.get_icon("ping")?;
-        let icon_down = shared_config.get_icon("net_down")?;
-        let icon_up = shared_config.get_icon("net_up")?;
+        let icon_ping = api.get_icon("ping")?;
+        let icon_down = api.get_icon("net_down")?;
+        let icon_up = api.get_icon("net_up")?;
         let block_config =
             SpeedtestConfig::deserialize(block_config).block_config_error("speedtest")?;
         let format = block_config
             .format
             .or_default("{ping}{speed_down}{speed_up}")?;
-        let mut text = Widget::new(id, shared_config);
+        let mut text = api.new_widget();
 
         let mut command = Command::new("speedtest-cli");
         command.arg("--json");
@@ -83,14 +81,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
                 "speed_up" => Value::from_float(output.upload).bits().icon(icon_up.clone()),
             })?);
 
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![text.get_data()],
-                })
-                .await
-                .internal_error("speedtest", "failed to send message")?;
-
+            api.send_widgets(vec![text.get_data()]).await?;
             tokio::time::sleep(block_config.interval).await;
         }
     })

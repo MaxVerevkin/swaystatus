@@ -233,10 +233,8 @@ impl BacklitDevice {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
-    let mut events = swaystatus.request_events_receiver(id);
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+    let mut events = events();
     tokio::spawn(async move {
         let block_config =
             BacklightConfig::deserialize(block_config).block_config_error("backlight")?;
@@ -259,7 +257,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
             .event_stream(&mut buffer)
             .block_error("backlight", "Failed to create event stream")?;
 
-        let mut text = Widget::new(id, shared_config);
+        let mut text = api.new_widget();
 
         loop {
             let brightness = device.brightness().await?;
@@ -272,14 +270,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
             text.set_text(format.render(&map! {
                 "brightness" => Value::from_integer(brightness as i64).percents(),
             })?);
-
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![text.get_data()],
-                })
-                .await
-                .internal_error("backlight", "failed to send message")?;
+            api.send_widgets(vec![text.get_data()]).await?;
 
             tokio::select! {
                 _ = file_changes.next() => (),

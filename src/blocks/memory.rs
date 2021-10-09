@@ -91,10 +91,8 @@ impl Default for MemoryConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
-    let mut events = swaystatus.request_events_receiver(id);
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+    let mut events = events();
     tokio::spawn(async move {
         let block_config = MemoryConfig::deserialize(block_config).block_config_error("memory")?;
 
@@ -107,8 +105,8 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
                 .or_default("{swap_free;M}/{swap_total;M}({swap_used_percents})")?,
         );
 
-        let mut text_mem = Widget::new(id, shared_config.clone()).with_icon("memory_mem")?;
-        let mut text_swap = Widget::new(id, shared_config).with_icon("memory_swap")?;
+        let mut text_mem = api.new_widget().with_icon("memory_mem")?;
+        let mut text_swap = api.new_widget().with_icon("memory_swap")?;
 
         let mut memtype = block_config.display_type;
         let clickable = block_config.clickable;
@@ -172,13 +170,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
                 },
             });
 
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![text.get_data()],
-                })
-                .await
-                .internal_error("memory", "failed to send message")?;
+            api.send_widgets(vec![text.get_data()]).await?;
 
             tokio::select! {
                 _ = tokio::time::sleep(interval) =>(),

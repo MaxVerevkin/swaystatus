@@ -15,14 +15,12 @@ pub struct SwayKbdConfig {
     pub mappings: Option<HashMap<String, String>>,
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config =
             SwayKbdConfig::deserialize(block_config).block_config_error("sway_kbd")?;
         let format = block_config.format.or_default("{layout}")?;
-        let mut text = Widget::new(id, shared_config);
+        let mut text = api.new_widget();
 
         // New connection
         let mut connection = Connection::new()
@@ -56,14 +54,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
             text.set_text(format.render(&map! {
                 "layout" => Value::from_string(layout_mapped),
             })?);
-
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![text.get_data()],
-                })
-                .await
-                .internal_error("sway_kbd", "failed to send message")?;
+            api.send_widgets(vec![text.get_data()]).await?;
 
             // Wait for new event
             loop {

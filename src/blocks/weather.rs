@@ -217,9 +217,7 @@ impl Default for WeatherConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config =
             WeatherConfig::deserialize(block_config).block_config_error("weather")?;
@@ -228,7 +226,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
             .clone()
             .or_default("{weather} {temp}\u{00b0}")?;
 
-        let update = || async {
+        loop {
             let data = block_config.service.get(block_config.autolocate).await?;
 
             let apparent_temp = australian_apparent_temp(
@@ -264,24 +262,13 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
                 _ => "weather_default",
             };
 
-            let widget = Widget::new(id, shared_config.clone())
+            let widget = api
+                .new_widget()
                 .with_text(format.render(&keys)?)
                 .with_icon(icon)?
                 .get_data();
+            api.send_widgets(vec![widget]).await?;
 
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![widget],
-                })
-                .await
-                .internal_error("backlight", "failed to send message")?;
-
-            Ok(())
-        };
-
-        loop {
-            update().await?;
             tokio::time::sleep(block_config.interval).await;
         }
     })

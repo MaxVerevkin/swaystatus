@@ -38,14 +38,12 @@ impl Default for SoundConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
-    let mut events = swaystatus.request_events_receiver(id);
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+    let mut events = events();
     tokio::spawn(async move {
         let block_config = SoundConfig::deserialize(block_config).block_config_error("sound")?;
         let format = block_config.format.or_default("{volume}")?;
-        let mut text = Widget::new(id, shared_config);
+        let mut text = api.new_widget();
 
         let device_kind = block_config.device_kind;
         let icon = |volume: u32| -> String {
@@ -110,13 +108,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
                 text.set_state(WidgetState::Idle);
             }
 
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![text.get_data()],
-                })
-                .await
-                .internal_error("sound", "failed to send message")?;
+            api.send_widgets(vec![text.get_data()]).await?;
 
             tokio::select! {
                 _ = monitor.read(&mut buffer) => (),

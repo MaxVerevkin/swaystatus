@@ -78,17 +78,15 @@ impl Default for TaskwarriorConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
-    let mut events = swaystatus.request_events_receiver(id);
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+    let mut events = events();
     tokio::spawn(async move {
         let block_config =
             TaskwarriorConfig::deserialize(block_config).block_config_error("taskwarrior")?;
         let format = block_config.format.or_default("{count}")?;
         let format_singular = block_config.format_singular.or_default("{count}")?;
         let format_everything_done = block_config.format_everything_done.or_default("{count}")?;
-        let mut widget = Widget::new(id, shared_config).with_icon("tasks")?;
+        let mut widget = api.new_widget().with_icon("tasks")?;
 
         let mut filters = block_config.filters.iter().cycle();
         let mut filter = filters
@@ -114,16 +112,11 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
                 WidgetState::Idle
             });
 
-            let widgets = if number_of_tasks == 0 && block_config.hide_when_zero {
-                vec![]
-            } else {
-                vec![widget.get_data()]
-            };
-
-            message_sender
-                .send(BlockMessage { id, widgets })
-                .await
-                .internal_error("taskwarrior", "failed to send message")?;
+            let mut widgets = Vec::new();
+            if number_of_tasks != 0 || !block_config.hide_when_zero {
+                widgets.push(widget.get_data());
+            }
+            api.send_widgets(widgets).await?;
 
             tokio::select! {
                 _ = tokio::time::sleep(block_config.interval) =>(),

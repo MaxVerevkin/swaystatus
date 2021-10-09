@@ -50,14 +50,12 @@ impl Default for FocusedWindowConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config =
             FocusedWindowConfig::deserialize(block_config).block_config_error("focused_window")?;
         let format = block_config.format.clone().or_default("{title^21}")?;
-        let mut widget = Widget::new(id, shared_config);
+        let mut widget = api.new_widget();
 
         let mut title = None;
         let mut marks = Vec::new();
@@ -118,16 +116,13 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
                 let mut widgets = vec![];
                 if title.is_some() || !block_config.autohide {
                     widget.set_text(format.render(&map! {
-                    "title" => Value::from_string(title.clone().unwrap_or_default()),
-                    "marks" => Value::from_string(marks.iter().map(|m| format!("[{}]",m)).collect()),
-                    "visible_marks" => Value::from_string(marks.iter().filter(|m| !m.starts_with('_')).map(|m| format!("[{}]",m)).collect()),
-                })?);
+                        "title" => Value::from_string(title.clone().unwrap_or_default()),
+                        "marks" => Value::from_string(marks.iter().map(|m| format!("[{}]",m)).collect()),
+                        "visible_marks" => Value::from_string(marks.iter().filter(|m| !m.starts_with('_')).map(|m| format!("[{}]",m)).collect()),
+                    })?);
                     widgets.push(widget.get_data());
                 }
-                message_sender
-                    .send(BlockMessage { id, widgets })
-                    .await
-                    .internal_error("focused_window", "failed to send message")?;
+                api.send_widgets(widgets).await?;
             }
         }
     })

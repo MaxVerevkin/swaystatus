@@ -29,19 +29,17 @@ impl Default for CpuConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
-    let mut events = swaystatus.request_events_receiver(id);
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+    let mut events = events();
     tokio::spawn(async move {
         let block_config = CpuConfig::deserialize(block_config).block_config_error("cpu")?;
         let mut format = block_config.format.or_default("{utilization}")?;
         let mut format_alt = block_config.format_alt;
 
-        let boost_icon_on = shared_config.get_icon("cpu_boost_on")?;
-        let boost_icon_off = shared_config.get_icon("cpu_boost_off")?;
+        let boost_icon_on = api.get_icon("cpu_boost_on")?;
+        let boost_icon_off = api.get_icon("cpu_boost_off")?;
 
-        let mut text = Widget::new(id, shared_config).with_icon("cpu")?;
+        let mut text = api.new_widget().with_icon("cpu")?;
         let interval = Duration::from_secs(block_config.interval);
 
         // Store previous /proc/stat state
@@ -106,14 +104,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
             }
 
             text.set_text(format.render(&values)?);
-
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![text.get_data()],
-                })
-                .await
-                .internal_error("cpu", "failed to send message")?;
+            api.send_widgets(vec![text.get_data()]).await?;
 
             tokio::select! {
                 _ = tokio::time::sleep(interval) => (),

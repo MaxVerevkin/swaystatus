@@ -1,4 +1,4 @@
-pub use super::{BlockEvent, BlockHandle, BlockMessage, BlockType};
+pub use super::{BlockEvent, BlockHandle, BlockMessage, BlockType, CommonApi, EventsRxGetter};
 pub use crate::click::MouseButton;
 pub use crate::errors::{block_error, OptionExt, Result, ResultExt, StdResult};
 pub use crate::formatting::{value::Value, FormatTemplate};

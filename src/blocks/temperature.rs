@@ -74,15 +74,13 @@ impl Default for TemperatureConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
-    let mut events = swaystatus.request_events_receiver(id);
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+    let mut events = events();
     tokio::spawn(async move {
         let block_config =
             TemperatureConfig::deserialize(block_config).block_config_error("temperature")?;
         let format = block_config.format.or_default("{average} avg, {max} max")?;
-        let mut text = Widget::new(id, shared_config).with_icon("thermometer")?;
+        let mut text = api.new_widget().with_icon("thermometer")?;
         let mut collapsed = block_config.collapsed;
 
         loop {
@@ -113,13 +111,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
                 _ => WidgetState::Critical,
             });
 
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![text.get_data()],
-                })
-                .await
-                .internal_error("temperature", "failed to send message")?;
+            api.send_widgets(vec![text.get_data()]).await?;
 
             tokio::select! {
                 _ = tokio::time::sleep(block_config.interval) => (),

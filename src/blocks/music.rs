@@ -37,22 +37,23 @@ impl Default for MusicConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
-    let mut events = swaystatus.request_events_receiver(id);
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+    let mut events = events();
     tokio::spawn(async move {
         let block_config = MusicConfig::deserialize(block_config).block_config_error("music")?;
 
-        let mut text = Widget::new(id, shared_config.clone()).with_icon("music")?;
-        let mut play_pause_button = Widget::new(id, shared_config.clone())
+        let mut text = api.new_widget().with_icon("music")?;
+        let mut play_pause_button = api
+            .new_widget()
             .with_instance(PLAY_PAUSE_BTN)
             .with_spacing(WidgetSpacing::Hidden);
-        let mut next_button = Widget::new(id, shared_config.clone())
+        let mut next_button = api
+            .new_widget()
             .with_instance(NEXT_BTN)
             .with_spacing(WidgetSpacing::Hidden)
             .with_icon("music_next")?;
-        let mut prev_button = Widget::new(id, shared_config)
+        let mut prev_button = api
+            .new_widget()
             .with_instance(PREV_BTN)
             .with_spacing(WidgetSpacing::Hidden)
             .with_icon("music_prev")?;
@@ -122,10 +123,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
                 }
             };
 
-            message_sender
-                .send(BlockMessage { id, widgets })
-                .await
-                .internal_error("music", "failed to send message")?;
+            api.send_widgets(widgets).await?;
 
             if let Some(ref mut player) = player {
                 player.rotating.rotate();

@@ -19,9 +19,11 @@ use futures::stream::futures_unordered::FuturesUnordered;
 use futures::stream::StreamExt;
 use protocol::i3bar_event::I3BarEvent;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use blocks::prelude::*;
+use blocks::CommonConfig;
 use click::ClickHandler;
 use config::Config;
 use config::SharedConfig;
@@ -133,6 +135,7 @@ async fn run(config: Option<&str>, noinit: bool, never_pause: bool) -> Result<()
 }
 
 pub struct Swaystatus {
+    pub blocks_cnt: usize,
     pub shared_config: SharedConfig,
 
     pub spawned_blocks: FuturesUnordered<BlockHandle>,
@@ -148,6 +151,7 @@ impl Swaystatus {
     pub fn new(shared_config: SharedConfig) -> Self {
         let (message_sender, message_receiver) = mpsc::channel(64);
         Self {
+            blocks_cnt: 0,
             shared_config,
 
             spawned_blocks: FuturesUnordered::new(),
@@ -160,24 +164,39 @@ impl Swaystatus {
         }
     }
 
-    pub fn request_events_receiver(&mut self, id: usize) -> mpsc::Receiver<BlockEvent> {
-        let (sender, receiver) = mpsc::channel(64);
-        self.block_event_sentders.insert(id, sender);
-        receiver
-    }
-
     pub fn spawn_block(
         &mut self,
         block_type: BlockType,
-        block_config: toml::value::Value,
+        mut block_config: toml::Value,
     ) -> Result<()> {
-        let (handle, click) =
-            crate::blocks::spawn_block(self.spawned_blocks.len(), block_type, block_config, self)?;
+        let common_config = CommonConfig::new(&mut block_config)?;
+        let mut shared_config = self.shared_config.clone();
+
+        // Overrides
+        if let Some(icons_format) = common_config.icons_format {
+            *Arc::make_mut(&mut shared_config.icons_format) = icons_format;
+        }
+        if let Some(theme_overrides) = common_config.theme_overrides {
+            Arc::make_mut(&mut shared_config.theme).apply_overrides(&theme_overrides)?;
+        }
+
+        let api = CommonApi {
+            id: self.blocks_cnt,
+            block_name: blocks::block_name(block_type),
+            shared_config,
+            message_sender: self.message_sender.clone(),
+        };
+
+        let handle = blocks::block_spawner(block_type)(block_config, api, &mut || {
+            let (sender, receiver) = mpsc::channel(64);
+            self.block_event_sentders.insert(self.blocks_cnt, sender);
+            receiver
+        });
+
         self.spawned_blocks.push(handle);
-        self.block_click_handlers.push(click);
-
+        self.block_click_handlers.push(common_config.click);
         self.rendered_blocks.push(Vec::new());
-
+        self.blocks_cnt += 1;
         Ok(())
     }
 

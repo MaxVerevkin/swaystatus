@@ -471,9 +471,7 @@ impl Default for BatteryDriver {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config =
             BatteryConfig::deserialize(block_config).block_config_error("battery")?;
@@ -511,36 +509,13 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
             }
         };
 
-        let mut device: Box<dyn BatteryDevice + Send> = match block_config.driver {
+        let device: Box<dyn BatteryDevice + Send> = match block_config.driver {
             BatteryDriver::Sysfs => Box::new(PowerSupplyDevice::from_device(
                 &device,
                 block_config.interval,
             )),
             BatteryDriver::Upower => Box::new(UPowerDevice::from_device(&device).await?),
         };
-
-        macro_rules! send_widget {
-            () => {
-                message_sender
-                    .send(BlockMessage {
-                        id,
-                        widgets: vec![],
-                    })
-                    .await
-                    .internal_error("backlight", "failed to send message")?;
-                device.wait_for_change().await?;
-            };
-            ($widget:ident) => {
-                message_sender
-                    .send(BlockMessage {
-                        id,
-                        widgets: vec![$widget.get_data()],
-                    })
-                    .await
-                    .internal_error("backlight", "failed to send message")?;
-                device.wait_for_change().await?;
-            };
-        }
 
         loop {
             let (is_available, status, capacity, time, power) = tokio::join!(
@@ -553,15 +528,15 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
 
             let fmt = match status {
                 Err(_) if block_config.hide_missing => {
-                    send_widget!();
+                    api.send_widgets(vec![]).await?;
                     continue;
                 }
-                Err(_) => &format_missing,
                 Ok(BatteryStatus::Full) if block_config.hide_full => {
-                    send_widget!();
+                    api.send_widgets(vec![]).await?;
                     continue;
                 }
                 Ok(BatteryStatus::Full) => &format_full,
+                Err(_) => &format_missing,
                 Ok(_) => &format,
             };
 
@@ -601,11 +576,13 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
                 status.unwrap_or_default(),
                 capacity.ok().map(|c| c.clamp(0, 100)),
             ) {
-                (BatteryStatus::Empty, _) => Widget::new(id, shared_config.clone())
+                (BatteryStatus::Empty, _) => api
+                    .new_widget()
                     .with_icon(BATTERY_EMPTY_ICON)?
                     .with_state(WidgetState::Critical)
                     .with_spacing(WidgetSpacing::Hidden),
-                (BatteryStatus::Full, _) => Widget::new(id, shared_config.clone())
+                (BatteryStatus::Full, _) => api
+                    .new_widget()
                     .with_icon(BATTERY_FULL_ICON)?
                     .with_spacing(WidgetSpacing::Hidden),
                 (status, Some(charge)) => {
@@ -628,18 +605,19 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
                         }
                     };
 
-                    Widget::new(id, shared_config.clone())
+                    api.new_widget()
                         .with_text(fmt.render(&vars)?)
                         .with_icon(icon)?
                         .with_state(state)
                 }
-                _ => Widget::new(id, shared_config.clone())
+                _ => api
+                    .new_widget()
                     .with_icon(BATTERY_UNAVAILABLE_ICON)?
                     .with_state(WidgetState::Warning)
                     .with_spacing(WidgetSpacing::Hidden),
             };
 
-            send_widget!(widget);
+            api.send_widgets(vec![widget.get_data()]).await?;
         }
     })
 }

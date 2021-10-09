@@ -52,13 +52,11 @@ impl Default for TimeConfig {
     }
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config = TimeConfig::deserialize(block_config).block_config_error("time")?;
         let mut interval = tokio::time::interval(Duration::from_secs(block_config.interval));
-        let mut text = Widget::new(id, shared_config).with_icon("time")?;
+        let mut text = api.new_widget().with_icon("time")?;
         // `FormatTemplate` doesn't do much stuff here - we just want to get the original "full" and
         // "short" formats, so we "render" it without providing any placeholders.
         let (format, format_short) = block_config.format.or_default("")?.render(&HashMap::<
@@ -84,15 +82,7 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &Swaystatus) -> B
             let full_time = get_time(format, timezone, locale);
             let short_time = format_short.map(|f| get_time(f, timezone, locale));
             text.set_text((full_time, short_time));
-
-            message_sender
-                .send(BlockMessage {
-                    id,
-                    widgets: vec![text.get_data()],
-                })
-                .await
-                .internal_error("time", "failed to send message")?;
-
+            api.send_widgets(vec![text.get_data()]).await?;
             interval.tick().await;
         }
     })

@@ -55,9 +55,7 @@ struct Block {
     sender: mpsc::Sender<BlockMessage>,
 }
 
-pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
-    let shared_config = swaystatus.shared_config.clone();
-    let message_sender = swaystatus.message_sender.clone();
+pub fn spawn(block_config: toml::Value, api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         // Parse config
         let dbus_name = CustomDBusConfig::deserialize(block_config)
@@ -189,9 +187,9 @@ pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) 
             "/",
             &[iface_token],
             Block {
-                id,
-                text: Widget::new(id, shared_config),
-                sender: message_sender,
+                id: api.id,
+                text: api.new_widget(),
+                sender: api.message_sender,
             },
         );
 
