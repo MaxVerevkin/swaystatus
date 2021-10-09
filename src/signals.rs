@@ -1,4 +1,5 @@
 use futures::stream::StreamExt;
+use libc::{SIGRTMAX, SIGRTMIN};
 use signal_hook::consts;
 use signal_hook_tokio::Signals;
 use tokio::sync::mpsc;
@@ -12,8 +13,7 @@ pub enum Signal {
 
 /// Starts a thread that listens for provided signals and sends these on the provided channel
 pub async fn process_signals(sender: mpsc::Sender<Signal>) {
-    let (sigmin, sigmax) = unsafe { (__libc_current_sigrtmin(), __libc_current_sigrtmax()) };
-
+    let (sigmin, sigmax) = (SIGRTMIN(), SIGRTMAX());
     let mut signals: Vec<i32> = (sigmin..sigmax).collect();
     signals.push(consts::SIGUSR1);
     signals.push(consts::SIGUSR2);
@@ -31,12 +31,4 @@ pub async fn process_signals(sender: mpsc::Sender<Signal>) {
             .await
             .unwrap();
     }
-}
-
-//TODO when libc exposes this through their library and even better when the nix crate does we
-//should be using that binding rather than a C-binding.
-///C bindings to SIGMIN and SIGMAX values
-extern "C" {
-    fn __libc_current_sigrtmin() -> i32;
-    fn __libc_current_sigrtmax() -> i32;
 }
