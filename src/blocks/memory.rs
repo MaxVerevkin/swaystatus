@@ -54,19 +54,12 @@ use std::str::FromStr;
 use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::sync::mpsc;
 
 use regex::Regex;
-use serde::de::Deserialize;
-use tokio::task::JoinHandle;
 
-use super::{BlockEvent, BlockMessage};
-use crate::click::MouseButton;
-use crate::config::SharedConfig;
-use crate::errors::*;
-use crate::formatting::{value::Value, FormatTemplate};
+use super::prelude::*;
+
 use crate::util::read_file;
-use crate::widget::{State, Widget};
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
@@ -98,13 +91,10 @@ impl Default for MemoryConfig {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
+    let mut events = swaystatus.request_events_receiver(id);
     tokio::spawn(async move {
         let block_config = MemoryConfig::deserialize(block_config).block_config_error("memory")?;
 
@@ -171,14 +161,14 @@ pub fn spawn(
 
             text.set_state(match memtype {
                 Memtype::Memory => match mem_used / mem_total * 100. {
-                    x if x > block_config.critical_mem => State::Critical,
-                    x if x > block_config.warning_mem => State::Warning,
-                    _ => State::Idle,
+                    x if x > block_config.critical_mem => WidgetState::Critical,
+                    x if x > block_config.warning_mem => WidgetState::Warning,
+                    _ => WidgetState::Idle,
                 },
                 Memtype::Swap => match swap_used / swap_total * 100. {
-                    x if x > block_config.critical_swap => State::Critical,
-                    x if x > block_config.warning_swap => State::Warning,
-                    _ => State::Idle,
+                    x if x > block_config.critical_swap => WidgetState::Critical,
+                    x if x > block_config.warning_swap => WidgetState::Warning,
+                    _ => WidgetState::Idle,
                 },
             });
 
@@ -192,7 +182,7 @@ pub fn spawn(
 
             tokio::select! {
                 _ = tokio::time::sleep(interval) =>(),
-                event = events_reciever.recv() => {
+                event = events.recv() => {
                     if let BlockEvent::I3Bar(click) = event.unwrap() {
                         if click.button == MouseButton::Left && clickable {
                             memtype = match memtype {

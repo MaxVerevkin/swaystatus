@@ -3,18 +3,10 @@ use std::str::FromStr;
 use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::sync::mpsc;
 
-use serde::de::Deserialize;
-use tokio::task::JoinHandle;
+use super::prelude::*;
 
-use super::{BlockEvent, BlockMessage};
-use crate::click::MouseButton;
-use crate::config::SharedConfig;
-use crate::errors::*;
-use crate::formatting::{value::Value, FormatTemplate};
 use crate::util::read_file;
-use crate::widget::{State, Widget};
 
 const CPU_BOOST_PATH: &str = "/sys/devices/system/cpu/cpufreq/boost";
 const CPU_NO_TURBO_PATH: &str = "/sys/devices/system/cpu/intel_pstate/no_turbo";
@@ -37,13 +29,10 @@ impl Default for CpuConfig {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
+    let mut events = swaystatus.request_events_receiver(id);
     tokio::spawn(async move {
         let block_config = CpuConfig::deserialize(block_config).block_config_error("cpu")?;
         let mut format = block_config.format.or_default("{utilization}")?;
@@ -77,10 +66,10 @@ pub fn spawn(
 
             // Set state
             text.set_state(match utilization_avg {
-                x if x > 0.9 => State::Critical,
-                x if x > 0.6 => State::Warning,
-                x if x > 0.3 => State::Info,
-                _ => State::Idle,
+                x if x > 0.9 => WidgetState::Critical,
+                x if x > 0.6 => WidgetState::Warning,
+                x if x > 0.3 => WidgetState::Info,
+                _ => WidgetState::Idle,
             });
 
             // Create barchart indicating per-core utilization
@@ -128,7 +117,7 @@ pub fn spawn(
 
             tokio::select! {
                 _ = tokio::time::sleep(interval) => (),
-                Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
+                Some(BlockEvent::I3Bar(click)) = events.recv() => {
                     if click.button == MouseButton::Left {
                         if let Some(ref mut format_alt) = format_alt {
                             std::mem::swap(format_alt, &mut format);

@@ -22,22 +22,15 @@
 //! short = "%R"
 //! ```
 
-use serde::de::Deserialize;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::time::Duration;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
 use chrono::offset::{Local, Utc};
 use chrono::Locale;
 use chrono_tz::Tz;
 
-use super::{BlockEvent, BlockMessage};
-use crate::config::SharedConfig;
-use crate::errors::*;
-use crate::formatting::FormatTemplate;
-use crate::widget::Widget;
+use super::prelude::*;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
@@ -59,16 +52,9 @@ impl Default for TimeConfig {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    events_reciever: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
-    // Drop the reciever if we don't what to recieve events
-    drop(events_reciever);
-
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
     tokio::spawn(async move {
         let block_config = TimeConfig::deserialize(block_config).block_config_error("time")?;
         let mut interval = tokio::time::interval(Duration::from_secs(block_config.interval));

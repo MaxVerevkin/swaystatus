@@ -39,14 +39,9 @@ use dbus::MethodErr;
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
 
-use serde::de::Deserialize;
 use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
-use super::{BlockEvent, BlockMessage};
-use crate::config::SharedConfig;
-use crate::errors::*;
-use crate::widget::{State, Widget};
+use super::prelude::*;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
@@ -60,16 +55,9 @@ struct Block {
     sender: mpsc::Sender<BlockMessage>,
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    events_reciever: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
-    // Drop the reciever if we don't what to recieve events
-    drop(events_reciever);
-
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
     tokio::spawn(async move {
         // Parse config
         let dbus_name = CustomDBusConfig::deserialize(block_config)
@@ -172,11 +160,11 @@ pub fn spawn(
                     let block: &mut Block = cr.data_mut(ctx.path()).unwrap(); // ok_or_else(|| MethodErr::no_path(ctx.path()))?;
                     let mut succes = true;
                     match state.as_str() {
-                        "idle" => block.text.set_state(State::Idle),
-                        "info" => block.text.set_state(State::Info),
-                        "good" => block.text.set_state(State::Good),
-                        "warning" => block.text.set_state(State::Warning),
-                        "critical" => block.text.set_state(State::Critical),
+                        "idle" => block.text.set_state(WidgetState::Idle),
+                        "info" => block.text.set_state(WidgetState::Info),
+                        "good" => block.text.set_state(WidgetState::Good),
+                        "warning" => block.text.set_state(WidgetState::Warning),
+                        "critical" => block.text.set_state(WidgetState::Critical),
                         _ => succes = false,
                     }
                     let sender = block.sender.clone();

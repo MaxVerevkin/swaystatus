@@ -1,17 +1,9 @@
 use std::time::Duration;
 
-use serde::de::Deserialize;
 use serde_derive::Deserialize;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
-use crate::blocks::{BlockEvent, BlockMessage};
-use crate::config::SharedConfig;
+use super::prelude::*;
 use crate::de::deserialize_duration;
-use crate::errors::{OptionExt, Result, ResultExt};
-use crate::formatting::value::Value;
-use crate::formatting::FormatTemplate;
-use crate::widget::Widget;
 
 const IP_API_URL: &str = "https://ipapi.co/json";
 
@@ -225,15 +217,9 @@ impl Default for WeatherConfig {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    events_receiver: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
-    drop(events_receiver);
-
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
     tokio::spawn(async move {
         let block_config =
             WeatherConfig::deserialize(block_config).block_config_error("weather")?;

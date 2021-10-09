@@ -16,14 +16,6 @@ pub struct SharedConfig {
 }
 
 impl SharedConfig {
-    pub fn new(config: &'static Config) -> Self {
-        Self {
-            theme: Cow::Borrowed(&config.theme),
-            icons: Cow::Borrowed(&config.icons),
-            icons_format: Cow::Borrowed(&config.icons_format),
-        }
-    }
-
     pub fn get_icon(&self, icon: &str) -> crate::errors::Result<String> {
         use crate::errors::OptionExt;
         Ok(self.icons_format.replace(
@@ -68,6 +60,28 @@ pub struct Config {
 impl Config {
     fn default_icons_format() -> String {
         " {icon} ".to_string()
+    }
+
+    pub fn into_parts(self) -> (SharedConfig, Vec<(BlockType, value::Value)>, bool) {
+        let Self {
+            icons,
+            theme,
+            icons_format,
+            invert_scrolling,
+            blocks,
+        } = self;
+
+        let theme = Box::leak(Box::new(theme));
+        let icons = Box::leak(Box::new(icons));
+        let icons_format = Box::leak(Box::new(icons_format));
+
+        let shared = SharedConfig {
+            theme: Cow::Borrowed(theme),
+            icons: Cow::Borrowed(icons),
+            icons_format: Cow::Borrowed(icons_format),
+        };
+
+        (shared, blocks, invert_scrolling)
     }
 }
 

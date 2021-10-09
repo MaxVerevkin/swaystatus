@@ -40,20 +40,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use inotify::{Inotify, WatchMask};
-use serde::de::Deserialize;
+
 use serde_derive::Deserialize;
 use tokio::fs::read_dir;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 use tokio_stream::StreamExt;
 
-use crate::blocks::{BlockEvent, BlockMessage};
-use crate::click::MouseButton;
-use crate::config::SharedConfig;
-use crate::errors::{OptionExt, Result, ResultExt};
-use crate::formatting::{value::Value, FormatTemplate};
+use super::prelude::*;
+
 use crate::util::read_file;
-use crate::widget::Widget;
 
 /// Location of backlight devices
 const DEVICES_PATH: &str = "/sys/class/backlight";
@@ -239,13 +233,10 @@ impl BacklitDevice {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    mut events_receiver: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
+    let mut events = swaystatus.request_events_receiver(id);
     tokio::spawn(async move {
         let block_config =
             BacklightConfig::deserialize(block_config).block_config_error("backlight")?;
@@ -292,7 +283,7 @@ pub fn spawn(
 
             tokio::select! {
                 _ = file_changes.next() => (),
-                Some(BlockEvent::I3Bar(event)) = events_receiver.recv() => {
+                Some(BlockEvent::I3Bar(event)) = events.recv() => {
                     let brightness = device.brightness().await?;
                     match event.button {
                         MouseButton::WheelUp => {

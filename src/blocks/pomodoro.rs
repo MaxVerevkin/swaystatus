@@ -36,17 +36,12 @@
 //! - Use different icons.
 //! - Use format strings.
 
-use serde::de::Deserialize;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
-use super::{BlockEvent, BlockMessage};
-use crate::click::MouseButton;
-use crate::config::SharedConfig;
-use crate::errors::*;
+use super::prelude::*;
+
 use crate::subprocess::{spawn_shell, spawn_shell_sync};
-use crate::widget::{State, Widget};
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
@@ -133,7 +128,7 @@ impl Block {
     ) -> Result<()> {
         for pomodoro in 0..pomodoros {
             // Task timer
-            self.widget.set_state(State::Idle);
+            self.widget.set_state(WidgetState::Idle);
             let timer = Instant::now();
             loop {
                 let elapsed = timer.elapsed();
@@ -162,7 +157,7 @@ impl Block {
             }
 
             // Show break message
-            self.widget.set_state(State::Good);
+            self.widget.set_state(WidgetState::Good);
             self.set_text(self.block_config.message.clone()).await?;
             if let Some(cmd) = &self.block_config.notify_cmd {
                 let cmd = cmd.replace("{msg}", &self.block_config.message);
@@ -204,7 +199,7 @@ impl Block {
             }
 
             // Show task message
-            self.widget.set_state(State::Good);
+            self.widget.set_state(WidgetState::Good);
             self.set_text(self.block_config.break_message.clone())
                 .await?;
             if let Some(cmd) = &self.block_config.notify_cmd {
@@ -226,13 +221,10 @@ impl Block {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    events_receiver: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
+    let events = swaystatus.request_events_receiver(id);
     tokio::spawn(async move {
         let block_config =
             PomodoroConfig::deserialize(block_config).block_config_error("pomodoro")?;
@@ -242,12 +234,12 @@ pub fn spawn(
             widget,
             block_config,
             message_sender,
-            events_receiver,
+            events_receiver: events,
         };
 
         loop {
             // Send collaped block
-            block.widget.set_state(State::Idle);
+            block.widget.set_state(WidgetState::Idle);
             block.set_text(String::new()).await?;
 
             // Wait for left click

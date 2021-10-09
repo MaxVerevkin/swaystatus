@@ -39,21 +39,15 @@ use std::time::Duration;
 use async_trait::async_trait;
 use dbus::nonblock::stdintf::org_freedesktop_dbus::Properties;
 use futures::StreamExt;
-use serde::de::Deserialize;
+
 use serde_derive::Deserialize;
 use tokio::fs::{read_dir, read_to_string};
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 use tokio::time::{Instant, Interval};
 
-use crate::blocks::{BlockEvent, BlockMessage};
-use crate::config::SharedConfig;
+use super::prelude::*;
 use crate::de::deserialize_duration;
-use crate::errors::*;
-use crate::formatting::value::Value;
-use crate::formatting::FormatTemplate;
+
 use crate::util::read_file;
-use crate::widget::{Spacing, State, Widget};
 
 /// Path for the power supply devices
 const POWER_SUPPLY_DEVICES_PATH: &str = "/sys/class/power_supply";
@@ -477,15 +471,9 @@ impl Default for BatteryDriver {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    events_receiver: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
-    drop(events_receiver);
-
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
     tokio::spawn(async move {
         let block_config =
             BatteryConfig::deserialize(block_config).block_config_error("battery")?;
@@ -615,28 +603,28 @@ pub fn spawn(
             ) {
                 (BatteryStatus::Empty, _) => Widget::new(id, shared_config.clone())
                     .with_icon(BATTERY_EMPTY_ICON)?
-                    .with_state(State::Critical)
-                    .with_spacing(Spacing::Hidden),
+                    .with_state(WidgetState::Critical)
+                    .with_spacing(WidgetSpacing::Hidden),
                 (BatteryStatus::Full, _) => Widget::new(id, shared_config.clone())
                     .with_icon(BATTERY_FULL_ICON)?
-                    .with_spacing(Spacing::Hidden),
+                    .with_spacing(WidgetSpacing::Hidden),
                 (status, Some(charge)) => {
                     let index = (charge as usize * BATTERY_CHARGE_ICONS.len()) / 101;
                     let icon = BATTERY_CHARGE_ICONS[index];
 
                     let state = {
                         if status == BatteryStatus::Charging {
-                            State::Good
+                            WidgetState::Good
                         } else if charge <= block_config.critical {
-                            State::Critical
+                            WidgetState::Critical
                         } else if charge <= block_config.warning {
-                            State::Warning
+                            WidgetState::Warning
                         } else if charge <= block_config.info {
-                            State::Info
+                            WidgetState::Info
                         } else if charge > block_config.good {
-                            State::Good
+                            WidgetState::Good
                         } else {
-                            State::Idle
+                            WidgetState::Idle
                         }
                     };
 
@@ -647,8 +635,8 @@ pub fn spawn(
                 }
                 _ => Widget::new(id, shared_config.clone())
                     .with_icon(BATTERY_UNAVAILABLE_ICON)?
-                    .with_state(State::Warning)
-                    .with_spacing(Spacing::Hidden),
+                    .with_state(WidgetState::Warning)
+                    .with_spacing(WidgetSpacing::Hidden),
             };
 
             send_widget!(widget);

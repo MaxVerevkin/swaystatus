@@ -1,19 +1,13 @@
 use std::path::Path;
 use std::time::Duration;
-use tokio::sync::mpsc;
 
 use nix::sys::statvfs::statvfs;
-use serde::de::Deserialize;
-use serde_derive::Deserialize;
-use tokio::task::JoinHandle;
 
-use super::{BlockEvent, BlockMessage};
-use crate::config::SharedConfig;
+use serde_derive::Deserialize;
+
+use super::prelude::*;
 use crate::de::deserialize_duration;
-use crate::errors::*;
-use crate::formatting::FormatTemplate;
-use crate::formatting::{prefix::Prefix, value::Value};
-use crate::widget::{State, Widget};
+use crate::formatting::prefix::Prefix;
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -69,16 +63,9 @@ impl Default for DiskSpaceConfig {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    events_reciever: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
-    // Drop the reciever if we don't what to recieve events
-    drop(events_reciever);
-
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
     tokio::spawn(async move {
         let block_config =
             DiskSpaceConfig::deserialize(block_config).block_config_error("disk_space")?;
@@ -148,20 +135,20 @@ pub fn spawn(
             let state = match block_config.info_type {
                 InfoType::Used => {
                     if alert_val > block_config.alert {
-                        State::Critical
+                        WidgetState::Critical
                     } else if alert_val <= block_config.alert && alert_val > block_config.warning {
-                        State::Warning
+                        WidgetState::Warning
                     } else {
-                        State::Idle
+                        WidgetState::Idle
                     }
                 }
                 InfoType::Free | InfoType::Available => {
                     if 0. <= alert_val && alert_val < block_config.alert {
-                        State::Critical
+                        WidgetState::Critical
                     } else if block_config.alert <= alert_val && alert_val < block_config.warning {
-                        State::Warning
+                        WidgetState::Warning
                     } else {
-                        State::Idle
+                        WidgetState::Idle
                     }
                 }
             };

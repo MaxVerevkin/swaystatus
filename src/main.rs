@@ -15,20 +15,20 @@ mod themes;
 mod widget;
 
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version, Arg};
-
 use futures::stream::futures_unordered::FuturesUnordered;
 use futures::stream::StreamExt;
+use protocol::i3bar_event::I3BarEvent;
+use std::collections::HashMap;
 use tokio::sync::mpsc;
 
-use crate::blocks::{spawn_block, BlockEvent};
-use crate::config::Config;
-use crate::config::SharedConfig;
-use crate::errors::*;
-use crate::protocol::i3bar_block::I3BarBlock;
-use crate::protocol::i3bar_event::process_events;
-use crate::signals::{process_signals, Signal};
-use crate::util::deserialize_file;
-use crate::widget::{State, Widget};
+use blocks::prelude::*;
+use click::ClickHandler;
+use config::Config;
+use config::SharedConfig;
+use protocol::i3bar_block::I3BarBlock;
+use protocol::i3bar_event::process_events;
+use signals::{process_signals, Signal};
+use util::deserialize_file;
 
 fn main() {
     let args = app_from_crate!()
@@ -83,7 +83,7 @@ fn main() {
 
                 // Create widget with error message
                 let error_widget = Widget::new(0, Default::default())
-                    .with_state(State::Critical)
+                    .with_state(WidgetState::Critical)
                     .with_full_text(error.to_string());
 
                 // Print errors
@@ -109,65 +109,113 @@ async fn run(config: Option<&str>, noinit: bool, never_pause: bool) -> Result<()
     }
 
     // Read & parse the config file
-    let config = config.unwrap_or("config.toml");
-    let config_path = util::find_file(config, None, Some("toml"))
+    let config_path = util::find_file(config.unwrap_or("config.toml"), None, Some("toml"))
         .internal_error("run()", "configuration file not found")?;
-
     let config: Config = deserialize_file(&config_path)?;
-    let block_list = config.blocks.clone();
-    let config: &'static Config = Box::leak(Box::new(config));
-    let shared_config = SharedConfig::new(config);
+    let (shared_config, block_list, invert_scrolling) = config.into_parts();
 
-    // Initialize the blocks
-    let mut blocks_events: Vec<mpsc::Sender<BlockEvent>> = Vec::new();
-    let mut blocks_tasks = FuturesUnordered::new();
-    let (message_sender, mut message_receiver) = mpsc::channel(64);
-
+    // Spawn blocks
+    let mut swaystatus = Swaystatus::new(shared_config);
     for (block_type, block_config) in block_list {
-        let (events_sender, events_reciever) = mpsc::channel(64);
-        blocks_events.push(events_sender);
-
-        blocks_tasks.push(spawn_block(
-            blocks_tasks.len(),
-            block_type,
-            block_config,
-            shared_config.clone(),
-            message_sender.clone(),
-            events_reciever,
-        )?);
+        swaystatus.spawn_block(block_type, block_config)?;
     }
 
     // Listen to signals and clicks
-    let (signals_sender, mut signals_receiver) = mpsc::channel(64);
-    let (events_sender, mut events_receiver) = mpsc::channel(64);
+    let (signals_sender, signals_receiver) = mpsc::channel(64);
+    let (events_sender, events_receiver) = mpsc::channel(64);
     tokio::spawn(process_signals(signals_sender));
-    tokio::spawn(process_events(events_sender, config.invert_scrolling));
+    tokio::spawn(process_events(events_sender, invert_scrolling));
 
     // Main loop
-    let mut rendered = vec![Vec::<I3BarBlock>::new(); blocks_events.len()];
-    loop {
-        tokio::select! {
-            // Handle blocks' errors
-            Some(block_result) = blocks_tasks.next() => {
-                block_result.internal_error("error handler", "failed to read block exit status")??;
-            },
-            // Recieve widgets from blocks
-            Some(message) = message_receiver.recv() => {
-                *rendered.get_mut(message.id).internal_error("handle block's message", "failed to get block")? = message.widgets;
-                protocol::print_blocks(&rendered, &shared_config)?;
-            }
-            // Handle clicks
-            Some(event) = events_receiver.recv() => {
-                let blocks_event = blocks_events.get(event.id).unwrap();
-                // If reciever is droped, then the blocks is not interested in incoming events
-                let _ = blocks_event.send(BlockEvent::I3Bar(event)).await;
-            }
-            // Handle signals
-            Some(signal) = signals_receiver.recv() => match signal {
-                Signal::Usr2 => restart(),
-                signal => {
-                    for block in &blocks_events {
-                        block.send(BlockEvent::Signal(signal)).await.unwrap();
+    swaystatus
+        .run_event_loop(signals_receiver, events_receiver)
+        .await
+}
+
+pub struct Swaystatus {
+    pub shared_config: SharedConfig,
+
+    pub spawned_blocks: FuturesUnordered<BlockHandle>,
+    pub block_event_sentders: HashMap<usize, mpsc::Sender<BlockEvent>>,
+    pub rendered_blocks: Vec<Vec<I3BarBlock>>,
+    pub block_click_handlers: Vec<ClickHandler>,
+
+    pub message_sender: mpsc::Sender<BlockMessage>,
+    pub message_receiver: mpsc::Receiver<BlockMessage>,
+}
+
+impl Swaystatus {
+    pub fn new(shared_config: SharedConfig) -> Self {
+        let (message_sender, message_receiver) = mpsc::channel(64);
+        Self {
+            shared_config,
+
+            spawned_blocks: FuturesUnordered::new(),
+            block_event_sentders: HashMap::new(),
+            rendered_blocks: Vec::new(),
+            block_click_handlers: Vec::new(),
+
+            message_sender,
+            message_receiver,
+        }
+    }
+
+    pub fn request_events_receiver(&mut self, id: usize) -> mpsc::Receiver<BlockEvent> {
+        let (sender, receiver) = mpsc::channel(64);
+        self.block_event_sentders.insert(id, sender);
+        receiver
+    }
+
+    pub fn spawn_block(
+        &mut self,
+        block_type: BlockType,
+        block_config: toml::value::Value,
+    ) -> Result<()> {
+        let (handle, click) =
+            crate::blocks::spawn_block(self.spawned_blocks.len(), block_type, block_config, self)?;
+        self.spawned_blocks.push(handle);
+        self.block_click_handlers.push(click);
+
+        self.rendered_blocks.push(Vec::new());
+
+        Ok(())
+    }
+
+    pub async fn run_event_loop(
+        mut self,
+        mut signals_receiver: mpsc::Receiver<Signal>,
+        mut events_receiver: mpsc::Receiver<I3BarEvent>,
+    ) -> Result<()> {
+        loop {
+            tokio::select! {
+                // Handle blocks' errors
+                Some(block_result) = self.spawned_blocks.next() => {
+                    block_result.internal_error("error handler", "failed to read block exit status")??;
+                },
+                // Recieve widgets from blocks
+                Some(message) = self.message_receiver.recv() => {
+                    *self.rendered_blocks
+                        .get_mut(message.id)
+                        .internal_error("handle block's message", "failed to get block")?
+                            = message.widgets;
+                    protocol::print_blocks(&self.rendered_blocks, &self.shared_config)?;
+                }
+                // Handle clicks
+                Some(event) = events_receiver.recv() => {
+                    let update = self.block_click_handlers.get(event.id).unwrap().handle(event.button).await;
+                    if update {
+                        if let Some(sender) = self.block_event_sentders.get(&event.id) {
+                            sender.send(BlockEvent::I3Bar(event)).await.unwrap();
+                        }
+                    }
+                }
+                // Handle signals
+                Some(signal) = signals_receiver.recv() => match signal {
+                    Signal::Usr2 => restart(),
+                    signal => {
+                        for sender in self.block_event_sentders.values() {
+                            sender.send(BlockEvent::Signal(signal)).await.unwrap();
+                        }
                     }
                 }
             }

@@ -1,16 +1,10 @@
 use futures::stream::StreamExt;
-use serde::de::Deserialize;
+
 use std::collections::HashMap;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
 use swayipc_async::{Connection, Event, EventType};
 
-use super::{BlockEvent, BlockMessage};
-use crate::config::SharedConfig;
-use crate::errors::*;
-use crate::formatting::{value::Value, FormatTemplate};
-use crate::widget::Widget;
+use super::prelude::*;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
@@ -21,16 +15,9 @@ pub struct SwayKbdConfig {
     pub mappings: Option<HashMap<String, String>>,
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    events_reciever: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
-    // Drop the reciever if we don't what to recieve events
-    drop(events_reciever);
-
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
     tokio::spawn(async move {
         let block_config =
             SwayKbdConfig::deserialize(block_config).block_config_error("sway_kbd")?;

@@ -27,19 +27,11 @@
 
 use std::path::Path;
 use std::time::Duration;
-use tokio::sync::mpsc;
 
-use serde::de::Deserialize;
-use tokio::task::JoinHandle;
-
-use super::{BlockEvent, BlockMessage};
-use crate::config::SharedConfig;
+use super::prelude::*;
 use crate::de::deserialize_duration;
-use crate::errors::*;
-use crate::formatting::value::Value;
-use crate::formatting::FormatTemplate;
+
 use crate::util;
-use crate::widget::{State, Widget};
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
@@ -64,16 +56,9 @@ impl Default for LoadConfig {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    events_reciever: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
-    // Drop the reciever if we don't what to recieve events
-    drop(events_reciever);
-
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
     tokio::spawn(async move {
         let block_config = LoadConfig::deserialize(block_config).block_config_error("cpu")?;
         let mut text = Widget::new(id, shared_config).with_icon("cogs")?;
@@ -112,10 +97,10 @@ pub fn spawn(
                 .block_error("load", "bad /proc/loadavg file")?;
 
             text.set_state(match m1 / (logical_cores as f64) {
-                x if x > block_config.critical => State::Critical,
-                x if x > block_config.warning => State::Warning,
-                x if x > block_config.info => State::Info,
-                _ => State::Idle,
+                x if x > block_config.critical => WidgetState::Critical,
+                x if x > block_config.warning => WidgetState::Warning,
+                x if x > block_config.info => WidgetState::Info,
+                _ => WidgetState::Idle,
             });
             text.set_text(format.render(&map!(
                 "1m" => Value::from_float(m1),

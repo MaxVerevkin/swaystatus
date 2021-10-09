@@ -6,19 +6,14 @@ use dbus::strings::{Interface, Member, Path};
 use dbus_tokio::connection;
 
 use futures::StreamExt;
-use serde::de::Deserialize;
+
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
-use super::{BlockEvent, BlockMessage};
-use crate::click::MouseButton;
-use crate::config::SharedConfig;
-use crate::errors::*;
+use super::prelude::*;
+
 use crate::util::escape_pango_text;
-use crate::widget::{Spacing, State, Widget};
 
 const PLAY_PAUSE_BTN: usize = 1;
 const NEXT_BTN: usize = 2;
@@ -42,27 +37,24 @@ impl Default for MusicConfig {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
+    let mut events = swaystatus.request_events_receiver(id);
     tokio::spawn(async move {
         let block_config = MusicConfig::deserialize(block_config).block_config_error("music")?;
 
         let mut text = Widget::new(id, shared_config.clone()).with_icon("music")?;
         let mut play_pause_button = Widget::new(id, shared_config.clone())
             .with_instance(PLAY_PAUSE_BTN)
-            .with_spacing(Spacing::Hidden);
+            .with_spacing(WidgetSpacing::Hidden);
         let mut next_button = Widget::new(id, shared_config.clone())
             .with_instance(NEXT_BTN)
-            .with_spacing(Spacing::Hidden)
+            .with_spacing(WidgetSpacing::Hidden)
             .with_icon("music_next")?;
         let mut prev_button = Widget::new(id, shared_config)
             .with_instance(PREV_BTN)
-            .with_spacing(Spacing::Hidden)
+            .with_spacing(WidgetSpacing::Hidden)
             .with_icon("music_prev")?;
 
         // Connect to the D-Bus session bus (this is blocking, unfortunately).
@@ -97,17 +89,17 @@ pub fn spawn(
 
                     match player.status {
                         PlaybackStatus::Playing => {
-                            text.set_state(State::Info);
-                            play_pause_button.set_state(State::Info);
-                            next_button.set_state(State::Info);
-                            prev_button.set_state(State::Info);
+                            text.set_state(WidgetState::Info);
+                            play_pause_button.set_state(WidgetState::Info);
+                            next_button.set_state(WidgetState::Info);
+                            prev_button.set_state(WidgetState::Info);
                             play_pause_button.set_icon("music_pause")?;
                         }
                         _ => {
-                            text.set_state(State::Idle);
-                            play_pause_button.set_state(State::Idle);
-                            next_button.set_state(State::Idle);
-                            prev_button.set_state(State::Idle);
+                            text.set_state(WidgetState::Idle);
+                            play_pause_button.set_state(WidgetState::Idle);
+                            next_button.set_state(WidgetState::Idle);
+                            prev_button.set_state(WidgetState::Idle);
                             play_pause_button.set_icon("music_play")?;
                         }
                     }
@@ -125,7 +117,7 @@ pub fn spawn(
                 }
                 None => {
                     text.set_text((String::new(), None));
-                    text.set_state(State::Idle);
+                    text.set_state(WidgetState::Idle);
                     vec![text.get_data()]
                 }
             };
@@ -145,7 +137,7 @@ pub fn spawn(
                 // Wait for a DBUS event
                 _ = dbus_stream.next() => player = get_any_player(dbus_conn.clone()).await?,
                 // Wait for a click
-                Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
+                Some(BlockEvent::I3Bar(click)) = events.recv() => {
                     if click.button == MouseButton::Left {
                         if let Some(ref player) = player {
                             let command = match click.instance {

@@ -1,14 +1,8 @@
 use reqwest::header;
-use serde::de::Deserialize;
-use std::time::Duration;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
-use super::{BlockEvent, BlockMessage};
-use crate::config::SharedConfig;
-use crate::errors::*;
-use crate::formatting::{value::Value, FormatTemplate};
-use crate::widget::Widget;
+use std::time::Duration;
+
+use super::prelude::*;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
@@ -35,16 +29,9 @@ fn default_hide() -> bool {
     true
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    events_reciever: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
-    // Drop the reciever if we don't what to recieve events
-    drop(events_reciever);
-
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
     tokio::spawn(async move {
         let block_config = GithubConfig::deserialize(block_config).block_config_error("github")?;
         let interval = Duration::from_secs(block_config.interval);

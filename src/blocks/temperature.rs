@@ -38,19 +38,12 @@
 //! format = "{min} min, {max} max, {average} avg"
 //! ```
 
-use serde::de::Deserialize;
 use std::time::Duration;
 use tokio::fs::{read_dir, read_to_string};
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
-use super::{BlockEvent, BlockMessage};
-use crate::click::MouseButton;
-use crate::config::SharedConfig;
+use super::prelude::*;
+
 use crate::de::deserialize_duration;
-use crate::errors::*;
-use crate::formatting::{value::Value, FormatTemplate};
-use crate::widget::{State, Widget};
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
@@ -81,13 +74,10 @@ impl Default for TemperatureConfig {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
+    let mut events = swaystatus.request_events_receiver(id);
     tokio::spawn(async move {
         let block_config =
             TemperatureConfig::deserialize(block_config).block_config_error("temperature")?;
@@ -116,11 +106,11 @@ pub fn spawn(
 
             // Set state
             text.set_state(match max_temp {
-                x if x <= block_config.good => State::Good,
-                x if x <= block_config.idle => State::Idle,
-                x if x <= block_config.info => State::Info,
-                x if x <= block_config.warning => State::Warning,
-                _ => State::Critical,
+                x if x <= block_config.good => WidgetState::Good,
+                x if x <= block_config.idle => WidgetState::Idle,
+                x if x <= block_config.info => WidgetState::Info,
+                x if x <= block_config.warning => WidgetState::Warning,
+                _ => WidgetState::Critical,
             });
 
             message_sender
@@ -133,7 +123,7 @@ pub fn spawn(
 
             tokio::select! {
                 _ = tokio::time::sleep(block_config.interval) => (),
-                Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
+                Some(BlockEvent::I3Bar(click)) = events.recv() => {
                     if click.button == MouseButton::Left {
                         collapsed = !collapsed;
                     }

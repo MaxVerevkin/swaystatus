@@ -1,19 +1,10 @@
-use serde::de::Deserialize;
 use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::process::Stdio;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
-use super::{BlockEvent, BlockMessage};
-use crate::click::MouseButton;
-use crate::config::SharedConfig;
-use crate::errors::*;
-use crate::formatting::value::Value;
-use crate::formatting::FormatTemplate;
-use crate::widget::{Spacing, State, Widget};
+use super::prelude::*;
 
 const FILTER: &[char] = &['[', ']', '%'];
 
@@ -47,13 +38,10 @@ impl Default for SoundConfig {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
+    let mut events = swaystatus.request_events_receiver(id);
     tokio::spawn(async move {
         let block_config = SoundConfig::deserialize(block_config).block_config_error("sound")?;
         let format = block_config.format.or_default("{volume}")?;
@@ -112,14 +100,14 @@ pub fn spawn(
 
             if device.muted() {
                 text.set_icon(&icon(0))?;
-                text.set_state(State::Warning);
+                text.set_state(WidgetState::Warning);
                 if !block_config.show_volume_when_muted {
                     text.set_text((String::new(), None));
                 }
             } else {
                 text.set_icon(&icon(volume))?;
-                text.set_spacing(Spacing::Normal);
-                text.set_state(State::Idle);
+                text.set_spacing(WidgetSpacing::Normal);
+                text.set_state(WidgetState::Idle);
             }
 
             message_sender
@@ -132,7 +120,7 @@ pub fn spawn(
 
             tokio::select! {
                 _ = monitor.read(&mut buffer) => (),
-                Some(BlockEvent::I3Bar(click)) = events_reciever.recv() => {
+                Some(BlockEvent::I3Bar(click)) = events.recv() => {
                     match click.button {
                         MouseButton::Right => {
                             device.toggle().await?;

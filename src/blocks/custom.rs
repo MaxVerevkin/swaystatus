@@ -66,19 +66,14 @@
 //! one_shot = true
 //! ```
 
-use serde::de::Deserialize;
 use std::collections::HashMap;
 use std::env;
 use std::time::Duration;
 use tokio::process::Command;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
-use super::{BlockEvent, BlockMessage};
-use crate::config::SharedConfig;
-use crate::errors::*;
+use super::prelude::*;
+
 use crate::signals::Signal;
-use crate::widget::{State, Widget};
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
@@ -108,13 +103,10 @@ impl Default for CustomConfig {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
+    let mut events = swaystatus.request_events_receiver(id);
     tokio::spawn(async move {
         let block_config = CustomConfig::deserialize(block_config).block_config_error("custom")?;
         let CustomConfig {
@@ -164,11 +156,11 @@ pub fn spawn(
                     serde_json::from_str(stdout).block_error("custom", "invalid JSON")?;
                 widget.set_icon(vals.get("icon").map(|s| s.as_str()).unwrap_or(""))?;
                 widget.set_state(match vals.get("state").map(|s| s.as_str()).unwrap_or("") {
-                    "Info" => State::Info,
-                    "Good" => State::Good,
-                    "Warning" => State::Warning,
-                    "Critical" => State::Critical,
-                    _ => State::Idle,
+                    "Info" => WidgetState::Info,
+                    "Good" => WidgetState::Good,
+                    "Warning" => WidgetState::Warning,
+                    "Critical" => WidgetState::Critical,
+                    _ => WidgetState::Idle,
                 });
                 let text = vals.get("text").cloned().unwrap_or_default();
                 let short_text = vals.get("short_text").cloned();
@@ -191,7 +183,7 @@ pub fn spawn(
                             break;
                         }
                     },
-                    Some(event) = events_reciever.recv() => {
+                    Some(event) = events.recv() => {
                         match (event, signal) {
                             (BlockEvent::Signal(Signal::Custom(s)), Some(signal)) if s == signal => break,
                             (BlockEvent::I3Bar(_), _) => break,

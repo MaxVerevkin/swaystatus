@@ -28,18 +28,11 @@
 //! short = "{title^20}"
 //! ```
 
-use serde::de::Deserialize;
 use serde_derive::Deserialize;
 use swayipc_async::{Connection, Event, EventType, WindowChange, WorkspaceChange};
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 use tokio_stream::StreamExt;
 
-use crate::blocks::{BlockEvent, BlockMessage};
-use crate::config::SharedConfig;
-use crate::errors::*;
-use crate::formatting::{value::Value, FormatTemplate};
-use crate::widget::Widget;
+use super::prelude::*;
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
@@ -57,15 +50,9 @@ impl Default for FocusedWindowConfig {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    events_receiver: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
-    drop(events_receiver);
-
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
     tokio::spawn(async move {
         let block_config =
             FocusedWindowConfig::deserialize(block_config).block_config_error("focused_window")?;

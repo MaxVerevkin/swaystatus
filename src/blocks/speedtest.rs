@@ -26,18 +26,11 @@
 //! format = "{ping}{speed_down:4*B}{speed_up:4*B}"
 //! ```
 
-use serde::de::Deserialize;
 use std::time::Duration;
 use tokio::process::Command;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
-use super::{BlockEvent, BlockMessage};
-use crate::config::SharedConfig;
+use super::prelude::*;
 use crate::de::deserialize_duration;
-use crate::errors::*;
-use crate::formatting::{value::Value, FormatTemplate};
-use crate::widget::Widget;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
@@ -56,16 +49,9 @@ impl Default for SpeedtestConfig {
     }
 }
 
-pub fn spawn(
-    id: usize,
-    block_config: toml::Value,
-    shared_config: SharedConfig,
-    message_sender: mpsc::Sender<BlockMessage>,
-    events_reciever: mpsc::Receiver<BlockEvent>,
-) -> JoinHandle<Result<()>> {
-    // Drop the reciever if we don't what to recieve events
-    drop(events_reciever);
-
+pub fn spawn(id: usize, block_config: toml::Value, swaystatus: &mut Swaystatus) -> BlockHandle {
+    let shared_config = swaystatus.shared_config.clone();
+    let message_sender = swaystatus.message_sender.clone();
     tokio::spawn(async move {
         let icon_ping = shared_config.get_icon("ping")?;
         let icon_down = shared_config.get_icon("net_down")?;

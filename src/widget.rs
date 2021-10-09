@@ -6,7 +6,7 @@ use crate::protocol::i3bar_block::I3BarBlock;
 use crate::themes::{Color, Theme};
 
 #[derive(Debug, Copy, Clone, Deserialize)]
-pub enum Spacing {
+pub enum WidgetSpacing {
     /// Add a leading and trailing space around the widget contents
     Normal,
     /// Hide the leading space when the widget is inline
@@ -16,7 +16,7 @@ pub enum Spacing {
 }
 
 #[derive(Debug, Copy, Clone, Deserialize)]
-pub enum State {
+pub enum WidgetState {
     Idle,
     Info,
     Good,
@@ -24,9 +24,9 @@ pub enum State {
     Critical,
 }
 
-impl State {
+impl WidgetState {
     pub fn theme_keys(self, theme: &Theme) -> (Color, Color) {
-        use self::State::*;
+        use self::WidgetState::*;
         match self {
             Idle => (theme.idle_bg, theme.idle_fg),
             Info => (theme.info_bg, theme.info_fg),
@@ -42,15 +42,15 @@ pub struct Widget {
     full_text: Option<String>,
     short_text: Option<String>,
     icon: Option<String>,
-    full_spacing: Spacing,
-    short_spacing: Spacing,
+    full_spacing: WidgetSpacing,
+    short_spacing: WidgetSpacing,
     shared_config: SharedConfig,
     inner: I3BarBlock,
 }
 
 impl Widget {
     pub fn new(id: usize, shared_config: SharedConfig) -> Self {
-        let (key_bg, key_fg) = State::Idle.theme_keys(&shared_config.theme); // Initial colors
+        let (key_bg, key_fg) = WidgetState::Idle.theme_keys(&shared_config.theme); // Initial colors
         let inner = I3BarBlock {
             name: Some(id.to_string()),
             color: key_fg,
@@ -62,8 +62,8 @@ impl Widget {
             full_text: None,
             short_text: None,
             icon: None,
-            full_spacing: Spacing::Hidden,
-            short_spacing: Spacing::Hidden,
+            full_spacing: WidgetSpacing::Hidden,
+            short_spacing: WidgetSpacing::Hidden,
             shared_config,
             inner,
         }
@@ -92,12 +92,12 @@ impl Widget {
         self
     }
 
-    pub fn with_state(mut self, state: State) -> Self {
+    pub fn with_state(mut self, state: WidgetState) -> Self {
         self.set_state(state);
         self
     }
 
-    pub fn with_spacing(mut self, spacing: Spacing) -> Self {
+    pub fn with_spacing(mut self, spacing: WidgetSpacing) -> Self {
         self.set_spacing(spacing);
         self
     }
@@ -117,35 +117,35 @@ impl Widget {
 
     pub fn set_text(&mut self, content: (String, Option<String>)) {
         if content.0.is_empty() {
-            self.full_spacing = Spacing::Hidden;
+            self.full_spacing = WidgetSpacing::Hidden;
         } else {
-            self.full_spacing = Spacing::Normal;
+            self.full_spacing = WidgetSpacing::Normal;
         }
         if content.1.as_ref().map(String::is_empty).unwrap_or(true) {
-            self.short_spacing = Spacing::Hidden;
+            self.short_spacing = WidgetSpacing::Hidden;
         } else {
-            self.short_spacing = Spacing::Normal;
+            self.short_spacing = WidgetSpacing::Normal;
         }
         self.full_text = Some(content.0);
         self.short_text = content.1;
     }
     pub fn set_full_text(&mut self, content: String) {
         if content.is_empty() {
-            self.full_spacing = Spacing::Hidden;
+            self.full_spacing = WidgetSpacing::Hidden;
         } else {
-            self.full_spacing = Spacing::Normal;
+            self.full_spacing = WidgetSpacing::Normal;
         }
         self.full_text = Some(content);
     }
 
-    pub fn set_state(&mut self, state: State) {
+    pub fn set_state(&mut self, state: WidgetState) {
         let (key_bg, key_fg) = state.theme_keys(&self.shared_config.theme);
 
         self.inner.background = key_bg;
         self.inner.color = key_fg;
     }
 
-    pub fn set_spacing(&mut self, spacing: Spacing) {
+    pub fn set_spacing(&mut self, spacing: WidgetSpacing) {
         self.full_spacing = spacing;
         self.short_spacing = spacing;
     }
@@ -158,17 +158,17 @@ impl Widget {
             "{}{}{}",
             self.icon.clone().unwrap_or_else(|| {
                 match self.full_spacing {
-                    Spacing::Normal => " ",
-                    Spacing::Inline => "",
-                    Spacing::Hidden => "",
+                    WidgetSpacing::Normal => " ",
+                    WidgetSpacing::Inline => "",
+                    WidgetSpacing::Hidden => "",
                 }
                 .to_string()
             }),
             self.full_text.clone().unwrap_or_default(),
             match self.full_spacing {
-                Spacing::Normal => " ",
-                Spacing::Inline => " ",
-                Spacing::Hidden => "",
+                WidgetSpacing::Normal => " ",
+                WidgetSpacing::Inline => " ",
+                WidgetSpacing::Hidden => "",
             }
             .to_string()
         );
@@ -178,17 +178,17 @@ impl Widget {
                 "{}{}{}",
                 self.icon.clone().unwrap_or_else(|| {
                     match self.short_spacing {
-                        Spacing::Normal => " ",
-                        Spacing::Inline => "",
-                        Spacing::Hidden => "",
+                        WidgetSpacing::Normal => " ",
+                        WidgetSpacing::Inline => "",
+                        WidgetSpacing::Hidden => "",
                     }
                     .to_string()
                 }),
                 short_text,
                 match self.short_spacing {
-                    Spacing::Normal => " ",
-                    Spacing::Inline => " ",
-                    Spacing::Hidden => "",
+                    WidgetSpacing::Normal => " ",
+                    WidgetSpacing::Inline => " ",
+                    WidgetSpacing::Hidden => "",
                 }
                 .to_string()
             )

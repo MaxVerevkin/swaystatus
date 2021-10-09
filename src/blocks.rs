@@ -19,14 +19,14 @@ mod temperature;
 mod time;
 mod weather;
 
+pub mod prelude;
+
 use serde::de::Deserialize;
 use std::collections::HashMap;
-use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use toml::value::{Table, Value};
 
 use crate::click::ClickHandler;
-use crate::config::SharedConfig;
 use crate::errors::*;
 use crate::protocol::i3bar_block::I3BarBlock;
 use crate::protocol::i3bar_event::I3BarEvent;
@@ -56,6 +56,8 @@ pub enum BlockType {
     Time,
     Weather,
 }
+
+pub type BlockHandle = tokio::task::JoinHandle<std::result::Result<(), crate::errors::Error>>;
 
 #[derive(Debug, Clone)]
 pub struct BlockMessage {
@@ -99,62 +101,46 @@ pub fn spawn_block(
     id: usize,
     block_type: BlockType,
     mut block_config: Value,
-    mut shared_config: SharedConfig,
-    message_tx: mpsc::Sender<BlockMessage>,
-    mut events_reciever: mpsc::Receiver<BlockEvent>,
-) -> Result<JoinHandle<Result<()>>> {
+    swaystatus: &mut crate::Swaystatus,
+) -> Result<(JoinHandle<Result<()>>, ClickHandler)> {
     let common_config = CommonConfig::new(&mut block_config)?;
 
     if let Some(icons_format) = common_config.icons_format {
-        *shared_config.icons_format.to_mut() = icons_format;
+        *swaystatus.shared_config.icons_format.to_mut() = icons_format;
     }
     if let Some(theme_overrides) = common_config.theme_overrides {
-        shared_config
+        swaystatus
+            .shared_config
             .theme
             .to_mut()
             .apply_overrides(&theme_overrides)?;
     }
     let click_handler = common_config.click;
 
-    // Spawn event handler
-    let (events_tx, events_rx) = mpsc::channel(64);
-    tokio::spawn(async move {
-        while let Some(event) = events_reciever.recv().await {
-            if let BlockEvent::I3Bar(click) = event {
-                let update = click_handler.handle(click.button).await;
-                if !update {
-                    continue;
-                }
-            }
-            // If events_rx is dropped then the best we can do here is just end this task
-            if events_tx.send(event).await.is_err() {
-                break;
-            }
-        }
-    });
-
     use BlockType::*;
-    Ok(match block_type {
-        Backlight => backlight::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Battery => battery::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Cpu => cpu::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Custom => custom::spawn(id, block_config, shared_config, message_tx, events_rx),
-        CustomDbus => custom_dbus::spawn(id, block_config, shared_config, message_tx, events_rx),
-        DiskSpace => disk_space::spawn(id, block_config, shared_config, message_tx, events_rx),
-        #[rustfmt::skip]
-        FocusedWindow => focused_window::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Github => github::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Load => load::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Memory => memory::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Music => music::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Net => net::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Pomodoro => pomodoro::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Sound => sound::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Speedtest => speedtest::spawn(id, block_config, shared_config, message_tx, events_rx),
-        SwayKbd => sway_kbd::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Taskwarrior => taskwarrior::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Temperature => temperature::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Time => time::spawn(id, block_config, shared_config, message_tx, events_rx),
-        Weather => weather::spawn(id, block_config, shared_config, message_tx, events_rx),
-    })
+    Ok((
+        match block_type {
+            Backlight => backlight::spawn(id, block_config, swaystatus),
+            Battery => battery::spawn(id, block_config, swaystatus),
+            Cpu => cpu::spawn(id, block_config, swaystatus),
+            Custom => custom::spawn(id, block_config, swaystatus),
+            CustomDbus => custom_dbus::spawn(id, block_config, swaystatus),
+            DiskSpace => disk_space::spawn(id, block_config, swaystatus),
+            FocusedWindow => focused_window::spawn(id, block_config, swaystatus),
+            Github => github::spawn(id, block_config, swaystatus),
+            Load => load::spawn(id, block_config, swaystatus),
+            Memory => memory::spawn(id, block_config, swaystatus),
+            Music => music::spawn(id, block_config, swaystatus),
+            Net => net::spawn(id, block_config, swaystatus),
+            Pomodoro => pomodoro::spawn(id, block_config, swaystatus),
+            Sound => sound::spawn(id, block_config, swaystatus),
+            Speedtest => speedtest::spawn(id, block_config, swaystatus),
+            SwayKbd => sway_kbd::spawn(id, block_config, swaystatus),
+            Taskwarrior => taskwarrior::spawn(id, block_config, swaystatus),
+            Temperature => temperature::spawn(id, block_config, swaystatus),
+            Time => time::spawn(id, block_config, swaystatus),
+            Weather => weather::spawn(id, block_config, swaystatus),
+        },
+        click_handler,
+    ))
 }
