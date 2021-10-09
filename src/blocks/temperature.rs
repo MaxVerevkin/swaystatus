@@ -102,7 +102,7 @@ pub async fn run(
 
         // Render!
         let values = map! {
-            "avg" => Value::from_integer(avg_temp.round() as i64).degrees(),
+            "average" => Value::from_integer(avg_temp.round() as i64).degrees(),
             "min" => Value::from_integer(min_temp as i64).degrees(),
             "max" => Value::from_integer(max_temp as i64).degrees(),
         };

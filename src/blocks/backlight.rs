@@ -15,9 +15,14 @@
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
 //! `device` | The `/sys/class/backlight` device to read brightness information from.  When there is no `device` specified, this block will display information from the first device found in the `/sys/class/backlight` directory. If you only have one display, this approach should find it correctly.| No | Default device
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{brightness}"`
 //! `step_width` | The brightness increment to use when scrolling, in percent | No | `5`
 //! `root_scaling` | Scaling exponent reciprocal (ie. root) | No | `1.0`
 //! `invert_icons` | Invert icons' ordering, useful if you have colorful emoji | No | `false`
+//!
+//! Placeholder    | Value              | Type     | Unit
+//! ---------------|--------------------|----------|---------------
+//! `{brightness}` | Current brightness | Interger | Percents
 //!
 //! # Example
 //!
@@ -26,9 +31,6 @@
 //! block = "backlight"
 //! device = "intel_backlight"
 //! ```
-//!
-//! # TODO
-//! - Add format string config option
 
 use std::cmp::max;
 use std::convert::TryInto;
@@ -48,6 +50,7 @@ use crate::blocks::{BlockEvent, BlockMessage};
 use crate::click::MouseButton;
 use crate::config::SharedConfig;
 use crate::errors::{OptionExt, Result, ResultExt};
+use crate::formatting::{value::Value, FormatTemplate};
 use crate::util::read_file;
 use crate::widget::Widget;
 
@@ -91,6 +94,7 @@ const BACKLIGHT_ICONS: &[&str] = &[
 #[serde(deny_unknown_fields, default)]
 pub struct BacklightConfig {
     pub device: Option<String>,
+    pub format: FormatTemplate,
     pub step_width: u8,
     pub root_scaling: f64,
     pub invert_icons: bool,
@@ -100,6 +104,7 @@ impl Default for BacklightConfig {
     fn default() -> Self {
         Self {
             device: None,
+            format: Default::default(),
             step_width: 5,
             root_scaling: 1f64,
             invert_icons: false,
@@ -242,39 +247,12 @@ pub async fn run(
 ) -> Result<()> {
     let block_config =
         BacklightConfig::deserialize(block_config).block_config_error("backlight")?;
+    let format = block_config.format.or_default("{brightness}")?;
 
     let device = match &block_config.device {
         None => BacklitDevice::default(block_config.root_scaling).await?,
         Some(path) => BacklitDevice::from_device(path, block_config.root_scaling).await?,
     };
-
-    // Render and send widget
-    let update = || async {
-        let brightness = device.brightness().await?;
-        let mut icon_index = (usize::from(brightness) * BACKLIGHT_ICONS.len()) / 101;
-
-        if block_config.invert_icons {
-            icon_index = BACKLIGHT_ICONS.len() - icon_index;
-        }
-
-        let widget = Widget::new(id, shared_config.clone())
-            .with_full_text(format!("{}%", brightness)) // TODO use format string
-            .with_icon(BACKLIGHT_ICONS[icon_index])?
-            .get_data();
-
-        message_sender
-            .send(BlockMessage {
-                id,
-                widgets: vec![widget],
-            })
-            .await
-            .internal_error("backlight", "failed to send message")?;
-
-        Ok(())
-    };
-
-    // Initial block value
-    update().await?;
 
     // Watch for brightness changes
     let mut notify = Inotify::init().block_error("backlight", "Failed to start inotify")?;
@@ -288,9 +266,30 @@ pub async fn run(
         .event_stream(&mut buffer)
         .block_error("backlight", "Failed to create event stream")?;
 
+    let mut text = Widget::new(id, shared_config);
+
     loop {
+        let brightness = device.brightness().await?;
+        let mut icon_index = (usize::from(brightness) * BACKLIGHT_ICONS.len()) / 101;
+        if block_config.invert_icons {
+            icon_index = BACKLIGHT_ICONS.len() - icon_index;
+        }
+
+        text.set_icon(BACKLIGHT_ICONS[icon_index])?;
+        text.set_text(format.render(&map! {
+            "brightness" => Value::from_integer(brightness as i64).percents(),
+        })?);
+
+        message_sender
+            .send(BlockMessage {
+                id,
+                widgets: vec![text.get_data()],
+            })
+            .await
+            .internal_error("backlight", "failed to send message")?;
+
         tokio::select! {
-            _ = file_changes.next() => update().await?,
+            _ = file_changes.next() => (),
             Some(BlockEvent::I3Bar(event)) = events_receiver.recv() => {
                 let brightness = device.brightness().await?;
                 match event.button {
