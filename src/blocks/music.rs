@@ -232,7 +232,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     })
 }
 
-async fn get_all_players<'a>(dbus_conn: &'a zbus::Connection) -> Result<Vec<Player<'a>>> {
+async fn get_all_players(dbus_conn: &zbus::Connection) -> Result<Vec<Player<'_>>> {
     let proxy = DBusProxy::new(dbus_conn)
         .await
         .block_error("music", "failed to create DBusProxy")?;
@@ -343,7 +343,7 @@ impl RotatingText {
     pub fn from_metadata(metadata: zbus_mpris::PlayerMetadata) -> Self {
         let title = metadata.title();
         let artist = metadata.artist();
-        Self::new(match (title.as_deref(), artist.as_deref()) {
+        Self::new(match (title, artist.as_deref()) {
             (Some(t), Some(a)) => format!("{}|{}|", t, a),
             (None, Some(s)) | (Some(s), None) => format!("{}|", s),
             _ => "".to_string(),
