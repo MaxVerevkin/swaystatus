@@ -1,19 +1,19 @@
-use dbus::arg;
-use dbus::message::MatchRule;
-use dbus::nonblock::stdintf::org_freedesktop_dbus::Properties;
-use dbus::nonblock::{Proxy, SyncConnection};
-use dbus::strings::{Interface, Member, Path};
-use dbus_tokio::connection;
-
 use futures::StreamExt;
 
-use std::collections::VecDeque;
-use std::sync::Arc;
+use zbus::fdo::DBusProxy;
+use zbus::zvariant::{Optional, OwnedValue};
+use zbus::MessageStream;
+use zbus_names::{OwnedBusName, OwnedInterfaceName};
+use zvariant::derive::Type;
+
+use std::collections::{HashMap, VecDeque};
+use std::convert::TryFrom;
 use std::time::Duration;
 
 use super::prelude::*;
-
 use crate::util::escape_pango_text;
+
+mod zbus_mpris;
 
 const PLAY_PAUSE_BTN: usize = 1;
 const NEXT_BTN: usize = 2;
@@ -37,10 +37,25 @@ impl Default for MusicConfig {
     }
 }
 
+#[derive(Debug, Clone, Type, serde_derive::Deserialize)]
+struct PropChange {
+    _interface_name: OwnedInterfaceName,
+    changed_properties: HashMap<String, OwnedValue>,
+    _invalidated_properties: Vec<String>,
+}
+
+#[derive(Debug, Clone, Type, serde_derive::Deserialize)]
+struct OwnerChange {
+    pub name: OwnedBusName,
+    pub old_owner: Optional<String>,
+    pub new_owner: Optional<String>,
+}
+
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let mut events = events();
     tokio::spawn(async move {
         let block_config = MusicConfig::deserialize(block_config).block_config_error("music")?;
+        let dbus_conn = api.dbus_connection().await?;
 
         let mut text = api.new_widget().with_icon("music")?;
         let mut play_pause_button = api
@@ -58,38 +73,36 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             .with_spacing(WidgetSpacing::Hidden)
             .with_icon("music_prev")?;
 
-        // Connect to the D-Bus session bus (this is blocking, unfortunately).
-        let (resource, dbus_conn) = connection::new_session_sync()
-            .block_error("music", "failed to open DBUS connection")?;
-        // The resource is a task that should be spawned onto a tokio compatible
-        // reactor ASAP. If the resource ever finishes, you lost connection to D-Bus.
-        tokio::spawn(async {
-            let err = resource.await;
-            panic!("Lost connection to D-Bus: {}", err);
-        });
+        let mut players = get_all_players(&dbus_conn).await?;
+        let mut cur_player = None;
+        for (i, player) in players.iter().enumerate() {
+            cur_player = Some(i);
+            if player.status == Some(PlaybackStatus::Playing) {
+                break;
+            }
+        }
 
-        // Add matches
-        // TODO (maybe?) listen to "owner changed" events
-        let mut dbus_rule = MatchRule::new();
-        dbus_rule.interface =
-            Some(Interface::from_slice("org.freedesktop.DBus.Properties").unwrap());
-        dbus_rule.member = Some(Member::new("PropertiesChanged").unwrap());
-        dbus_rule.path = Some(Path::new("/org/mpris/MediaPlayer2").unwrap());
-        let (_incoming_signal, mut dbus_stream) = dbus_conn
-            .add_match(dbus_rule)
+        let dbus_proxy = DBusProxy::new(&dbus_conn)
             .await
-            .block_error("music", "failed to add match")?
-            .msg_stream();
-
-        let mut player = get_any_player(dbus_conn.clone()).await?;
+            .block_error("music", "failed to cerate DBusProxy")?;
+        dbus_proxy.add_match("type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path='/org/mpris/MediaPlayer2'")
+            .await
+            .block_error("music", "failed to add match")?;
+        dbus_proxy.add_match("type='signal',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0namespace='org.mpris.MediaPlayer2'")
+            .await
+            .block_error("music", "failed to add match")?;
+        let mut dbus_stream = MessageStream::from(&dbus_conn);
 
         loop {
+            let mut player = cur_player.map(|c| players.get_mut(c).unwrap());
             let widgets = match player {
                 Some(ref player) => {
-                    text.set_full_text(escape_pango_text(player.display(block_config.width)));
+                    text.set_full_text(escape_pango_text(
+                        player.rotating.display(block_config.width),
+                    ));
 
                     match player.status {
-                        PlaybackStatus::Playing => {
+                        Some(PlaybackStatus::Playing) => {
                             text.set_state(WidgetState::Info);
                             play_pause_button.set_state(WidgetState::Info);
                             next_button.set_state(WidgetState::Info);
@@ -133,23 +146,85 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 // Time to update rotating text
                 _ = tokio::time::sleep(Duration::from_secs(1)) => (),
                 // Wait for a DBUS event
-                _ = dbus_stream.next() => player = get_any_player(dbus_conn.clone()).await?,
+                Some(msg) = dbus_stream.next() => {
+                    let msg = msg.unwrap();
+                    match msg.member().unwrap().as_ref().map(|m| m.as_str()) {
+                        Some("PropertiesChanged") => {
+                            let header = msg.header().unwrap();
+                            let sender = header.sender().unwrap().unwrap();
+                            let player = players.iter_mut().find(|p| p.owner == sender.to_string()).unwrap();
+
+                            let body: PropChange = msg.body_unchecked().unwrap();
+                            let props = body.changed_properties;
+
+                            if let Some(status) = props.get("PlaybackStatus") {
+                                let status: &str = status.downcast_ref().unwrap();
+                                player.status = PlaybackStatus::from_str(status);
+                            }
+                            if let Some(metadata) = props.get("Metadata") {
+                                let metadata =
+                                    zbus_mpris::PlayerMetadata::try_from(metadata.clone()).unwrap();
+                                player.update_metadata(metadata);
+                            }
+                        }
+                        Some("NameOwnerChanged") => {
+                            let body: OwnerChange = msg.body_unchecked().unwrap();
+                            dbg!(&body);
+                            let old: Option<String> = body.old_owner.into();
+                            let new: Option<String> = body.new_owner.into();
+                            match (old, new) {
+                                (None, Some(new)) => if new != body.name.to_string() {
+                                    players.push(Player::new(&dbus_conn, body.name, new).await?);
+                                    cur_player = Some(players.len() - 1);
+                                }
+                                (Some(old), None) => {
+                                    if let Some(pos) = players.iter().position(|p| p.owner == old) {
+                                        players.remove(pos);
+                                        if let Some(cur) = cur_player {
+                                            if players.is_empty() {
+                                                cur_player = None;
+                                            } else if pos == cur {
+                                                cur_player = Some(0);
+                                            } else if pos < cur {
+                                                cur_player = Some(cur - 1);
+                                            }
+                                        }
+                                    }
+                                }
+                                _ => (),
+                            }
+                        }
+                        _ => (),
+                    }
+                }
                 // Wait for a click
                 Some(BlockEvent::I3Bar(click)) = events.recv() => {
-                    if click.button == MouseButton::Left {
-                        if let Some(ref player) = player {
-                            let command = match click.instance {
-                                Some(PLAY_PAUSE_BTN) => "PlayPause",
-                                Some(NEXT_BTN) => "Next",
-                                Some(PREV_BTN) => "Previous",
-                                _ => continue,
-                            };
-                            // Ignore the error
-                            let _resonce: StdResult<(), _> = player
-                                .dbus_proxy
-                                .method_call("org.mpris.MediaPlayer2.Player", command, ())
-                                .await;
+                    match click.button {
+                        MouseButton::Left => {
+                            if let Some(ref player) = player {
+                                match click.instance {
+                                    Some(PLAY_PAUSE_BTN) => player.play_pause().await?,
+                                    Some(NEXT_BTN) => player.next().await?,
+                                    Some(PREV_BTN) => player.prev().await?,
+                                    _ => (),
+                                }
+                            }
                         }
+                        MouseButton::WheelUp => {
+                            if let Some(cur) = cur_player {
+                                if cur > 0 {
+                                    cur_player = Some(cur - 1);
+                                }
+                            }
+                        }
+                        MouseButton::WheelDown => {
+                            if let Some(cur) = cur_player {
+                                if cur + 1 < players.len() {
+                                    cur_player = Some(cur + 1);
+                                }
+                            }
+                        }
+                        _ => (),
                     }
                 }
             }
@@ -157,96 +232,89 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     })
 }
 
-async fn get_any_player(dbus_conn: Arc<SyncConnection>) -> Result<Option<Player>> {
-    // Get already oppened players
-    let dbus_proxy = Proxy::new(
-        "org.freedesktop.DBus",
-        "/",
-        Duration::from_secs(2),
-        dbus_conn.as_ref(),
-    );
-    let (names,): (Vec<String>,) = dbus_proxy
-        .method_call("org.freedesktop.DBus", "ListNames", ())
+async fn get_all_players<'a>(dbus_conn: &'a zbus::Connection) -> Result<Vec<Player<'a>>> {
+    let proxy = DBusProxy::new(dbus_conn)
         .await
-        .block_error("music", "failed to execute 'ListNames'")?;
+        .block_error("music", "failed to create DBusProxy")?;
+    let names = proxy
+        .list_names()
+        .await
+        .block_error("music", "failed to list dbus names")?;
 
-    // Get players with a name that starts with "org.mpris.MediaPlayer2"
-    let names = names
-        .into_iter()
-        .filter(|n| n.starts_with("org.mpris.MediaPlayer2"));
-
-    // Get a playing player if available, or just any player otherwise
-    let mut player = None;
+    let mut players = Vec::new();
     for name in names {
-        let p = Player::new(dbus_conn.clone(), name).await;
-        if p.status == PlaybackStatus::Playing {
-            player = Some(p);
-            break;
+        if name.starts_with("org.mpris.MediaPlayer2") {
+            let owner = proxy
+                .get_name_owner(name.as_ref())
+                .await
+                .unwrap()
+                .to_string();
+            players.push(Player::new(dbus_conn, name, owner).await?);
         }
-        player = Some(p);
     }
-
-    Ok(player)
+    Ok(players)
 }
 
-struct Player {
-    //name: String,
-    dbus_proxy: Proxy<'static, Arc<SyncConnection>>,
-    status: PlaybackStatus,
-    //title: Option<String>,
-    //artist: Option<String>,
+#[derive(Debug)]
+struct Player<'a> {
+    status: Option<PlaybackStatus>,
+    owner: String,
+    player_proxy: zbus_mpris::PlayerProxy<'a>,
     rotating: RotatingText,
 }
 
-impl Player {
-    async fn new(dbus_conn: Arc<SyncConnection>, name: String) -> Self {
-        let proxy = Proxy::new(
-            name.clone(),
-            "/org/mpris/MediaPlayer2",
-            Duration::from_secs(2),
-            dbus_conn,
-        );
-
-        let status = proxy
-            .get::<String>("org.mpris.MediaPlayer2.Player", "PlaybackStatus")
-            .await;
-        let status = match status.as_deref() {
-            Ok("Playing") => PlaybackStatus::Playing,
-            Ok("Paused") => PlaybackStatus::Paused,
-            Ok("Stopped") => PlaybackStatus::Stopped,
-            _ => PlaybackStatus::Unknown,
-        };
-
+impl<'a> Player<'a> {
+    async fn new(
+        dbus_conn: &'a zbus::Connection,
+        bus_name: OwnedBusName,
+        owner: String,
+    ) -> Result<Player<'a>> {
+        let proxy = zbus_mpris::PlayerProxy::builder(dbus_conn)
+            .destination(bus_name.clone())
+            .block_error("music", "failed to set proxy destination")?
+            .build()
+            .await
+            .block_error("music", "failed to open player proxy")?;
         let metadata = proxy
-            .get::<arg::PropMap>("org.mpris.MediaPlayer2.Player", "Metadata")
-            .await;
+            .metadata()
+            .await
+            .block_error("music", "failed to obtain player metadata")?;
+        let status = proxy
+            .playback_status()
+            .await
+            .block_error("music", "failed to obtain player status")?;
 
-        let (title, artist) = match metadata {
-            Ok(metadata) => {
-                let title: Option<&String> = arg::prop_cast(&metadata, "xesam:title");
-                let artist: Option<&Vec<String>> = arg::prop_cast(&metadata, "xesam:artist");
-                let artist = artist.map(|a| a.first()).flatten();
-                (title.cloned(), artist.cloned())
-            }
-            _ => (None, None),
-        };
-
-        Self {
-            rotating: RotatingText::new(match (title.as_deref(), artist.as_deref()) {
-                (Some(t), Some(a)) => format!("{}|{}|", t, a),
-                (None, Some(s)) | (Some(s), None) => format!("{}|", s),
-                _ => "".to_string(),
-            }),
-            //name,
-            dbus_proxy: proxy,
-            status,
-            //title,
-            //artist,
-        }
+        Ok(Self {
+            status: PlaybackStatus::from_str(&status),
+            owner,
+            player_proxy: proxy,
+            rotating: RotatingText::from_metadata(metadata),
+        })
     }
 
-    fn display(&self, len: usize) -> String {
-        self.rotating.display(len)
+    fn update_metadata(&mut self, metadata: zbus_mpris::PlayerMetadata) {
+        self.rotating = RotatingText::from_metadata(metadata);
+    }
+
+    async fn play_pause(&self) -> Result<()> {
+        self.player_proxy
+            .play_pause()
+            .await
+            .block_error("music", "play_pause() failed")
+    }
+
+    async fn prev(&self) -> Result<()> {
+        self.player_proxy
+            .previous()
+            .await
+            .block_error("music", "prev() failed")
+    }
+
+    async fn next(&self) -> Result<()> {
+        self.player_proxy
+            .next()
+            .await
+            .block_error("music", "next() failed")
     }
 }
 
@@ -255,13 +323,33 @@ enum PlaybackStatus {
     Playing,
     Paused,
     Stopped,
-    Unknown,
+}
+
+impl PlaybackStatus {
+    fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "Paused" => Some(Self::Paused),
+            "Playing" => Some(Self::Playing),
+            "Stopped" => Some(Self::Stopped),
+            _ => None,
+        }
+    }
 }
 
 // TODO move to util.rs or somewhere else
 #[derive(Debug)]
 pub struct RotatingText(VecDeque<char>);
 impl RotatingText {
+    pub fn from_metadata(metadata: zbus_mpris::PlayerMetadata) -> Self {
+        let title = metadata.title();
+        let artist = metadata.artist();
+        Self::new(match (title.as_deref(), artist.as_deref()) {
+            (Some(t), Some(a)) => format!("{}|{}|", t, a),
+            (None, Some(s)) | (Some(s), None) => format!("{}|", s),
+            _ => "".to_string(),
+        })
+    }
+
     pub fn new(text: String) -> Self {
         Self(text.chars().collect())
     }

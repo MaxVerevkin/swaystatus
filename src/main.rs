@@ -145,6 +145,8 @@ pub struct Swaystatus {
 
     pub message_sender: mpsc::Sender<BlockMessage>,
     pub message_receiver: mpsc::Receiver<BlockMessage>,
+
+    pub dbus_connection: Arc<async_lock::Mutex<Option<zbus::Connection>>>,
 }
 
 impl Swaystatus {
@@ -161,6 +163,8 @@ impl Swaystatus {
 
             message_sender,
             message_receiver,
+
+            dbus_connection: Arc::new(async_lock::Mutex::new(None)),
         }
     }
 
@@ -185,6 +189,7 @@ impl Swaystatus {
             block_name: blocks::block_name(block_type),
             shared_config,
             message_sender: self.message_sender.clone(),
+            dbus_connection: Arc::clone(&self.dbus_connection),
         };
 
         let handle = blocks::block_spawner(block_type)(block_config, api, &mut || {

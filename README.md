@@ -8,6 +8,12 @@ Refer to https://github.com/MaxVerevkin/swaystatus/issues/4 for `i3status-rust` 
 
 # Differences
 
+### Blocks
+
+#### Music
+
+While it lacks many configuration options, music block allows switching between different players with mouse wheel.
+
 ### Enhanced clicks handling abilities
 
 Each block supports multiple `click` options to handle blocks' clicks.

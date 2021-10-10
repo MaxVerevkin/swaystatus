@@ -25,6 +25,12 @@ async-trait = "0.1"
 dbus-tokio = "0.7"
 dbus-crossroads = "0.5"
 regex = "1.5"
+
+zbus = "2.0.0-beta.7"
+zbus_names = "1.1"
+zvariant = "2.9"
+async-lock = "2.4"
+
 # TODO: remove
 color_space = "0.5"
 

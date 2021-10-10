@@ -2,6 +2,7 @@ pub mod prelude;
 
 use serde::de::Deserialize;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use toml::value::{Table, Value};
 
@@ -121,6 +122,7 @@ pub struct CommonApi {
     pub block_name: &'static str,
     pub shared_config: SharedConfig,
     pub message_sender: mpsc::Sender<BlockMessage>,
+    pub dbus_connection: Arc<async_lock::Mutex<Option<zbus::Connection>>>,
 }
 
 impl CommonApi {
@@ -140,5 +142,25 @@ impl CommonApi {
             })
             .await
             .internal_error(self.block_name, "failed to send message")
+    }
+
+    pub async fn dbus_connection(&self) -> Result<zbus::Connection> {
+        zbus::Connection::session()
+            .await
+            .internal_error("dbus_connection()", "failed to open dbus connection")
+    }
+
+    pub async fn shared_dbus_connection(&self) -> Result<zbus::Connection> {
+        let mut guard = self.dbus_connection.lock().await;
+        match &*guard {
+            Some(conn) => Ok(conn.clone()),
+            None => {
+                let conn = zbus::Connection::session()
+                    .await
+                    .internal_error("dbus_connection()", "failed to open dbus connection")?;
+                *guard = Some(conn.clone());
+                Ok(conn)
+            }
+        }
     }
 }
