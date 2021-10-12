@@ -20,6 +20,7 @@
 //! `good` | Minimum battery level, where state is set to good | No | `60`
 //! `warning` | Minimum battery level, where state is set to warning | No | `30`
 //! `critical` | Minimum battery level, where state is set to critical | No | `15`
+//! `full_threshold` | Percentage at which the battery is considered full (`full_format` shown) | No | `100`
 //!
 //! Placeholder    | Value                                                                   | Type              | Unit
 //! ---------------|-------------------------------------------------------------------------|-------------------|-----
@@ -89,6 +90,7 @@ struct BatteryConfig {
     good: u8,
     warning: u8,
     critical: u8,
+    full_threshold: u8,
 }
 
 impl Default for BatteryConfig {
@@ -107,6 +109,7 @@ impl Default for BatteryConfig {
             good: 60,
             warning: 30,
             critical: 15,
+            full_threshold: 100,
         }
     }
 }
@@ -514,13 +517,24 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
         };
 
         loop {
-            let (is_available, status, capacity, time, power) = tokio::join!(
+            let (is_available, mut status, capacity, time, power) = tokio::join!(
                 device.is_available(),
                 device.status(),
                 device.capacity(),
                 device.time_remaining(),
                 device.usage()
             );
+
+            if let Ok(c) = capacity {
+                if c > block_config.full_threshold {
+                    if let Ok(s) = &mut status {
+                        dbg!(&s);
+                        if *s != BatteryStatus::Discharging {
+                            *s = BatteryStatus::Full;
+                        }
+                    }
+                }
+            }
 
             let fmt = match status {
                 Err(_) if block_config.hide_missing => {
@@ -531,7 +545,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                     api.send_widgets(vec![]).await?;
                     continue;
                 }
-                Ok(BatteryStatus::Full) => &format_full,
+                Ok(BatteryStatus::Full | BatteryStatus::NotCharging) => &format_full,
                 Err(_) => &format_missing,
                 Ok(_) => &format,
             };
