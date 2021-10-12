@@ -59,12 +59,12 @@ pub fn spawn(block_config: toml::Value, api: CommonApi, _: EventsRxGetter) -> Bl
     tokio::spawn(async move {
         // Parse config
         let dbus_name = CustomDBusConfig::deserialize(block_config)
-            .block_config_error("custom_dbus")?
+            .config_error()?
             .name;
 
         // Open dbus connection
-        let (resource, dbus_conn) = connection::new_session_sync()
-            .block_error("music", "failed to open DBUS connection")?;
+        let (resource, dbus_conn) =
+            connection::new_session_sync().error("failed to open DBUS connection")?;
         tokio::spawn(async {
             let err = resource.await;
             panic!("Lost connection to D-Bus: {}", err);
@@ -75,7 +75,7 @@ pub fn spawn(block_config: toml::Value, api: CommonApi, _: EventsRxGetter) -> Bl
         dbus_conn
             .request_name(dbus_name, false, false, false)
             .await
-            .block_error("custom_dbus", "request_name() failed")?;
+            .error("request_name() failed")?;
 
         // Create a new crossroads instance.
         let mut crossroads = Crossroads::new();

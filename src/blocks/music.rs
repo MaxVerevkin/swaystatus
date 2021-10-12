@@ -54,7 +54,7 @@ struct OwnerChange {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let mut events = events();
     tokio::spawn(async move {
-        let block_config = MusicConfig::deserialize(block_config).block_config_error("music")?;
+        let block_config = MusicConfig::deserialize(block_config).config_error()?;
         let dbus_conn = api.dbus_connection().await?;
 
         let mut text = api.new_widget().with_icon("music")?;
@@ -84,13 +84,13 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
 
         let dbus_proxy = DBusProxy::new(&dbus_conn)
             .await
-            .block_error("music", "failed to cerate DBusProxy")?;
+            .error( "failed to cerate DBusProxy")?;
         dbus_proxy.add_match("type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path='/org/mpris/MediaPlayer2'")
             .await
-            .block_error("music", "failed to add match")?;
+            .error( "failed to add match")?;
         dbus_proxy.add_match("type='signal',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0namespace='org.mpris.MediaPlayer2'")
             .await
-            .block_error("music", "failed to add match")?;
+            .error( "failed to add match")?;
         let mut dbus_stream = MessageStream::from(&dbus_conn);
 
         loop {
@@ -235,11 +235,11 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
 async fn get_all_players(dbus_conn: &zbus::Connection) -> Result<Vec<Player<'_>>> {
     let proxy = DBusProxy::new(dbus_conn)
         .await
-        .block_error("music", "failed to create DBusProxy")?;
+        .error( "failed to create DBusProxy")?;
     let names = proxy
         .list_names()
         .await
-        .block_error("music", "failed to list dbus names")?;
+        .error( "failed to list dbus names")?;
 
     let mut players = Vec::new();
     for name in names {
@@ -271,18 +271,18 @@ impl<'a> Player<'a> {
     ) -> Result<Player<'a>> {
         let proxy = zbus_mpris::PlayerProxy::builder(dbus_conn)
             .destination(bus_name.clone())
-            .block_error("music", "failed to set proxy destination")?
+            .error( "failed to set proxy destination")?
             .build()
             .await
-            .block_error("music", "failed to open player proxy")?;
+            .error( "failed to open player proxy")?;
         let metadata = proxy
             .metadata()
             .await
-            .block_error("music", "failed to obtain player metadata")?;
+            .error( "failed to obtain player metadata")?;
         let status = proxy
             .playback_status()
             .await
-            .block_error("music", "failed to obtain player status")?;
+            .error( "failed to obtain player status")?;
 
         Ok(Self {
             status: PlaybackStatus::from_str(&status),
@@ -300,21 +300,21 @@ impl<'a> Player<'a> {
         self.player_proxy
             .play_pause()
             .await
-            .block_error("music", "play_pause() failed")
+            .error( "play_pause() failed")
     }
 
     async fn prev(&self) -> Result<()> {
         self.player_proxy
             .previous()
             .await
-            .block_error("music", "prev() failed")
+            .error( "prev() failed")
     }
 
     async fn next(&self) -> Result<()> {
         self.player_proxy
             .next()
             .await
-            .block_error("music", "next() failed")
+            .error( "next() failed")
     }
 }
 

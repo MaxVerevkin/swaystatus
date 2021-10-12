@@ -66,13 +66,10 @@ impl WeatherService {
             units,
         } = self;
 
-        let api_key = api_key.as_ref().block_error(
-            "weather",
-            &format!(
-                "missing key 'service.api_key' and environment variable {}",
-                OPEN_WEATHER_MAP_API_KEY_ENV.to_string()
-            ),
-        )?;
+        let api_key = api_key.as_ref().error(format!(
+            "missing key 'service.api_key' and environment variable {}",
+            OPEN_WEATHER_MAP_API_KEY_ENV.to_string()
+        ))?;
 
         let city = find_ip_location().await?;
         let location_query = {
@@ -84,7 +81,7 @@ impl WeatherService {
                         .as_ref()
                         .map(|(lat, lon)| format!("lat={}&lon={}", lat, lon))
                 })
-                .block_error("weather", "no localization was provided")?
+                .error("no localization was provided")?
         };
 
         // Refer to https://openweathermap.org/current
@@ -101,10 +98,10 @@ impl WeatherService {
 
         reqwest::get(url)
             .await
-            .block_error("weather", "failed during request for current location")?
+            .error("failed during request for current location")?
             .json()
             .await
-            .block_error("weather", "failed while parsing location API result")
+            .error("failed while parsing location API result")
     }
 }
 
@@ -140,10 +137,10 @@ async fn find_ip_location() -> Result<Option<String>> {
     }
 
     let res: ApiResponse = dbg!(reqwest::get(IP_API_URL).await)
-        .block_error("weather", "failed during request for current location")?
+        .error("failed during request for current location")?
         .json()
         .await
-        .block_error("weather", "failed while parsing location API result")?;
+        .error("failed while parsing location API result")?;
 
     Ok(dbg!(res.city))
 }
@@ -219,8 +216,7 @@ impl Default for WeatherConfig {
 
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
-        let block_config =
-            WeatherConfig::deserialize(block_config).block_config_error("weather")?;
+        let block_config = WeatherConfig::deserialize(block_config).config_error()?;
         let format = block_config
             .format
             .clone()

@@ -35,7 +35,7 @@ impl Default for NetConfig {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let mut events = events();
     tokio::spawn(async move {
-        let block_config = NetConfig::deserialize(block_config).block_config_error("net")?;
+        let block_config = NetConfig::deserialize(block_config).config_error()?;
         let mut format = block_config
             .format
             .or_default("{speed_down;K}{speed_up;k}")?;

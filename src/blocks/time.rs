@@ -54,7 +54,7 @@ impl Default for TimeConfig {
 
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
-        let block_config = TimeConfig::deserialize(block_config).block_config_error("time")?;
+        let block_config = TimeConfig::deserialize(block_config).config_error()?;
         let mut interval = tokio::time::interval(Duration::from_secs(block_config.interval));
         let mut text = api.new_widget().with_icon("time")?;
         // `FormatTemplate` doesn't do much stuff here - we just want to get the original "full" and
@@ -69,12 +69,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
 
         let timezone = block_config.timezone;
         let locale = match block_config.locale.as_deref() {
-            Some(locale) => Some(
-                locale
-                    .try_into()
-                    .ok()
-                    .block_error("time", "invalid locale")?,
-            ),
+            Some(locale) => Some(locale.try_into().ok().error("invalid locale")?),
             None => None,
         };
 

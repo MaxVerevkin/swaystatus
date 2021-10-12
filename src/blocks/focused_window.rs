@@ -53,7 +53,7 @@ impl Default for FocusedWindowConfig {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config =
-            FocusedWindowConfig::deserialize(block_config).block_config_error("focused_window")?;
+            FocusedWindowConfig::deserialize(block_config).config_error()?;
         let format = block_config.format.clone().or_default("{title^21}")?;
         let mut widget = api.new_widget();
 
@@ -62,20 +62,20 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
 
         let conn = Connection::new()
             .await
-            .block_error("focused_window", "failed to open connection with swayipc")?;
+            .error( "failed to open connection with swayipc")?;
 
         let mut events = conn
             .subscribe(&[EventType::Window, EventType::Workspace])
             .await
-            .block_error("focused_window", "could not subscribe to window events")?;
+            .error( "could not subscribe to window events")?;
 
         // Main loop
         loop {
             let event = events
                 .next()
                 .await
-                .block_error("focused_window", "swayipc channel closed")?
-                .block_error("focused_window", "bad event")?;
+                .error( "swayipc channel closed")?
+                .error( "bad event")?;
 
             let updated = match event {
                 Event::Window(e) => match e.change {

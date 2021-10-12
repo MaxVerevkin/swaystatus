@@ -94,7 +94,7 @@ impl Default for MemoryConfig {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let mut events = events();
     tokio::spawn(async move {
-        let block_config = MemoryConfig::deserialize(block_config).block_config_error("memory")?;
+        let block_config = MemoryConfig::deserialize(block_config).config_error()?;
 
         let format = (
             block_config
@@ -215,7 +215,7 @@ impl Memstate {
         let mut file = BufReader::new(
             File::open("/proc/meminfo")
                 .await
-                .block_error("memory", "/proc/meminfo does not exist")?,
+                .error( "/proc/meminfo does not exist")?,
         );
 
         let mut mem_state = Memstate {
@@ -234,7 +234,7 @@ impl Memstate {
         while file
             .read_line(&mut line)
             .await
-            .block_error("memory", "failed to read /proc/meminfo")?
+            .error( "failed to read /proc/meminfo")?
             != 0
         {
             let mut words = line.trim().split_whitespace();
@@ -250,7 +250,7 @@ impl Memstate {
                 .next()
                 .map(|x| u64::from_str(x).ok())
                 .flatten()
-                .block_error("memory", "failed to parse /proc/meminfo")?;
+                .error( "failed to parse /proc/meminfo")?;
 
             match name {
                 "MemTotal:" => mem_state.mem_total = val,
@@ -272,9 +272,9 @@ impl Memstate {
             let size_re = Regex::new(r"size\s+\d+\s+(\d+)").unwrap(); // Valid regex is safe to unwrap.
             let size = &size_re
                 .captures(&arcstats)
-                .block_error("memory", "failed to find zfs_arc_cache size")?[1];
+                .error( "failed to find zfs_arc_cache size")?[1];
             mem_state.zfs_arc_cache =
-                u64::from_str(size).block_error("memory", "failed to parse zfs_arc_cache size")?;
+                u64::from_str(size).error( "failed to parse zfs_arc_cache size")?;
         }
 
         Ok(mem_state)

@@ -115,14 +115,12 @@ impl Default for BatteryConfig {
 /// Read value from a file, return None if the file does not exist
 async fn read_value_from_file<P: AsRef<Path>, T: FromStr>(path: P) -> Result<Option<T>>
 where
-    T::Err: std::error::Error,
+    T::Err: StdError + Send + Sync + 'static,
 {
     match read_file(path.as_ref()).await {
-        Ok(raw) => Ok(Some(
-            raw.parse().block_error("battery", "failed to parse file")?,
-        )),
+        Ok(raw) => Ok(Some(raw.parse().error("failed to parse file")?)),
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(err) => Err(err).block_error("battery", "Failed while try to read charge_full"),
+        Err(err) => Err(err).error("failed while try to read charge_full"),
     }
 }
 
@@ -203,7 +201,7 @@ impl PowerSupplyDevice {
 
         Ok((charge.transpose())
             .or_else(|| energy.transpose())
-            .block_error("battery", "No file to read current charge")??)
+            .error("No file to read current charge")??)
     }
 
     async fn charge_full(&self) -> Result<u64> {
@@ -214,7 +212,7 @@ impl PowerSupplyDevice {
 
         Ok((charge.transpose())
             .or_else(|| energy.transpose())
-            .block_error("battery", "No file to read full charge")??)
+            .error("No file to read full charge")??)
     }
 }
 
@@ -227,7 +225,7 @@ impl BatteryDevice for PowerSupplyDevice {
     async fn status(&self) -> Result<BatteryStatus> {
         read_value_from_file(self.device_path.join("status"))
             .await?
-            .block_error("battery", "status is not available")
+            .error("status is not available")
     }
 
     async fn capacity(&self) -> Result<u8> {
@@ -239,7 +237,7 @@ impl BatteryDevice for PowerSupplyDevice {
 
         let capacity = (capacity.ok().flatten())
             .or_else(|| Some(100 * charge_now.ok()? / charge_full.ok()?))
-            .block_error("battery", "Failed to read capacity, charge, or energy")?;
+            .error("Failed to read capacity, charge, or energy")?;
 
         Ok(capacity.clamp(0, 100) as u8)
     }
@@ -252,7 +250,7 @@ impl BatteryDevice for PowerSupplyDevice {
         ) {
             (Ok(Some(power)), _, _) => Ok(power),
             (_, Ok(Some(current)), Ok(Some(voltage))) => Ok((current * voltage) / 1e6),
-            _ => block_error("battery", "Device does not support power consumption"),
+            _ => Err(Error::new("Device does not support power consumption")),
         }
     }
 
@@ -272,12 +270,12 @@ impl BatteryDevice for PowerSupplyDevice {
         match status? {
             BatteryStatus::Discharging => time_to_empty
                 .or_else(|| Some((60. * charge_now.ok()? as f64 / usage.ok()?) as u64))
-                .block_error("battery", "No method supported to calculate time to empty"),
+                .error("No method supported to calculate time to empty"),
             BatteryStatus::Charging => time_to_full
                 .or_else(|| {
                     Some((60. * (charge_full.ok()? - charge_now.ok()?) as f64 / usage.ok()?) as u64)
                 })
-                .block_error("battery", "No method supported to calculate time to full"),
+                .error("No method supported to calculate time to full"),
             _ => {
                 // TODO: What should we return in this case? It seems that under
                 // some conditions sysfs will return 0 for some readings (energy
@@ -306,8 +304,8 @@ pub struct UPowerDevice {
 
 impl UPowerDevice {
     async fn from_device(device: &str) -> Result<Self> {
-        let (ressource, dbus_conn) = dbus_tokio::connection::new_system_sync()
-            .block_error("battery", "Failed to open dbus connection")?;
+        let (ressource, dbus_conn) =
+            dbus_tokio::connection::new_system_sync().error("Failed to open dbus connection")?;
 
         tokio::spawn(async move {
             let err = ressource.await;
@@ -328,13 +326,13 @@ impl UPowerDevice {
                     )
                     .method_call(UPOWER_DBUS_ROOT_INTERFACE, "EnumerateDevices", ())
                     .await
-                    .block_error("battery", "Failed to retrieve DBus devices")?
+                    .error("Failed to retrieve DBus devices")?
                 };
 
                 paths
                     .into_iter()
                     .find(|entry| entry.ends_with(device))
-                    .block_error("battery", "UPower device could not be found")?
+                    .error("UPower device could not be found")?
             }
         };
 
@@ -349,12 +347,12 @@ impl UPowerDevice {
         let upower_type: u32 = dbus_proxy
             .get(UPOWER_DBUS_DEVICE_INTERFACE, "Type")
             .await
-            .block_error("battery", "Failed to read UPower Type property")?;
+            .error("Failed to read UPower Type property")?;
 
         // https://upower.freedesktop.org/docs/Device.html#Device:Type
         // consider any peripheral, UPS and internal battery
         if upower_type == 1 {
-            return block_error("battery", "UPower device is not a battery.");
+            return Err(Error::new("UPower device is not a battery."));
         }
 
         Ok(Self {
@@ -376,7 +374,7 @@ impl BatteryDevice for UPowerDevice {
             .dbus_proxy
             .get(UPOWER_DBUS_DEVICE_INTERFACE, "Percentage")
             .await
-            .block_error("battery", "Failed to read UPower Percentage property.")?;
+            .error("Failed to read UPower Percentage property.")?;
 
         Ok(capacity.clamp(0., 100.) as u8)
     }
@@ -386,7 +384,7 @@ impl BatteryDevice for UPowerDevice {
             .dbus_proxy
             .get(UPOWER_DBUS_DEVICE_INTERFACE, "EnergyRate")
             .await
-            .block_error("battery", "Failed to read UPower EnergyRate property.")?;
+            .error("Failed to read UPower EnergyRate property.")?;
 
         Ok(1e6 * usage)
     }
@@ -396,7 +394,7 @@ impl BatteryDevice for UPowerDevice {
             .dbus_proxy
             .get(UPOWER_DBUS_DEVICE_INTERFACE, "State")
             .await
-            .block_error("battery", "Failed to read UPower State property.")?;
+            .error("Failed to read UPower State property.")?;
 
         Ok(match status {
             1 => BatteryStatus::Charging,
@@ -418,11 +416,11 @@ impl BatteryDevice for UPowerDevice {
             .dbus_proxy
             .get(UPOWER_DBUS_DEVICE_INTERFACE, property)
             .await
-            .block_error("battery", "Failed to read UPower Time")?;
+            .error("Failed to read UPower Time")?;
 
         Ok((time_to_empty / 60)
             .try_into()
-            .block_error("battery", "Got a negative time to completion fro DBus")?)
+            .error("Got a negative time to completion fro DBus")?)
     }
 
     async fn wait_for_change(&mut self) -> Result<()> {
@@ -438,7 +436,7 @@ impl BatteryDevice for UPowerDevice {
             .dbus_conn
             .add_match(match_rule)
             .await
-            .block_error("battery", "Failed to add D-Bus match rule.")?
+            .error("Failed to add D-Bus match rule.")?
             .msg_stream();
 
         // Wait for signal
@@ -448,7 +446,7 @@ impl BatteryDevice for UPowerDevice {
         self.dbus_conn
             .remove_match(incoming_signal.token())
             .await
-            .block_error("battery", "Failed to remove D-Bus match rule.")?;
+            .error("Failed to remove D-Bus match rule.")?;
 
         Ok(())
     }
@@ -473,8 +471,7 @@ impl Default for BatteryDriver {
 
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
-        let block_config =
-            BatteryConfig::deserialize(block_config).block_config_error("battery")?;
+        let block_config = BatteryConfig::deserialize(block_config).config_error()?;
 
         let format = block_config.format.clone().or_default("{percentage}")?;
         let format_full = block_config.full_format.clone().or_default("")?;
@@ -489,12 +486,12 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             None => {
                 let mut sysfs_dir = read_dir("/sys/class/power_supply")
                     .await
-                    .block_error("battery", "failed to read /sys/class/power_supply direcory")?;
+                    .error("failed to read /sys/class/power_supply direcory")?;
                 let mut device = None;
                 while let Some(dir) = sysfs_dir
                     .next_entry()
                     .await
-                    .block_error("battery", "failed to read /sys/class/power_supply direcory")?
+                    .error("failed to read /sys/class/power_supply direcory")?
                 {
                     if read_to_string(dir.path().join("type"))
                         .await
@@ -505,7 +502,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                         break;
                     }
                 }
-                device.block_error("battery", "failed to determine default battery - please set your battery device in the configuration file")?
+                device.error("failed to determine default battery - please set your battery device in the configuration file")?
             }
         };
 

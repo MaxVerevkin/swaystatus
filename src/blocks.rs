@@ -141,13 +141,13 @@ impl CommonApi {
                 widgets,
             })
             .await
-            .internal_error(self.block_name, "failed to send message")
+            .error("Failed to send message")
     }
 
     pub async fn dbus_connection(&self) -> Result<zbus::Connection> {
         zbus::Connection::session()
             .await
-            .internal_error("dbus_connection()", "failed to open dbus connection")
+            .error("failed to open dbus connection")
     }
 
     pub async fn shared_dbus_connection(&self) -> Result<zbus::Connection> {
@@ -155,9 +155,7 @@ impl CommonApi {
         match &*guard {
             Some(conn) => Ok(conn.clone()),
             None => {
-                let conn = zbus::Connection::session()
-                    .await
-                    .internal_error("dbus_connection()", "failed to open dbus connection")?;
+                let conn = self.dbus_connection().await?;
                 *guard = Some(conn.clone());
                 Ok(conn)
             }

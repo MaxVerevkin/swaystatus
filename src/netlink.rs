@@ -84,9 +84,9 @@ impl NetDevice {
     /// Queries the wireless SSID of this device, if it is connected to one.
     pub fn wifi_info(&self) -> Result<(Option<String>, Option<f64>, Option<i64>)> {
         let interfaces = nl80211::Socket::connect()
-            .block_error("net", "nl80211: failed to connect to the socket")?
+            .error("nl80211: failed to connect to the socket")?
             .get_interfaces_info()
-            .block_error("net", "nl80211: failed to get interfaces' information")?;
+            .error("nl80211: failed to get interfaces' information")?;
 
         for interface in interfaces {
             if let Ok(ap) = interface.get_station_info() {
@@ -98,8 +98,7 @@ impl NetDevice {
                         continue;
                     }
 
-                    let ssid = String::from_utf8(ssid)
-                        .internal_error("netlink.rs", "SSID is not valid UTF8")?;
+                    let ssid = String::from_utf8(ssid).error("SSID is not valid UTF8")?;
                     let ssid = Some(escape_pango_text(ssid));
                     let freq = interface
                         .frequency

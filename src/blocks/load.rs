@@ -58,7 +58,7 @@ impl Default for LoadConfig {
 
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
-        let block_config = LoadConfig::deserialize(block_config).block_config_error("cpu")?;
+        let block_config = LoadConfig::deserialize(block_config).config_error()?;
         let mut text = api.new_widget().with_icon("cogs")?;
         let format = block_config.format.or_default("{1m}")?;
         let mut interval = tokio::time::interval(block_config.interval);
@@ -66,15 +66,14 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
         // borrowed from https://docs.rs/cpuinfo/0.1.1/src/cpuinfo/count/logical.rs.html#4-6
         let logical_cores = util::read_file(Path::new("/proc/cpuinfo"))
             .await
-            .block_error("load", "Your system doesn't support /proc/cpuinfo")?
+            .error("Your system doesn't support /proc/cpuinfo")?
             .lines()
             .filter(|l| l.starts_with("processor"))
             .count() as u32;
 
         let loadavg_path = Path::new("/proc/loadavg");
         loop {
-            let loadavg = util::read_file(loadavg_path).await.block_error(
-                "load",
+            let loadavg = util::read_file(loadavg_path).await.error(
                 "Your system does not support reading the load average from /proc/loadavg",
             )?;
             let mut values = loadavg.split(' ');
@@ -82,17 +81,17 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 .next()
                 .map(|x| x.parse().ok())
                 .flatten()
-                .block_error("load", "bad /proc/loadavg file")?;
+                .error("bad /proc/loadavg file")?;
             let m5: f64 = values
                 .next()
                 .map(|x| x.parse().ok())
                 .flatten()
-                .block_error("load", "bad /proc/loadavg file")?;
+                .error("bad /proc/loadavg file")?;
             let m15: f64 = values
                 .next()
                 .map(|x| x.parse().ok())
                 .flatten()
-                .block_error("load", "bad /proc/loadavg file")?;
+                .error("bad /proc/loadavg file")?;
 
             text.set_state(match m1 / (logical_cores as f64) {
                 x if x > block_config.critical => WidgetState::Critical,

@@ -41,7 +41,7 @@ impl Default for SoundConfig {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let mut events = events();
     tokio::spawn(async move {
-        let block_config = SoundConfig::deserialize(block_config).block_config_error("sound")?;
+        let block_config = SoundConfig::deserialize(block_config).config_error()?;
         let format = block_config.format.or_default("{volume}")?;
         let mut text = api.new_widget();
 
@@ -75,9 +75,9 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             .args(&["-oL", "alsactl", "monitor"])
             .stdout(Stdio::piped())
             .spawn()
-            .block_error("sound", "Failed to start alsactl monitor")?
+            .error( "Failed to start alsactl monitor")?
             .stdout
-            .block_error("sound", "Failed to pipe alsactl monitor output")?;
+            .error( "Failed to pipe alsactl monitor output")?;
         let mut buffer = [0; 1024]; // Should be more than enough.
 
         loop {
@@ -172,12 +172,12 @@ impl AlsaSoundDevice {
             .output()
             .await
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
-            .block_error("sound", "could not run amixer to get sound info")?;
+            .error( "could not run amixer to get sound info")?;
 
         let last_line = &output
             .lines()
             .last()
-            .block_error("sound", "could not get sound info")?;
+            .error( "could not get sound info")?;
 
         let mut last = last_line
             .split_whitespace()
@@ -186,9 +186,9 @@ impl AlsaSoundDevice {
 
         self.volume = last
             .next()
-            .block_error("sound", "could not get volume")?
+            .error( "could not get volume")?
             .parse::<u32>()
-            .block_error("sound", "could not parse volume to u32")?;
+            .error( "could not parse volume to u32")?;
 
         self.muted = last.next().map(|muted| muted == "off").unwrap_or(false);
 
@@ -213,7 +213,7 @@ impl AlsaSoundDevice {
             .args(&args)
             .output()
             .await
-            .block_error("sound", "failed to set volume")?;
+            .error( "failed to set volume")?;
 
         self.volume = capped_volume;
 
@@ -231,7 +231,7 @@ impl AlsaSoundDevice {
             .args(&args)
             .output()
             .await
-            .block_error("sound", "failed to toggle mute")?;
+            .error( "failed to toggle mute")?;
 
         self.muted = !self.muted;
 

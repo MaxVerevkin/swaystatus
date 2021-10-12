@@ -97,11 +97,10 @@ where
 {
     let file = path.to_str().unwrap();
     let mut contents = String::new();
-    let mut file = BufReader::new(
-        File::open(file).internal_error("util", &format!("failed to open file: {}", file))?,
-    );
+    let mut file =
+        BufReader::new(File::open(file).error(format!("failed to open file: {}", file))?);
     file.read_to_string(&mut contents)
-        .internal_error("util", "failed to read file")?;
+        .error("failed to read file")?;
     toml::from_str(&contents).config_error()
 }
 
@@ -113,7 +112,7 @@ pub async fn read_file(path: &Path) -> StdResult<String, std::io::Error> {
 }
 
 #[allow(dead_code)]
-pub async fn has_command(block_name: &str, command: &str) -> Result<bool> {
+pub async fn has_command(command: &str) -> Result<bool> {
     Command::new("sh")
         .args(&[
             "-c",
@@ -121,10 +120,7 @@ pub async fn has_command(block_name: &str, command: &str) -> Result<bool> {
         ])
         .status()
         .await
-        .block_error(
-            block_name,
-            format!("failed to start command to check for {}", command).as_ref(),
-        )
+        .error(format!("failed to start command to check for {}", command))
         .map(|status| status.success())
 }
 
@@ -177,7 +173,7 @@ mod tests {
     #[test]
     // we assume sh is always available
     fn test_has_command_ok() {
-        let has_command = tokio_test::block_on(has_command("none", "sh"));
+        let has_command = tokio_test::block_on(has_command("sh"));
         assert!(has_command.is_ok());
         let has_command = has_command.unwrap();
         assert!(has_command);
@@ -186,8 +182,7 @@ mod tests {
     #[test]
     // we assume thequickbrownfoxjumpsoverthelazydog command does not exist
     fn test_has_command_err() {
-        let has_command =
-            tokio_test::block_on(has_command("none", "thequickbrownfoxjumpsoverthelazydog"));
+        let has_command = tokio_test::block_on(has_command("thequickbrownfoxjumpsoverthelazydog"));
         assert!(has_command.is_ok());
         let has_command = has_command.unwrap();
         assert!(!has_command)

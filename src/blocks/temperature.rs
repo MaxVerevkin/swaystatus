@@ -77,8 +77,7 @@ impl Default for TemperatureConfig {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let mut events = events();
     tokio::spawn(async move {
-        let block_config =
-            TemperatureConfig::deserialize(block_config).block_config_error("temperature")?;
+        let block_config = TemperatureConfig::deserialize(block_config).config_error()?;
         let format = block_config.format.or_default("{average} avg, {max} max")?;
         let mut text = api.new_widget().with_icon("thermometer")?;
         let mut collapsed = block_config.collapsed;
@@ -134,11 +133,11 @@ impl ChipInfo {
     async fn new(name: &str) -> Result<Self> {
         let mut sysfs_dir = read_dir("/sys/class/hwmon")
             .await
-            .block_error("temperature", "failed to read /sys/class/hwmon direcory")?;
+            .error("failed to read /sys/class/hwmon direcory")?;
         while let Some(dir) = sysfs_dir
             .next_entry()
             .await
-            .block_error("temperature", "failed to read /sys/class/hwmon direcory")?
+            .error("failed to read /sys/class/hwmon direcory")?
         {
             if read_to_string(dir.path().join("name"))
                 .await
@@ -147,27 +146,27 @@ impl ChipInfo {
             {
                 let mut chip_dir = read_dir(dir.path())
                     .await
-                    .block_error("temperature", "failed to read chip's sysfs direcory")?;
+                    .error("failed to read chip's sysfs direcory")?;
                 let mut temp = Vec::new();
                 while let Some(entry) = chip_dir
                     .next_entry()
                     .await
-                    .block_error("temperature", "failed to read chip's sysfs direcory")?
+                    .error("failed to read chip's sysfs direcory")?
                 {
                     let entry_str = entry.file_name().to_str().unwrap().to_string();
                     if entry_str.starts_with("temp") && entry_str.ends_with("_input") {
                         let val: i32 = read_to_string(entry.path())
                             .await
-                            .block_error("temperature", "failed to read chip's temperature")?
+                            .error("failed to read chip's temperature")?
                             .trim()
                             .parse()
-                            .block_error("temperature", "temperature is not an integer")?;
+                            .error("temperature is not an integer")?;
                         temp.push(val / 1000);
                     }
                 }
                 return Ok(Self { temp });
             }
         }
-        block_error("temperature", &format!("chip '{}' not found", name))
+        Err(Error::new(format!("chip '{}' not found", name)))
     }
 }

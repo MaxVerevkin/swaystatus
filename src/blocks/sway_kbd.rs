@@ -17,32 +17,31 @@ pub struct SwayKbdConfig {
 
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
-        let block_config =
-            SwayKbdConfig::deserialize(block_config).block_config_error("sway_kbd")?;
+        let block_config = SwayKbdConfig::deserialize(block_config).config_error()?;
         let format = block_config.format.or_default("{layout}")?;
         let mut text = api.new_widget();
 
         // New connection
         let mut connection = Connection::new()
             .await
-            .block_error("sway_kbd", "failed to open swayipc connection")?;
+            .error("failed to open swayipc connection")?;
 
         // Get current layout
         let mut layout = connection
             .get_inputs()
             .await
-            .block_error("sway_kbd", "failed to get current input")?
+            .error("failed to get current input")?
             .iter()
             .find(|i| i.input_type == "keyboard")
             .map(|i| i.xkb_active_layout_name.clone())
             .flatten()
-            .block_error("sway_kbd", "failed to get current input")?;
+            .error("failed to get current input")?;
 
         // Subscribe to events
         let mut events = connection
             .subscribe(&[EventType::Input])
             .await
-            .block_error("sway_kbd", "failed to subscribe to events")?;
+            .error("failed to subscribe to events")?;
 
         loop {
             let layout_mapped = if let Some(ref mappings) = block_config.mappings {
@@ -61,8 +60,8 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 let event = events
                     .next()
                     .await
-                    .block_error("sway_kbd", "swayipc channel closed")?
-                    .block_error("sway_kbd", "bad event")?;
+                    .error("swayipc channel closed")?
+                    .error("bad event")?;
                 if let Event::Input(event) = event {
                     if let Some(new_layout) = event.input.xkb_active_layout_name {
                         // Update only if layout has changed

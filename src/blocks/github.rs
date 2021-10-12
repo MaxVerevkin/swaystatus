@@ -31,7 +31,7 @@ fn default_hide() -> bool {
 
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
-        let block_config = GithubConfig::deserialize(block_config).block_config_error("github")?;
+        let block_config = GithubConfig::deserialize(block_config).config_error()?;
         let interval = Duration::from_secs(block_config.interval);
         let format = block_config.format.or_default("{total:1}")?;
         let mut text = api.new_widget().with_icon("github")?;

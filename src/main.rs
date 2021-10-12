@@ -17,10 +17,14 @@ mod widget;
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version, Arg};
 use futures::stream::futures_unordered::FuturesUnordered;
 use futures::stream::StreamExt;
+use futures::Future;
+use futures::TryFutureExt;
 use protocol::i3bar_event::I3BarEvent;
 use std::collections::HashMap;
+use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use tokio::task::JoinError;
 
 use blocks::prelude::*;
 use blocks::CommonConfig;
@@ -112,7 +116,7 @@ async fn run(config: Option<&str>, noinit: bool, never_pause: bool) -> Result<()
 
     // Read & parse the config file
     let config_path = util::find_file(config.unwrap_or("config.toml"), None, Some("toml"))
-        .internal_error("run()", "configuration file not found")?;
+        .error("Configuration file not found")?;
     let config: Config = deserialize_file(&config_path)?;
     let (shared_config, block_list, invert_scrolling) = config.into_parts();
 
@@ -138,7 +142,8 @@ pub struct Swaystatus {
     pub blocks_cnt: usize,
     pub shared_config: SharedConfig,
 
-    pub spawned_blocks: FuturesUnordered<BlockHandle>,
+    pub spawned_blocks:
+        FuturesUnordered<Pin<Box<dyn Future<Output = StdResult<Result<()>, JoinError>>>>>,
     pub block_event_sentders: HashMap<usize, mpsc::Sender<BlockEvent>>,
     pub rendered_blocks: Vec<Vec<I3BarBlock>>,
     pub block_click_handlers: Vec<ClickHandler>,
@@ -197,8 +202,14 @@ impl Swaystatus {
             self.block_event_sentders.insert(self.blocks_cnt, sender);
             receiver
         });
+        let handle = handle.and_then(move |r| async move {
+            Ok(r.map_err(|mut e| {
+                e.block = Some(blocks::block_name(block_type));
+                e
+            }))
+        });
 
-        self.spawned_blocks.push(handle);
+        self.spawned_blocks.push(Box::pin(handle));
         self.block_click_handlers.push(common_config.click);
         self.rendered_blocks.push(Vec::new());
         self.blocks_cnt += 1;
@@ -214,13 +225,13 @@ impl Swaystatus {
             tokio::select! {
                 // Handle blocks' errors
                 Some(block_result) = self.spawned_blocks.next() => {
-                    block_result.internal_error("error handler", "failed to read block exit status")??;
+                    block_result.error("Error handler: Failed to read block exit status")??;
                 },
                 // Recieve widgets from blocks
                 Some(message) = self.message_receiver.recv() => {
                     *self.rendered_blocks
                         .get_mut(message.id)
-                        .internal_error("handle block's message", "failed to get block")?
+                        .error("Failed to handle block's message")?
                             = message.widgets;
                     protocol::print_blocks(&self.rendered_blocks, &self.shared_config)?;
                 }

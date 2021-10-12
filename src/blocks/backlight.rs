@@ -116,9 +116,9 @@ impl Default for BacklightConfig {
 async fn read_brightness_raw(device_file: &Path) -> Result<u64> {
     read_file(device_file)
         .await
-        .block_error("backlight", "Failed to read brightness file")?
+        .error("Failed to read brightness file")?
         .parse::<u64>()
-        .block_error("backlight", "Failed to read value from brightness file")
+        .error("Failed to read value from brightness file")
 }
 
 /// Represents a physical backlit device whose brightness level can be queried.
@@ -147,12 +147,12 @@ impl<'a> BacklightDevice<'a> {
             device_name: device_path
                 .file_name()
                 .map(|x| x.to_str().unwrap().to_string())
-                .block_error("backlight", "Malformed device path")?,
+                .error("Malformed device path")?,
             max_brightness: read_brightness_raw(&device_path.join(FILE_MAX_BRIGHTNESS)).await?,
             root_scaling: root_scaling.clamp(ROOT_SCALDING_RANGE.start, ROOT_SCALDING_RANGE.end),
             dbus_proxy: SessionProxy::new(dbus_conn)
                 .await
-                .block_error("backlight", "failed to create SessionProxy")?,
+                .error("failed to create SessionProxy")?,
         })
     }
 
@@ -164,11 +164,11 @@ impl<'a> BacklightDevice<'a> {
     ) -> Result<BacklightDevice<'a>> {
         let device = read_dir(DEVICES_PATH)
             .await
-            .block_error("backlight", "Failed to read backlight device directory")?
+            .error("Failed to read backlight device directory")?
             .next_entry()
             .await
-            .block_error("backlight", "No backlit devices found")?
-            .block_error("backlight", "Failed to read default device file")?;
+            .error("No backlit devices found")?
+            .error("Failed to read default device file")?;
         Self::new(device.path(), root_scaling, dbus_conn).await
     }
 
@@ -198,7 +198,7 @@ impl<'a> BacklightDevice<'a> {
             .try_into()
             .ok()
             .filter(|brightness| (0..=100).contains(brightness))
-            .block_error("backlight", "Brightness is not in [0, 100]")
+            .error("Brightness is not in [0, 100]")
     }
 
     /// Set the brightness value for this backlit device, as a percent.
@@ -209,15 +209,14 @@ impl<'a> BacklightDevice<'a> {
         self.dbus_proxy
             .set_brightness("backlight", &self.device_name, raw)
             .await
-            .block_error("backlight", "Failed to send D-Bus message")
+            .error("Failed to send D-Bus message")
     }
 }
 
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let mut events = events();
     tokio::spawn(async move {
-        let block_config =
-            BacklightConfig::deserialize(block_config).block_config_error("backlight")?;
+        let block_config = BacklightConfig::deserialize(block_config).config_error()?;
         let format = block_config.format.or_default("{brightness}")?;
         let dbus_conn = api.shared_dbus_connection().await?;
 
@@ -229,16 +228,16 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
         };
 
         // Watch for brightness changes
-        let mut notify = Inotify::init().block_error("backlight", "Failed to start inotify")?;
+        let mut notify = Inotify::init().error("Failed to start inotify")?;
         let mut buffer = [0; 1024];
 
         notify
             .add_watch(&device.brightness_file, WatchMask::MODIFY)
-            .block_error("backlight", "Failed to watch brightness file")?;
+            .error("Failed to watch brightness file")?;
 
         let mut file_changes = notify
             .event_stream(&mut buffer)
-            .block_error("backlight", "Failed to create event stream")?;
+            .error("Failed to create event stream")?;
 
         let mut text = api.new_widget();
 

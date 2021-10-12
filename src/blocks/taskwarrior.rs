@@ -81,17 +81,14 @@ impl Default for TaskwarriorConfig {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let mut events = events();
     tokio::spawn(async move {
-        let block_config =
-            TaskwarriorConfig::deserialize(block_config).block_config_error("taskwarrior")?;
+        let block_config = TaskwarriorConfig::deserialize(block_config).config_error()?;
         let format = block_config.format.or_default("{count}")?;
         let format_singular = block_config.format_singular.or_default("{count}")?;
         let format_everything_done = block_config.format_everything_done.or_default("{count}")?;
         let mut widget = api.new_widget().with_icon("tasks")?;
 
         let mut filters = block_config.filters.iter().cycle();
-        let mut filter = filters
-            .next()
-            .block_error("taskwarrior", "failed to get next filter")?;
+        let mut filter = filters.next().error("failed to get next filter")?;
 
         loop {
             let number_of_tasks = get_number_of_tasks(&filter.filter).await?;
@@ -122,7 +119,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 _ = tokio::time::sleep(block_config.interval) =>(),
                 Some(BlockEvent::I3Bar(click)) = events.recv() => {
                     if click.button == MouseButton::Right {
-                        filter = filters.next().block_error("taskwarrior", "failed to get next filter")?;
+                        filter = filters.next().error( "failed to get next filter")?;
                     }
                 }
             }
@@ -136,19 +133,13 @@ async fn get_number_of_tasks(filter: &str) -> Result<u32> {
             .args(&["-c", &format!("task rc.gc=off {} count", filter)])
             .output()
             .await
-            .block_error(
-                "taskwarrior",
-                "failed to run taskwarrior for getting the number of tasks",
-            )?
+            .error("failed to run taskwarrior for getting the number of tasks")?
             .stdout,
     )
-    .block_error(
-        "taskwarrior",
-        "failed to get the number of tasks from taskwarrior (invalid UTF-8)",
-    )?
+    .error("failed to get the number of tasks from taskwarrior (invalid UTF-8)")?
     .trim()
     .parse::<u32>()
-    .block_error("taskwarrior", "could not parse the result of taskwarrior")
+    .error("could not parse the result of taskwarrior")
 }
 
 #[derive(serde_derive::Deserialize, Debug, Default, Clone)]

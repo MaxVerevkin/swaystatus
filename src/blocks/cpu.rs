@@ -32,7 +32,7 @@ impl Default for CpuConfig {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let mut events = events();
     tokio::spawn(async move {
-        let block_config = CpuConfig::deserialize(block_config).block_config_error("cpu")?;
+        let block_config = CpuConfig::deserialize(block_config).config_error()?;
         let mut format = block_config.format.or_default("{utilization}")?;
         let mut format_alt = block_config.format_alt;
 
@@ -55,7 +55,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             let utilization_avg = new_cputime.0.utilization(cputime.0);
             let mut utilizations = Vec::new();
             if new_cputime.1.len() != cores {
-                return block_error("cpu", "new cputime length is incorrect");
+                return Err(Error::new("new cputime length is incorrect"));
             }
             for i in 0..cores {
                 utilizations.push(new_cputime.1[i].utilization(cputime.1[i]));
@@ -126,23 +126,21 @@ async fn read_frequencies() -> Result<Vec<f64>> {
 
     let file = File::open("/proc/cpuinfo")
         .await
-        .block_error("cpu", "failed to read /proc/cpuinfo")?;
+        .error("failed to read /proc/cpuinfo")?;
     let mut file = BufReader::new(file);
 
     let mut line = String::new();
     while file
         .read_line(&mut line)
         .await
-        .block_error("cpu", "failed to read /proc/cpuinfo")?
+        .error("failed to read /proc/cpuinfo")?
         != 0
     {
         if line.starts_with("cpu MHz") {
             let slice = line
                 .trim_end()
                 .trim_start_matches(|c: char| !c.is_digit(10));
-            freqs.push(
-                f64::from_str(slice).block_error("cpu", "failed to parse /proc/cpuinfo")? * 1e6,
-            );
+            freqs.push(f64::from_str(slice).error("failed to parse /proc/cpuinfo")? * 1e6);
         }
         line.clear();
     }
@@ -185,31 +183,27 @@ async fn read_proc_stat() -> Result<(CpuTime, Vec<CpuTime>)> {
 
     let file = File::open("/proc/stat")
         .await
-        .block_error("cpu", "failed to read /proc/stat")?;
+        .error("failed to read /proc/stat")?;
     let mut file = BufReader::new(file);
 
     let mut line = String::new();
     while file
         .read_line(&mut line)
         .await
-        .block_error("cpu", "failed to read /proc/sta")?
+        .error("failed to read /proc/sta")?
         != 0
     {
         // Total time
         let data = line.trim_start_matches(|c: char| !c.is_ascii_whitespace());
         if line.starts_with("cpu ") {
-            total = Some(CpuTime::from_str(data).block_error("cpu", "failed to parse /proc/stat")?);
+            total = Some(CpuTime::from_str(data).error("failed to parse /proc/stat")?);
         } else if line.starts_with("cpu") {
-            utilizations
-                .push(CpuTime::from_str(data).block_error("cpu", "failed to parse /proc/stat")?);
+            utilizations.push(CpuTime::from_str(data).error("failed to parse /proc/stat")?);
         }
         line.clear();
     }
 
-    Ok((
-        total.block_error("cpu", "failed to parse /proc/stat")?,
-        utilizations,
-    ))
+    Ok((total.error("failed to parse /proc/stat")?, utilizations))
 }
 
 /// Read the cpu turbo boost status from kernel sys interface

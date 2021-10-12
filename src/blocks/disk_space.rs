@@ -65,8 +65,7 @@ impl Default for DiskSpaceConfig {
 
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
-        let block_config =
-            DiskSpaceConfig::deserialize(block_config).block_config_error("disk_space")?;
+        let block_config = DiskSpaceConfig::deserialize(block_config).config_error()?;
 
         let icon = api.get_icon("disk_drive")?;
         let icon = icon.trim();
@@ -80,7 +79,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             "MB" => Prefix::Mega,
             "KB" => Prefix::Kilo,
             "B" => Prefix::One,
-            x => return block_error("disk_space", &format!("unknown unit: '{}'", x)),
+            x => return Err(Error::new(format!("Unknown unit: '{}'", x))),
         };
 
         let path = Path::new(block_config.path.as_str());
@@ -88,7 +87,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
         let mut interval = tokio::time::interval(block_config.interval);
 
         loop {
-            let statvfs = statvfs(path).block_error("disk_space", "failed to retrieve statvfs")?;
+            let statvfs = statvfs(path).error("failed to retrieve statvfs")?;
 
             let total = (statvfs.blocks() as u64) * (statvfs.fragment_size() as u64);
             let used = ((statvfs.blocks() as u64) - (statvfs.blocks_free() as u64))

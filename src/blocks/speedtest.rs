@@ -55,7 +55,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
         let icon_down = api.get_icon("net_down")?;
         let icon_up = api.get_icon("net_up")?;
         let block_config =
-            SpeedtestConfig::deserialize(block_config).block_config_error("speedtest")?;
+            SpeedtestConfig::deserialize(block_config).config_error()?;
         let format = block_config
             .format
             .or_default("{ping}{speed_down}{speed_up}")?;
@@ -68,12 +68,12 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             let output = command
                 .output()
                 .await
-                .block_error("speedtest", "failed to run 'speedtest-cli'")?
+                .error( "failed to run 'speedtest-cli'")?
                 .stdout;
             let output = String::from_utf8(output)
-                .block_error("speedtest", "'speedtest-cli' produced non-UTF8 outupt")?;
+                .error( "'speedtest-cli' produced non-UTF8 outupt")?;
             let output: SpeedtestCliOutput = serde_json::from_str(&output)
-                .block_error("speedtest", "'speedtest-cli' produced wrong JSON")?;
+                .error( "'speedtest-cli' produced wrong JSON")?;
 
             text.set_text(format.render(&map! {
                 "ping" => Value::from_float(output.ping * 1e-3).seconds().icon(icon_ping.clone()),

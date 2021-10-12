@@ -76,9 +76,9 @@ impl FormatTemplate {
         // Push text into tokens vector. Check the text for correctness and don't push empty strings
         let push_text = |tokens: &mut Vec<Token>, x: &str| {
             if x.contains('{') {
-                internal_error("format parser", "unexpected token '{'")
+                Err(Error::new("Unexpected token '{'"))
             } else if x.contains('}') {
-                internal_error("format parser", "unexpected token '}'")
+                Err(Error::new("Unexpected token '}'"))
             } else if !x.is_empty() {
                 tokens.push(Token::Text(x.to_string()));
                 Ok(())
@@ -102,7 +102,7 @@ impl FormatTemplate {
                     // Split `"key:1} {key}"` into `"key:1"` and `" {key}"`
                     match after.split_once('}') {
                         // No matching `}`!
-                        None => return internal_error("format parser", "missing '}'"),
+                        None => return Err(Error::new("Missing '}'")),
                         // Found the entire placeholder
                         Some((placeholder, rest)) => {
                             // `placeholder.parse()` parses the placeholder's configuration string
@@ -142,10 +142,10 @@ impl FormatTemplate {
                 Token::Var(var) => rendered.push_str(
                     &vars
                         .get(&var.name)
-                        .internal_error(
-                            "util",
-                            &format!("Unknown placeholder in format string: '{}'", var.name),
-                        )?
+                        .error(format!(
+                            "Unknown placeholder in format string: '{}'",
+                            var.name
+                        ))?
                         .format(var)?,
                 ),
             }
