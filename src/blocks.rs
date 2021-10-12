@@ -150,6 +150,12 @@ impl CommonApi {
             .error("failed to open dbus connection")
     }
 
+    pub async fn system_dbus_connection(&self) -> Result<zbus::Connection> {
+        zbus::Connection::system()
+            .await
+            .error("failed to open dbus connection")
+    }
+
     pub async fn shared_dbus_connection(&self) -> Result<zbus::Connection> {
         let mut guard = self.dbus_connection.lock().await;
         match &*guard {

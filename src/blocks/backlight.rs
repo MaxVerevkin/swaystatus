@@ -46,9 +46,9 @@ use super::prelude::*;
 use crate::util::read_file;
 
 #[zbus::dbus_proxy(
-    interface = "org.mpris.MediaPlayer2",
+    interface = "org.freedesktop.login1.Session",
     default_service = "org.freedesktop.login1",
-    default_path = "/org/mpris/MediaPlayer2"
+    default_path = "/org/freedesktop/login1/session/auto"
 )]
 trait Session {
     fn set_brightness(&self, subsystem: &str, name: &str, brightness: u32) -> zbus::Result<()>;
@@ -218,7 +218,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     tokio::spawn(async move {
         let block_config = BacklightConfig::deserialize(block_config).config_error()?;
         let format = block_config.format.or_default("{brightness}")?;
-        let dbus_conn = api.shared_dbus_connection().await?;
+        let dbus_conn = api.system_dbus_connection().await?;
 
         let device = match &block_config.device {
             None => BacklightDevice::default(block_config.root_scaling, &dbus_conn).await?,
