@@ -46,7 +46,6 @@ use tokio::time::{Instant, Interval};
 
 use super::prelude::*;
 use crate::de::deserialize_duration;
-
 use crate::util::read_file;
 
 /// Path for the power supply devices
@@ -506,7 +505,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             }
         };
 
-        let device: Box<dyn BatteryDevice + Send> = match block_config.driver {
+        let mut device: Box<dyn BatteryDevice + Send> = match block_config.driver {
             BatteryDriver::Sysfs => Box::new(PowerSupplyDevice::from_device(
                 &device,
                 block_config.interval,
@@ -615,6 +614,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             };
 
             api.send_widgets(vec![widget.get_data()]).await?;
+            device.wait_for_change().await?
         }
     })
 }
