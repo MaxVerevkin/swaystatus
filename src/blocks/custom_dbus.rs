@@ -18,7 +18,7 @@
 //! ```toml
 //! [[block]]
 //! block = "custom_dbus"
-//! path = "my_path"
+//! path = "/my_path"
 //! ```
 //!
 //! Useage:
