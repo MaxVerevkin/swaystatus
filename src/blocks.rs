@@ -144,24 +144,34 @@ impl CommonApi {
             .error("Failed to send message")
     }
 
-    pub async fn dbus_connection(&self) -> Result<zbus::Connection> {
-        zbus::Connection::session()
-            .await
-            .error("failed to open dbus connection")
-    }
-
     pub async fn system_dbus_connection(&self) -> Result<zbus::Connection> {
         zbus::Connection::system()
             .await
-            .error("failed to open dbus connection")
+            .error("Failed to open dbus connection")
     }
 
-    pub async fn shared_dbus_connection(&self) -> Result<zbus::Connection> {
+    pub async fn dbus_connection(&self) -> Result<zbus::Connection> {
         let mut guard = self.dbus_connection.lock().await;
         match &*guard {
             Some(conn) => Ok(conn.clone()),
             None => {
-                let conn = self.dbus_connection().await?;
+                let conn = zbus::ConnectionBuilder::session()
+                    .unwrap()
+                    .internal_executor(false)
+                    .build()
+                    .await
+                    .error("Failed to open dbus connection")?;
+                {
+                    let conn = conn.clone();
+                    tokio::spawn(async move {
+                        loop {
+                            conn.executor().tick().await;
+                        }
+                    });
+                }
+                conn.request_name(crate::DBUS_WELL_KNOWN_NAME)
+                    .await
+                    .error("Failed to reuqest DBus name")?;
                 *guard = Some(conn.clone());
                 Ok(conn)
             }

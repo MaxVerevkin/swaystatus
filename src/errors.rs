@@ -85,7 +85,7 @@ impl<T> OptionExt<T> for Option<T> {
     }
 
     fn config_error(self) -> Result<T> {
-        self.ok_or_else(|| Error {
+        self.ok_or(Error {
             kind: ErrorKind::Config,
             message: None,
             cause: None,

@@ -84,7 +84,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
 
         let dbus_proxy = DBusProxy::new(&dbus_conn)
             .await
-            .error( "failed to cerate DBusProxy")?;
+            .error("failed to cerate DBusProxy")?;
         dbus_proxy.add_match("type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path='/org/mpris/MediaPlayer2'")
             .await
             .error( "failed to add match")?;
@@ -235,11 +235,11 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
 async fn get_all_players(dbus_conn: &zbus::Connection) -> Result<Vec<Player<'_>>> {
     let proxy = DBusProxy::new(dbus_conn)
         .await
-        .error( "failed to create DBusProxy")?;
+        .error("failed to create DBusProxy")?;
     let names = proxy
         .list_names()
         .await
-        .error( "failed to list dbus names")?;
+        .error("failed to list dbus names")?;
 
     let mut players = Vec::new();
     for name in names {
@@ -271,18 +271,18 @@ impl<'a> Player<'a> {
     ) -> Result<Player<'a>> {
         let proxy = zbus_mpris::PlayerProxy::builder(dbus_conn)
             .destination(bus_name.clone())
-            .error( "failed to set proxy destination")?
+            .error("failed to set proxy destination")?
             .build()
             .await
-            .error( "failed to open player proxy")?;
+            .error("failed to open player proxy")?;
         let metadata = proxy
             .metadata()
             .await
-            .error( "failed to obtain player metadata")?;
+            .error("failed to obtain player metadata")?;
         let status = proxy
             .playback_status()
             .await
-            .error( "failed to obtain player status")?;
+            .error("failed to obtain player status")?;
 
         Ok(Self {
             status: PlaybackStatus::from_str(&status),
@@ -300,21 +300,15 @@ impl<'a> Player<'a> {
         self.player_proxy
             .play_pause()
             .await
-            .error( "play_pause() failed")
+            .error("play_pause() failed")
     }
 
     async fn prev(&self) -> Result<()> {
-        self.player_proxy
-            .previous()
-            .await
-            .error( "prev() failed")
+        self.player_proxy.previous().await.error("prev() failed")
     }
 
     async fn next(&self) -> Result<()> {
-        self.player_proxy
-            .next()
-            .await
-            .error( "next() failed")
+        self.player_proxy.next().await.error("next() failed")
     }
 }
 

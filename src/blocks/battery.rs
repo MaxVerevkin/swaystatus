@@ -27,27 +27,26 @@
 //! `{percentage}` | Battery level, in percent                                               | String or Integer | Percents
 //! `{time}`       | Time remaining until (dis)charge is complete                            | String            | -
 //! `{power}`      | Power consumption by the battery or from the power supply when charging | String or Float   | Watts
-//!
-//! # TODO
-//! - Refactor
 
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use dbus::nonblock::stdintf::org_freedesktop_dbus::Properties;
 use futures::StreamExt;
 
 use serde_derive::Deserialize;
 use tokio::fs::{read_dir, read_to_string};
 use tokio::time::{Instant, Interval};
+use zbus::fdo::DBusProxy;
+use zbus::MessageStream;
 
 use super::prelude::*;
 use crate::de::deserialize_duration;
 use crate::util::read_file;
+
+mod zbus_upower;
 
 /// Path for the power supply devices
 const POWER_SUPPLY_DEVICES_PATH: &str = "/sys/class/power_supply";
@@ -65,13 +64,6 @@ const BATTERY_CHARGE_ICONS: &[&str] = &[
 const BATTERY_EMPTY_ICON: &str = "bat_empty";
 const BATTERY_FULL_ICON: &str = "bat_full";
 const BATTERY_UNAVAILABLE_ICON: &str = "bat_not_available";
-
-// DBUS properties for UPower
-const UPOWER_DBUS_NAME: &str = "org.freedesktop.UPower";
-const UPOWER_DBUS_ROOT_INTERFACE: &str = "org.freedesktop.UPower";
-const UPOWER_DBUS_DEVICE_INTERFACE: &str = "org.freedesktop.UPower.Device";
-const UPOWER_DBUS_PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";
-const UPOWER_DBUS_ROOT_PATH: &str = "/org/freedesktop/UPower";
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
@@ -298,107 +290,97 @@ impl BatteryDevice for PowerSupplyDevice {
 // --- UpowerDevice
 // ---
 
-pub struct UPowerDevice {
-    dbus_conn: Arc<dbus::nonblock::SyncConnection>,
-    dbus_proxy: dbus::nonblock::Proxy<'static, Arc<dbus::nonblock::SyncConnection>>,
-    device_path: dbus::Path<'static>,
+pub struct UPowerDevice<'a> {
+    device_proxy: zbus_upower::DeviceProxy<'a>,
+    changes: MessageStream,
 }
 
-impl UPowerDevice {
-    async fn from_device(device: &str) -> Result<Self> {
-        let (ressource, dbus_conn) =
-            dbus_tokio::connection::new_system_sync().error("Failed to open dbus connection")?;
-
-        tokio::spawn(async move {
-            let err = ressource.await;
-            panic!("Lost connection to D-Bus: {}", err);
-        });
-
-        // Fetch device name
+impl<'a> UPowerDevice<'a> {
+    async fn from_device(
+        device: &str,
+        dbus_conn: &'a zbus::Connection,
+    ) -> Result<UPowerDevice<'a>> {
+        // Fetch device path
         let device_path = {
             if device == "DisplayDevice" {
-                format!("{}/devices/DisplayDevice", UPOWER_DBUS_ROOT_PATH).into()
+                "/org/freedesktop/UPower/devices/DisplayDevice"
+                    .try_into()
+                    .unwrap()
             } else {
-                let (paths,): (Vec<dbus::Path>,) = {
-                    dbus::nonblock::Proxy::new(
-                        UPOWER_DBUS_NAME,
-                        UPOWER_DBUS_ROOT_PATH,
-                        Duration::from_secs(2),
-                        dbus_conn.clone(),
-                    )
-                    .method_call(UPOWER_DBUS_ROOT_INTERFACE, "EnumerateDevices", ())
+                zbus_upower::UPowerProxy::new(dbus_conn)
                     .await
-                    .error("Failed to retrieve DBus devices")?
-                };
-
-                paths
+                    .error("Failed to create UPwerProxy")?
+                    .enumerate_devices()
+                    .await
+                    .error("Failed to retrieve UPower devices")?
                     .into_iter()
                     .find(|entry| entry.ends_with(device))
                     .error("UPower device could not be found")?
             }
         };
 
-        let dbus_proxy = dbus::nonblock::Proxy::new(
-            UPOWER_DBUS_NAME,
-            device_path.clone(),
-            Duration::from_secs(2),
-            dbus_conn.clone(),
-        );
+        let device_proxy = zbus_upower::DeviceProxy::builder(dbus_conn)
+            .path(device_path.clone())
+            .error("Failed to set proxy's path")?
+            .build()
+            .await
+            .error("Failed to create DeviceProxy")?;
 
         // Verify device name
-        let upower_type: u32 = dbus_proxy
-            .get(UPOWER_DBUS_DEVICE_INTERFACE, "Type")
-            .await
-            .error("Failed to read UPower Type property")?;
-
         // https://upower.freedesktop.org/docs/Device.html#Device:Type
         // consider any peripheral, UPS and internal battery
-        if upower_type == 1 {
+        let device_type = device_proxy
+            .type_()
+            .await
+            .error("Failed to get device's type")?;
+        if device_type == 1 {
             return Err(Error::new("UPower device is not a battery."));
         }
 
+        DBusProxy::new(dbus_conn)
+            .await
+            .error("failed to cerate DBusProxy")?
+            .add_match(&format!("type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path='{}'", device_path.as_str()))
+            .await
+            .error("Failed to add match")?;
+        let changes = MessageStream::from(dbus_conn);
+
         Ok(Self {
-            dbus_conn,
-            dbus_proxy,
-            device_path,
+            device_proxy,
+            changes,
         })
     }
 }
 
 #[async_trait]
-impl BatteryDevice for UPowerDevice {
+impl<'a> BatteryDevice for UPowerDevice<'a> {
     async fn is_available(&self) -> bool {
         true
     }
 
     async fn capacity(&self) -> Result<u8> {
-        let capacity: f64 = self
-            .dbus_proxy
-            .get(UPOWER_DBUS_DEVICE_INTERFACE, "Percentage")
+        self.device_proxy
+            .percentage()
             .await
-            .error("Failed to read UPower Percentage property.")?;
-
-        Ok(capacity.clamp(0., 100.) as u8)
+            .error("Failed to get capacity")
+            .map(|p| p.clamp(0., 100.) as u8)
     }
 
     async fn usage(&self) -> Result<f64> {
-        let usage: f64 = self
-            .dbus_proxy
-            .get(UPOWER_DBUS_DEVICE_INTERFACE, "EnergyRate")
+        self.device_proxy
+            .energy_rate()
             .await
-            .error("Failed to read UPower EnergyRate property.")?;
-
-        Ok(1e6 * usage)
+            .error("Failed to get usage")
+            .map(|u| u * 1e6)
     }
 
     async fn status(&self) -> Result<BatteryStatus> {
-        let status: u32 = self
-            .dbus_proxy
-            .get(UPOWER_DBUS_DEVICE_INTERFACE, "State")
+        let state = self
+            .device_proxy
+            .state()
             .await
-            .error("Failed to read UPower State property.")?;
-
-        Ok(match status {
+            .error("Failed to get state")?;
+        Ok(match state {
             1 => BatteryStatus::Charging,
             2 | 6 => BatteryStatus::Discharging,
             3 => BatteryStatus::Empty,
@@ -409,47 +391,26 @@ impl BatteryDevice for UPowerDevice {
     }
 
     async fn time_remaining(&self) -> Result<u64> {
-        let property = match self.status().await? {
-            BatteryStatus::Charging => "TimeToFull",
-            _ => "TimeToEmpty",
+        let time = match self.status().await? {
+            BatteryStatus::Charging => self
+                .device_proxy
+                .time_to_full()
+                .await
+                .error("Failed to get time to full")?,
+            _ => self
+                .device_proxy
+                .time_to_empty()
+                .await
+                .error("Failed to get time to empty")?,
         };
-
-        let time_to_empty: i64 = self
-            .dbus_proxy
-            .get(UPOWER_DBUS_DEVICE_INTERFACE, property)
-            .await
-            .error("Failed to read UPower Time")?;
-
-        Ok((time_to_empty / 60)
+        // TODO: do we need this check?
+        Ok((time / 60)
             .try_into()
-            .error("Got a negative time to completion fro DBus")?)
+            .error("Got a negative time from DBus")?)
     }
 
     async fn wait_for_change(&mut self) -> Result<()> {
-        // Setup signal monitoring
-        let mut match_rule = dbus::message::MatchRule::new_signal(
-            UPOWER_DBUS_PROPERTIES_INTERFACE,
-            "PropertiesChanged",
-        );
-
-        match_rule.path.replace(self.device_path.clone());
-
-        let (incoming_signal, mut stream) = self
-            .dbus_conn
-            .add_match(match_rule)
-            .await
-            .error("Failed to add D-Bus match rule.")?
-            .msg_stream();
-
-        // Wait for signal
-        stream.next().await;
-
-        // Release match rule
-        self.dbus_conn
-            .remove_match(incoming_signal.token())
-            .await
-            .error("Failed to remove D-Bus match rule.")?;
-
+        self.changes.next().await;
         Ok(())
     }
 }
@@ -474,6 +435,7 @@ impl Default for BatteryDriver {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config = BatteryConfig::deserialize(block_config).config_error()?;
+        let dbus_conn = api.dbus_connection().await?;
 
         let format = block_config.format.clone().or_default("{percentage}")?;
         let format_full = block_config.full_format.clone().or_default("")?;
@@ -513,7 +475,9 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 &device,
                 block_config.interval,
             )),
-            BatteryDriver::Upower => Box::new(UPowerDevice::from_device(&device).await?),
+            BatteryDriver::Upower => {
+                Box::new(UPowerDevice::from_device(&device, &dbus_conn).await?)
+            }
         };
 
         loop {
@@ -628,6 +592,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             };
 
             api.send_widgets(vec![widget.get_data()]).await?;
+            eprintln!("update");
             device.wait_for_change().await?
         }
     })

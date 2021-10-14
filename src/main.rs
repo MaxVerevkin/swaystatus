@@ -36,6 +36,8 @@ use protocol::i3bar_event::process_events;
 use signals::{process_signals, Signal};
 use util::deserialize_file;
 
+const DBUS_WELL_KNOWN_NAME: &str = "rs.swaystatus";
+
 fn main() {
     let args = app_from_crate!()
         .version(env!("VERSION"))
@@ -138,12 +140,13 @@ async fn run(config: Option<&str>, noinit: bool, never_pause: bool) -> Result<()
         .await
 }
 
+type BlockFuture = dyn Future<Output = StdResult<Result<()>, JoinError>>;
+
 pub struct Swaystatus {
     pub blocks_cnt: usize,
     pub shared_config: SharedConfig,
 
-    pub spawned_blocks:
-        FuturesUnordered<Pin<Box<dyn Future<Output = StdResult<Result<()>, JoinError>>>>>,
+    pub spawned_blocks: FuturesUnordered<Pin<Box<BlockFuture>>>,
     pub block_event_sentders: HashMap<usize, mpsc::Sender<BlockEvent>>,
     pub rendered_blocks: Vec<Vec<I3BarBlock>>,
     pub block_click_handlers: Vec<ClickHandler>,
