@@ -72,7 +72,6 @@ use std::time::Duration;
 use tokio::process::Command;
 
 use super::prelude::*;
-
 use crate::signals::Signal;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
@@ -131,7 +130,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
 
         let mut cycle = cycle
             .or_else(|| command.clone().map(|cmd| vec![cmd]))
-            .error( "either 'command' or 'cycle' must be specified")?
+            .error("either 'command' or 'cycle' must be specified")?
             .into_iter()
             .cycle();
 
@@ -141,9 +140,9 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 .args(&["-c", &cycle.next().unwrap()])
                 .output()
                 .await
-                .error( "failed to run command")?;
+                .error("failed to run command")?;
             let stdout = std::str::from_utf8(&output.stdout)
-                .error( "the output of command is invalid UTF-8")?
+                .error("the output of command is invalid UTF-8")?
                 .trim();
 
             // {"icon": "ICON", "state": "STATE", "text": "YOURTEXT", "short_text": "YOUR SHORT TEXT"}
@@ -151,7 +150,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 vec![]
             } else if json {
                 let vals: HashMap<String, String> =
-                    serde_json::from_str(stdout).error( "invalid JSON")?;
+                    serde_json::from_str(stdout).error("invalid JSON")?;
                 widget.set_icon(vals.get("icon").map(|s| s.as_str()).unwrap_or(""))?;
                 widget.set_state(match vals.get("state").map(|s| s.as_str()).unwrap_or("") {
                     "Info" => WidgetState::Info,
