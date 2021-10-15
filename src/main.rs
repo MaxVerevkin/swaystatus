@@ -232,10 +232,26 @@ impl Swaystatus {
                 },
                 // Recieve widgets from blocks
                 Some(message) = self.message_receiver.recv() => {
-                    *self.rendered_blocks
-                        .get_mut(message.id)
-                        .error("Failed to handle block's message")?
-                            = message.widgets;
+                    match message {
+                        BlockMessage::None(id) => {
+                            self.rendered_blocks
+                                .get_mut(id)
+                                .error("Failed to handle block's message")?.clear();
+                        }
+                        BlockMessage::Single(id, widget) => {
+                            let w = self.rendered_blocks
+                                .get_mut(id)
+                                .error("Failed to handle block's message")?;
+                            w.clear();
+                            w.push(widget);
+                        }
+                        BlockMessage::Many(id, widgets) => {
+                            *self.rendered_blocks
+                                .get_mut(id)
+                                .error("Failed to handle block's message")?
+                                    = widgets;
+                        }
+                    }
                     protocol::print_blocks(&self.rendered_blocks, &self.shared_config)?;
                 }
                 // Handle clicks

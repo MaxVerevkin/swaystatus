@@ -55,7 +55,7 @@ impl Block {
         if let Err(e) = self.widget.set_icon(icon) {
             return e.to_string();
         }
-        if let Err(e) = self.api.send_widgets(vec![self.widget.get_data()]).await {
+        if let Err(e) = self.api.send_widget(self.widget.get_data()).await {
             return e.to_string();
         }
         "OK".to_string()
@@ -63,7 +63,7 @@ impl Block {
 
     async fn set_text(&mut self, full: String, short: String) -> String {
         self.widget.set_text((full, Some(short)));
-        if let Err(e) = self.api.send_widgets(vec![self.widget.get_data()]).await {
+        if let Err(e) = self.api.send_widget(self.widget.get_data()).await {
             return e.to_string();
         }
         "OK".to_string()
@@ -78,7 +78,7 @@ impl Block {
             "critical" => self.widget.set_state(WidgetState::Critical),
             _ => return format!("'{}' is not a valid state", state),
         }
-        if let Err(e) = self.api.send_widgets(vec![self.widget.get_data()]).await {
+        if let Err(e) = self.api.send_widget(self.widget.get_data()).await {
             return e.to_string();
         }
         "OK".to_string()

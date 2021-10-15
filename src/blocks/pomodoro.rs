@@ -73,7 +73,7 @@ struct Block {
 impl Block {
     async fn set_text(&mut self, text: String) -> Result<()> {
         self.widget.set_full_text(text);
-        self.api.send_widgets(vec![self.widget.get_data()]).await
+        self.api.send_widget(self.widget.get_data()).await
     }
 
     async fn wait_for_click(&mut self, button: MouseButton) {
@@ -156,9 +156,9 @@ impl Block {
                 if self.block_config.blocking_cmd {
                     spawn_shell_sync(&cmd)
                         .await
-                        .error( "failed to run notify_cmd")?;
+                        .error("failed to run notify_cmd")?;
                 } else {
-                    spawn_shell(&cmd).error( "failed to run notify_cmd")?;
+                    spawn_shell(&cmd).error("failed to run notify_cmd")?;
                     self.wait_for_click(MouseButton::Left).await;
                 }
             } else {
@@ -199,9 +199,9 @@ impl Block {
                 if self.block_config.blocking_cmd {
                     spawn_shell_sync(&cmd)
                         .await
-                        .error( "failed to run notify_cmd")?;
+                        .error("failed to run notify_cmd")?;
                 } else {
-                    spawn_shell(&cmd).error( "failed to run notify_cmd")?;
+                    spawn_shell(&cmd).error("failed to run notify_cmd")?;
                     self.wait_for_click(MouseButton::Left).await;
                 }
             } else {
@@ -216,8 +216,7 @@ impl Block {
 pub fn spawn(block_config: toml::Value, api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let events = events();
     tokio::spawn(async move {
-        let block_config =
-            PomodoroConfig::deserialize(block_config).config_error()?;
+        let block_config = PomodoroConfig::deserialize(block_config).config_error()?;
         let widget = api.new_widget().with_icon("pomodoro")?;
         let mut block = Block {
             api,

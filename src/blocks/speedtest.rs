@@ -81,7 +81,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 "speed_up" => Value::from_float(output.upload).bits().icon(icon_up.clone()),
             })?);
 
-            api.send_widgets(vec![text.get_data()]).await?;
+            api.send_widget(text.get_data()).await?;
             tokio::time::sleep(block_config.interval).await;
         }
     })

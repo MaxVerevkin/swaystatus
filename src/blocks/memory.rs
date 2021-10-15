@@ -169,7 +169,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 },
             });
 
-            api.send_widgets(vec![text.get_data()]).await?;
+            api.send_widget(text.get_data()).await?;
 
             tokio::select! {
                 _ = tokio::time::sleep(interval) =>(),

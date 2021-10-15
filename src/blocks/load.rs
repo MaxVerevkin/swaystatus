@@ -105,7 +105,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 "15m" => Value::from_float(m15),
             ))?);
 
-            api.send_widgets(vec![text.get_data()]).await?;
+            api.send_widget(text.get_data()).await?;
             interval.tick().await;
         }
     })

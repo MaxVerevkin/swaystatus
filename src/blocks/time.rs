@@ -77,7 +77,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             let full_time = get_time(format, timezone, locale);
             let short_time = format_short.map(|f| get_time(f, timezone, locale));
             text.set_text((full_time, short_time));
-            api.send_widgets(vec![text.get_data()]).await?;
+            api.send_widget(text.get_data()).await?;
             interval.tick().await;
         }
     })

@@ -151,7 +151,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             };
             text.set_state(state);
 
-            api.send_widgets(vec![text.get_data()]).await?;
+            api.send_widget(text.get_data()).await?;
             interval.tick().await;
         }
     })

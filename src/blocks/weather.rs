@@ -263,7 +263,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 .with_text(format.render(&keys)?)
                 .with_icon(icon)?
                 .get_data();
-            api.send_widgets(vec![widget]).await?;
+            api.send_widget(widget).await?;
 
             tokio::time::sleep(block_config.interval).await;
         }

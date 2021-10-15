@@ -502,11 +502,11 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
 
             let fmt = match status {
                 Err(_) if block_config.hide_missing => {
-                    api.send_widgets(vec![]).await?;
+                    api.send_empty_widget().await?;
                     continue;
                 }
                 Ok(BatteryStatus::Full) if block_config.hide_full => {
-                    api.send_widgets(vec![]).await?;
+                    api.send_empty_widget().await?;
                     continue;
                 }
                 Ok(BatteryStatus::Full | BatteryStatus::NotCharging) => &format_full,

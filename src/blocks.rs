@@ -81,9 +81,10 @@ pub type BlockSpawnerFn = dyn Fn(Value, CommonApi, EventsRxGetter) -> BlockHandl
 pub type BlockHandle = tokio::task::JoinHandle<std::result::Result<(), crate::errors::Error>>;
 
 #[derive(Debug, Clone)]
-pub struct BlockMessage {
-    pub id: usize,
-    pub widgets: Vec<I3BarBlock>,
+pub enum BlockMessage {
+    None(usize),
+    Single(usize, I3BarBlock),
+    Many(usize, Vec<I3BarBlock>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -135,14 +136,25 @@ impl CommonApi {
         self.shared_config.get_icon(icon)
     }
 
+    pub async fn send_empty_widget(&mut self) -> Result<()> {
+        self.message_sender
+            .send(BlockMessage::None(self.id))
+            .await
+            .error("Failed to send empty widget")
+    }
+
+    pub async fn send_widget(&mut self, widget: I3BarBlock) -> Result<()> {
+        self.message_sender
+            .send(BlockMessage::Single(self.id, widget))
+            .await
+            .error("Failed to send widget")
+    }
+
     pub async fn send_widgets(&mut self, widgets: Vec<I3BarBlock>) -> Result<()> {
         self.message_sender
-            .send(BlockMessage {
-                id: self.id,
-                widgets,
-            })
+            .send(BlockMessage::Many(self.id, widgets))
             .await
-            .error("Failed to send message")
+            .error("Failed to send widgets")
     }
 
     pub async fn system_dbus_connection(&self) -> Result<zbus::Connection> {

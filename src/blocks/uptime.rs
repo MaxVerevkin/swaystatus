@@ -69,7 +69,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             };
 
             widget.set_full_text(text);
-            api.send_widgets(vec![widget.get_data()]).await?;
+            api.send_widget(widget.get_data()).await?;
             interval.tick().await;
         }
     })

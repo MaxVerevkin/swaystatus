@@ -53,7 +53,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             text.set_text(format.render(&map! {
                 "layout" => Value::from_string(layout_mapped),
             })?);
-            api.send_widgets(vec![text.get_data()]).await?;
+            api.send_widget(text.get_data()).await?;
 
             // Wait for new event
             loop {
