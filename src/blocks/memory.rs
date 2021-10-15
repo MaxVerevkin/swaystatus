@@ -58,7 +58,6 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use regex::Regex;
 
 use super::prelude::*;
-
 use crate::util::read_file;
 
 #[derive(serde_derive::Deserialize, Debug, Clone)]
@@ -215,7 +214,7 @@ impl Memstate {
         let mut file = BufReader::new(
             File::open("/proc/meminfo")
                 .await
-                .error( "/proc/meminfo does not exist")?,
+                .error("/proc/meminfo does not exist")?,
         );
 
         let mut mem_state = Memstate {
@@ -234,7 +233,7 @@ impl Memstate {
         while file
             .read_line(&mut line)
             .await
-            .error( "failed to read /proc/meminfo")?
+            .error("failed to read /proc/meminfo")?
             != 0
         {
             let mut words = line.trim().split_whitespace();
@@ -250,7 +249,7 @@ impl Memstate {
                 .next()
                 .map(|x| u64::from_str(x).ok())
                 .flatten()
-                .error( "failed to parse /proc/meminfo")?;
+                .error("failed to parse /proc/meminfo")?;
 
             match name {
                 "MemTotal:" => mem_state.mem_total = val,
@@ -272,9 +271,9 @@ impl Memstate {
             let size_re = Regex::new(r"size\s+\d+\s+(\d+)").unwrap(); // Valid regex is safe to unwrap.
             let size = &size_re
                 .captures(&arcstats)
-                .error( "failed to find zfs_arc_cache size")?[1];
+                .error("failed to find zfs_arc_cache size")?[1];
             mem_state.zfs_arc_cache =
-                u64::from_str(size).error( "failed to parse zfs_arc_cache size")?;
+                u64::from_str(size).error("failed to parse zfs_arc_cache size")?;
         }
 
         Ok(mem_state)

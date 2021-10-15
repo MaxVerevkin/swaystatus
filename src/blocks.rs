@@ -70,6 +70,7 @@ define_blocks!(
     Taskwarrior taskwarrior,
     Temperature temperature,
     Time time,
+    Uptime uptime,
     Weather weather,
 );
 
