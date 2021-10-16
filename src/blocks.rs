@@ -35,17 +35,17 @@ macro_rules! define_blocks {
         /// Matches the block's type to block's name
         #[inline(always)]
         pub fn block_name(block: BlockType) -> &'static str {
-            // SAFETY: The length of BlockType and BLOCK_NAMES must be equal because the number
-            // of $type is equal to the number of $mod (provided by the macro declaration)
-            unsafe { BLOCK_NAMES.get_unchecked(block as isize as usize) }
+            // SAFETY: The length of BlockType and BLOCK_NAMES is equal because the number of $type
+            // is equal to the number of $mod (provided by the macro declaration)
+            unsafe { BLOCK_NAMES.get_unchecked(block as usize) }
         }
 
         /// Matches the block's type to block's spawner function
         #[inline(always)]
         pub fn block_spawner(block: BlockType) -> &'static BlockSpawnerFn {
-            // SAFETY: The length of BlockType and BLOCK_SPAWNERS must be equal because the number
-            // of $type is equal to the number of $mod (provided by the macro declaration)
-            unsafe { BLOCK_SPAWNERS.get_unchecked(block as isize as usize) }
+            // SAFETY: The length of BlockType and BLOCK_SPAWNERS is equal because the number of
+            // $type is equal to the number of $mod (provided by the macro declaration)
+            unsafe { BLOCK_SPAWNERS.get_unchecked(block as usize) }
         }
     };
 }
@@ -53,6 +53,7 @@ macro_rules! define_blocks {
 define_blocks!(
     Backlight backlight,
     Battery battery,
+    Bluetooth bluetooth,
     Cpu cpu,
     Custom custom,
     CustomDbus custom_dbus,
@@ -122,10 +123,11 @@ impl CommonConfig {
 
 pub struct CommonApi {
     pub id: usize,
-    pub block_name: &'static str,
     pub shared_config: SharedConfig,
     pub message_sender: mpsc::Sender<BlockMessage>,
+
     pub dbus_connection: Arc<async_lock::Mutex<Option<zbus::Connection>>>,
+    pub system_dbus_connection: Arc<async_lock::Mutex<Option<zbus::Connection>>>,
 }
 
 impl CommonApi {
@@ -159,9 +161,28 @@ impl CommonApi {
     }
 
     pub async fn system_dbus_connection(&self) -> Result<zbus::Connection> {
-        zbus::Connection::system()
-            .await
-            .error("Failed to open dbus connection")
+        let mut guard = self.system_dbus_connection.lock().await;
+        match &*guard {
+            Some(conn) => Ok(conn.clone()),
+            None => {
+                let conn = zbus::ConnectionBuilder::system()
+                    .unwrap()
+                    .internal_executor(false)
+                    .build()
+                    .await
+                    .error("Failed to open system DBus connection")?;
+                {
+                    let conn = conn.clone();
+                    tokio::spawn(async move {
+                        loop {
+                            conn.executor().tick().await;
+                        }
+                    });
+                }
+                *guard = Some(conn.clone());
+                Ok(conn)
+            }
+        }
     }
 
     pub async fn dbus_connection(&self) -> Result<zbus::Connection> {
@@ -174,7 +195,7 @@ impl CommonApi {
                     .internal_executor(false)
                     .build()
                     .await
-                    .error("Failed to open dbus connection")?;
+                    .error("Failed to open DBus connection")?;
                 {
                     let conn = conn.clone();
                     tokio::spawn(async move {

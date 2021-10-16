@@ -1,0 +1,218 @@
+//! Monitor Bluetooth device
+//!
+//! This block displays the connectivity of a given Bluetooth device and the battery level if this
+//! is supported. Relies on the Bluez D-Bus API.
+//!
+//! When the device can be identified as an audio headset, a keyboard, joystick, or mouse, use the
+//! relevant icon. Otherwise, fall back on the generic Bluetooth symbol.
+//!
+//! Right-clicking the block will attempt to connect (or disconnect) the device.
+//!
+//! # Configuration
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `mac` | MAC address of the Bluetooth device | Yes | N/A
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{name}"`
+//! `hide_disconnected` | Whether to hide thsi block when disconnected | No | `false`
+//!
+//! Placeholder    | Value          | Type   | Unit
+//! ---------------|----------------|--------|---------------
+//! `{name}`       | Device's name  | String | N/A
+//!
+//! # Examples
+//!
+//! ```toml
+//! [[block]]
+//! block = "bluetooth"
+//! mac = "00:18:09:92:1B:BA"
+//! hide_disconnected = true
+//! format = ""
+//! ```
+//!
+//! # TODO:
+//! - Don't throw errors when there is no bluetooth
+
+use futures::{Stream, StreamExt};
+use std::convert::TryFrom;
+use std::pin::Pin;
+use zbus::fdo::ObjectManagerProxy;
+use zbus_names::InterfaceName;
+
+use super::prelude::*;
+
+#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+struct BluetoothConfig {
+    mac: String,
+    #[serde(default)]
+    format: FormatTemplate,
+    #[serde(default)]
+    hide_disconnected: bool,
+}
+
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+    let mut events = events();
+    tokio::spawn(async move {
+        let block_config = BluetoothConfig::deserialize(block_config).config_error()?;
+        let format = block_config.format.or_default("{name}")?;
+
+        let dbus_conn = api.system_dbus_connection().await?;
+        let device = Device::from_mac(&dbus_conn, &block_config.mac).await?;
+
+        let name = device
+            .device_proxy
+            .name()
+            .await
+            .unwrap_or_else(|_| "N/A".to_string());
+        let mut connected = device
+            .device_proxy
+            .connected()
+            .await
+            .error("Failed to get device state")?;
+
+        let mut connected_stream = device.device_proxy.receive_connected_changed().await;
+
+        let (mut battery_stream, mut percentage): (
+            Pin<Box<dyn Stream<Item = Option<u8>> + Send + Sync>>,
+            u8,
+        ) = if let Some(bp) = &device.battery_proxy {
+            (
+                Box::pin(bp.receive_percentage_changed().await),
+                bp.percentage().await.error("Failed to get percentage")?,
+            )
+        } else {
+            (Box::pin(futures::stream::empty()), 0)
+        };
+
+        let mut widget = api.new_widget().with_icon(device.icon)?;
+
+        loop {
+            widget.set_state(if connected {
+                WidgetState::Good
+            } else {
+                WidgetState::Idle
+            });
+
+            widget.set_text(format.render(&map! {
+                "name" => Value::from_string(name.clone()),
+                "percentage" => Value::from_integer(percentage as _).percents(),
+            })?);
+
+            if !connected && block_config.hide_disconnected {
+                api.send_empty_widget().await?;
+            } else {
+                api.send_widget(widget.get_data()).await?;
+            }
+
+            tokio::select! {
+                Some(BlockEvent::I3Bar(click)) = events.recv() => {
+                    if click.button == MouseButton::Right {
+                        if connected {
+                            let _ = device.device_proxy.disconnect().await;
+                        } else {
+                            let _ = device.device_proxy.connect().await;
+                        }
+                    }
+                }
+                Some(Some(new_connected)) = connected_stream.next() => {
+                    connected = new_connected;
+                }
+                Some(Some(new_precentage)) = battery_stream.next() => {
+                    percentage = new_precentage;
+                }
+            }
+        }
+    })
+}
+
+#[zbus::dbus_proxy(interface = "org.bluez.Device1", default_service = "org.bluez")]
+trait Device1 {
+    fn connect(&self) -> zbus::Result<()>;
+    fn disconnect(&self) -> zbus::Result<()>;
+
+    #[dbus_proxy(property)]
+    fn connected(&self) -> zbus::Result<bool>;
+
+    #[dbus_proxy(property)]
+    fn name(&self) -> zbus::Result<String>;
+}
+
+#[zbus::dbus_proxy(interface = "org.bluez.Battery1", default_service = "org.bluez")]
+trait Battery1 {
+    #[dbus_proxy(property)]
+    fn percentage(&self) -> zbus::Result<u8>;
+}
+
+struct Device<'a> {
+    icon: &'static str,
+    device_proxy: Device1Proxy<'a>,
+    battery_proxy: Option<Battery1Proxy<'a>>,
+}
+
+impl<'a> Device<'a> {
+    async fn from_mac(dbus_conn: &'a zbus::Connection, mac: &str) -> Result<Device<'a>> {
+        // Get list of all devics
+        let devices = ObjectManagerProxy::builder(dbus_conn)
+            .destination("org.bluez")
+            .unwrap()
+            .path("/")
+            .unwrap()
+            .build()
+            .await
+            .error("Failed to create ObjectManagerProxy")?
+            .get_managed_objects()
+            .await
+            .error("Failed to obtain the list of devices")?;
+        // Find the device with specified MAC
+        for (path, interfaces) in devices {
+            // TODO: avoid this allocation
+            // InterfaceName<'static> should impl AsRef<OwnedInterfaceName>, but it doesn't.
+            let interface_name = |name: &'static str| InterfaceName::try_from(name).unwrap().into();
+
+            if let Some(device_inter) = interfaces.get(&interface_name("org.bluez.Device1")) {
+                let addr: &str = device_inter.get("Address").unwrap().downcast_ref().unwrap();
+                if addr != mac {
+                    continue;
+                }
+
+                let icon: &str = device_inter.get("Icon").unwrap().downcast_ref().unwrap();
+                let icon = match icon {
+                    "audio-card" => "headphones",
+                    "input-gaming" => "joystick",
+                    "input-keyboard" => "keyboard",
+                    "input-mouse" => "mouse",
+                    _ => "bluetooth",
+                };
+
+                let battery_proxy = if interfaces
+                    .get(&interface_name("org.bluez.Battery1"))
+                    .is_some()
+                {
+                    Some(
+                        Battery1Proxy::builder(dbus_conn)
+                            .path(path.clone())
+                            .unwrap()
+                            .build()
+                            .await
+                            .error("Failed to create Battery1Proxy")?,
+                    )
+                } else {
+                    None
+                };
+
+                return Ok(Self {
+                    icon,
+                    device_proxy: Device1Proxy::builder(dbus_conn)
+                        .path(path)
+                        .unwrap()
+                        .build()
+                        .await
+                        .error("Failed to create Device1Proxy")?,
+                    battery_proxy,
+                });
+            }
+        }
+        Err(Error::new("Device not found"))
+    }
+}

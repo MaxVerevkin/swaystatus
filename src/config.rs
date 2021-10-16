@@ -26,7 +26,7 @@ impl SharedConfig {
             self.icons
                 .0
                 .get(icon)
-                .error(format!("icon '{}' not found: please check your icon file or open a new issue on GitHub if you use a precompiled icons.", icon))?,
+                .error(format!("Icon '{}' not found: please check your icons file or open a new issue on GitHub if you use precompiled icons", icon))?,
         ))
     }
 }
@@ -50,8 +50,8 @@ pub struct Config {
     #[serde(default)]
     pub invert_scrolling: bool,
 
-    #[serde(rename = "block", deserialize_with = "deserialize_blocks")]
-    pub blocks: Vec<(BlockType, value::Value)>,
+    #[serde(deserialize_with = "deserialize_blocks")]
+    pub block: Vec<(BlockType, value::Value)>,
 }
 
 impl Config {
@@ -63,9 +63,9 @@ impl Config {
         let Self {
             shared,
             invert_scrolling,
-            blocks,
+            block,
         } = self;
-        (shared, blocks, invert_scrolling)
+        (shared, block, invert_scrolling)
     }
 }
 
@@ -79,7 +79,7 @@ where
         if let Some(name) = entry.remove("block") {
             let name_str = name.to_string();
             let block = BlockType::deserialize(name)
-                .map_err(|_| serde::de::Error::custom(format!("unknown block {}", name_str)))?;
+                .map_err(|_| serde::de::Error::custom(format!("Unknown block '{}'", name_str)))?;
             blocks.push((block, value::Value::Table(entry)));
         }
     }

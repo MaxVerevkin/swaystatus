@@ -23,9 +23,10 @@ tokio-stream = "0.1"
 async-trait = "0.1"
 regex = "1.5"
 
-zbus = "2.0.0-beta.7"
-zbus_names = "1.1"
-zvariant = "2.9"
+# zbus 2.0.0-beta.7 doesn't work for bluetooth block
+zbus = {git = "https://gitlab.freedesktop.org/dbus/zbus/"}
+zbus_names = {git = "https://gitlab.freedesktop.org/dbus/zbus/"}
+zvariant = {git = "https://gitlab.freedesktop.org/dbus/zbus/"}
 async-lock = "2.4"
 
 # TODO: remove

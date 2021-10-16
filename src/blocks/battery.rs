@@ -492,7 +492,6 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             if let Ok(c) = capacity {
                 if c > block_config.full_threshold {
                     if let Ok(s) = &mut status {
-                        dbg!(&s);
                         if *s != BatteryStatus::Discharging {
                             *s = BatteryStatus::Full;
                         }
@@ -592,7 +591,6 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             };
 
             api.send_widgets(vec![widget.get_data()]).await?;
-            eprintln!("update");
             device.wait_for_change().await?
         }
     })
