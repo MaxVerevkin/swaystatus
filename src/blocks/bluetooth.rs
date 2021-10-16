@@ -16,9 +16,10 @@
 //! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{name}"`
 //! `hide_disconnected` | Whether to hide thsi block when disconnected | No | `false`
 //!
-//! Placeholder    | Value          | Type   | Unit
-//! ---------------|----------------|--------|---------------
-//! `{name}`       | Device's name  | String | N/A
+//! Placeholder    | Value                  | Type    | Unit
+//! ---------------|------------------------|---------|---------------
+//! `{name}`       | Device's name          | String  | N/A
+//! `{percentage}` | Device's battery level | Integer | %
 //!
 //! # Examples
 //!
