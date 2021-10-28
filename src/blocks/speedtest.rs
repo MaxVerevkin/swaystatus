@@ -6,36 +6,35 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{ping}{speed_down}{speed_up}"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$ping.eng()$speed_down.eng()$speed_up.eng()"`
 //! `interval` | Update interval in seconds | No | `1800`
 //!
-//! Placeholder    | Value          | Type  | Unit
-//! ---------------|----------------|-------|---------------
-//! `{ping}`       | Ping delay     | Float | Seconds
-//! `{speed_down}` | Download speed | Float | Bits per second
-//! `{speed_up}`   | Upload speed   | Float | Bits per second
+//! Placeholder  | Value          | Type   | Unit
+//! -------------|----------------|--------|---------------
+//! `ping`       | Ping delay     | Number | Seconds
+//! `speed_down` | Download speed | Number | Bits per second
+//! `speed_up`   | Upload speed   | Number | Bits per second
 //!
 //! # Example
 //!
-//! Display speed in bytes per second using 4 digits
+//! Hide ping and display speed in bytes per second each using 4 characters
 //!
 //! ```toml
 //! [[block]]
 //! block = "speedtest"
 //! interval = 1800
-//! format = "{ping}{speed_down:4*B}{speed_up:4*B}"
+//! format = "$speed_down.eng(4,B)$speed_up(4,B)"
 //! ```
-
-use std::time::Duration;
-use tokio::process::Command;
 
 use super::prelude::*;
 use crate::de::deserialize_duration;
+use std::time::Duration;
+use tokio::process::Command;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct SpeedtestConfig {
-    format: FormatTemplate,
+    format: FormatConfig,
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
 }
@@ -54,11 +53,10 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
         let icon_ping = api.get_icon("ping")?;
         let icon_down = api.get_icon("net_down")?;
         let icon_up = api.get_icon("net_up")?;
-        let block_config =
-            SpeedtestConfig::deserialize(block_config).config_error()?;
+        let block_config = SpeedtestConfig::deserialize(block_config).config_error()?;
         let format = block_config
             .format
-            .or_default("{ping}{speed_down}{speed_up}")?;
+            .or_default("$ping.eng()$speed_down.eng()$speed_up.eng()")?;
         let mut text = api.new_widget();
 
         let mut command = Command::new("speedtest-cli");
@@ -68,17 +66,17 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             let output = command
                 .output()
                 .await
-                .error( "failed to run 'speedtest-cli'")?
+                .error("failed to run 'speedtest-cli'")?
                 .stdout;
-            let output = String::from_utf8(output)
-                .error( "'speedtest-cli' produced non-UTF8 outupt")?;
-            let output: SpeedtestCliOutput = serde_json::from_str(&output)
-                .error( "'speedtest-cli' produced wrong JSON")?;
+            let output =
+                String::from_utf8(output).error("'speedtest-cli' produced non-UTF8 outupt")?;
+            let output: SpeedtestCliOutput =
+                serde_json::from_str(&output).error("'speedtest-cli' produced wrong JSON")?;
 
             text.set_text(format.render(&map! {
-                "ping" => Value::from_float(output.ping * 1e-3).seconds().icon(icon_ping.clone()),
-                "speed_down" => Value::from_float(output.download).bits().icon(icon_down.clone()),
-                "speed_up" => Value::from_float(output.upload).bits().icon(icon_up.clone()),
+                "ping" => Value::seconds(output.ping * 1e-3).icon(icon_ping.clone()),
+                "speed_down" => Value::bits(output.download).icon(icon_down.clone()),
+                "speed_up" => Value::bits(output.upload).icon(icon_up.clone()),
             })?);
 
             api.send_widget(text.get_data()).await?;

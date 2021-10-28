@@ -1,6 +1,6 @@
 use crate::themes::Color;
 
-/// Represent block as described in https://i3wm.org/docs/i3bar-protocol.html
+/// Represent block as described in <https://i3wm.org/docs/i3bar-protocol.html>
 #[derive(Debug, Clone)]
 pub struct I3BarBlock {
     pub full_text: String,

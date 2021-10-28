@@ -40,7 +40,7 @@ use tokio::process::Command;
 
 use super::prelude::*;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct ToggleConfig {
     command_on: String,

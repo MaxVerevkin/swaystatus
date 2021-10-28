@@ -19,7 +19,7 @@ const PLAY_PAUSE_BTN: usize = 1;
 const NEXT_BTN: usize = 2;
 const PREV_BTN: usize = 3;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct MusicConfig {
     // TODO add stuff here

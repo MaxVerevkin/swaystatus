@@ -23,11 +23,11 @@
 //! `warning` | Maximum temperature to set state to warning. Beyond this temperature, state is set to critical | No | `80` °C (`176` °F)
 //! `chip` | Chip name as shown by `cat /sys/class/hwmon/*/name` | No | `"coretemp"`
 //!
-//! Placeholder  | Value                                | Type    | Unit
-//! -------------|--------------------------------------|---------|--------
-//! `{min}`      | Minimum temperature among all inputs | Integer | Degrees
-//! `{average}`  | Average temperature among all inputs | Integer | Degrees
-//! `{max}`      | Maximum temperature among all inputs | Integer | Degrees
+//! Placeholder  | Value                                | Type   | Unit
+//! -------------|--------------------------------------|--------|--------
+//! `{min}`      | Minimum temperature among all inputs | Number | Degrees
+//! `{average}`  | Average temperature among all inputs | Number | Degrees
+//! `{max}`      | Maximum temperature among all inputs | Number | Degrees
 //!
 //! # Example
 //!
@@ -37,18 +37,19 @@
 //! interval = 10
 //! format = "{min} min, {max} max, {average} avg"
 //! ```
+//!
+//! # TODO
+//! - Support Fahrenheit scale
 
+use super::prelude::*;
+use crate::de::deserialize_duration;
 use std::time::Duration;
 use tokio::fs::{read_dir, read_to_string};
 
-use super::prelude::*;
-
-use crate::de::deserialize_duration;
-
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct TemperatureConfig {
-    format: FormatTemplate,
+    format: FormatConfig,
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
     collapsed: bool,
@@ -91,9 +92,9 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
 
             // Render!
             let values = map! {
-                "average" => Value::from_integer(avg_temp.round() as i64).degrees(),
-                "min" => Value::from_integer(min_temp as i64).degrees(),
-                "max" => Value::from_integer(max_temp as i64).degrees(),
+                "average" => Value::degrees(avg_temp),
+                "min" => Value::degrees(min_temp),
+                "max" => Value::degrees(max_temp),
             };
             text.set_text(if collapsed {
                 (String::new(), None)

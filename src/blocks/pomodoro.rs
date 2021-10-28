@@ -43,7 +43,7 @@ use super::prelude::*;
 
 use crate::subprocess::{spawn_shell, spawn_shell_sync};
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct PomodoroConfig {
     message: String,

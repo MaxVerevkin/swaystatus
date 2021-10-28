@@ -27,6 +27,10 @@
 //! `{percentage}` | Battery level, in percent                                               | String or Integer | Percents
 //! `{time}`       | Time remaining until (dis)charge is complete                            | String            | -
 //! `{power}`      | Power consumption by the battery or from the power supply when charging | String or Float   | Watts
+//!
+//! # TODO:
+//! - Refactor / Revisit
+//! - Allow missing placeholders
 
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
@@ -35,8 +39,6 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use futures::StreamExt;
-
-use serde_derive::Deserialize;
 use tokio::fs::{read_dir, read_to_string};
 use tokio::time::{Instant, Interval};
 use zbus::fdo::DBusProxy;
@@ -65,16 +67,16 @@ const BATTERY_EMPTY_ICON: &str = "bat_empty";
 const BATTERY_FULL_ICON: &str = "bat_full";
 const BATTERY_UNAVAILABLE_ICON: &str = "bat_not_available";
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct BatteryConfig {
     device: Option<String>,
     driver: BatteryDriver,
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
-    format: FormatTemplate,
-    full_format: FormatTemplate,
-    missing_format: FormatTemplate,
+    format: FormatConfig,
+    full_format: FormatConfig,
+    missing_format: FormatConfig,
     allow_missing: bool,
     hide_missing: bool,
     hide_full: bool,
@@ -419,7 +421,7 @@ impl<'a> BatteryDevice for UPowerDevice<'a> {
 // --- Block
 // ---
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "lowercase")]
 enum BatteryDriver {
     Sysfs,
@@ -437,12 +439,9 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
         let block_config = BatteryConfig::deserialize(block_config).config_error()?;
         let dbus_conn = api.dbus_connection().await?;
 
-        let format = block_config.format.clone().or_default("{percentage}")?;
-        let format_full = block_config.full_format.clone().or_default("")?;
-        let format_missing = block_config
-            .missing_format
-            .clone()
-            .or_default("{percentage}")?;
+        let format = block_config.format.or_default("{percentage}")?;
+        let format_full = block_config.full_format.or_default("")?;
+        let format_missing = block_config.missing_format.or_default("{percentage}")?;
 
         // Get _any_ battery device if not set in the config
         let device = match block_config.device {
@@ -516,31 +515,31 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             let vars = {
                 if !is_available && block_config.allow_missing {
                     map! {
-                        "percentage" => Value::from_string("X".to_string()),
-                        "time" => Value::from_string("xx:xx".to_string()),
-                        "power" => Value::from_string("N/A".to_string()),
+                        "percentage" => Value::text("X".to_string()),
+                        "time" => Value::text("xx:xx".to_string()),
+                        "power" => Value::text("N/A".to_string()),
                     }
                 } else {
                     map! {
                         "percentage" => capacity.clone()
-                            .map(|c| Value::from_integer(c as i64).percents())
-                            .unwrap_or_else(|_| Value::from_string("×".to_string())),
+                            .map(|c| Value::percents(c as i64))
+                            .unwrap_or_else(|_| Value::text("×".to_string())),
                         "time" => time
                             .map(|time| {
                                 if time == 0 {
-                                    Value::from_string("".to_string())
+                                    Value::text("".to_string())
                                 } else {
-                                    Value::from_string(format!(
+                                    Value::text(format!(
                                         "{}:{:02}",
                                         (time / 60).clamp(0, 99),
                                         time % 60,
                                     ))
                                 }
                             })
-                            .unwrap_or_else(|_| Value::from_string("×".to_string())),
+                            .unwrap_or_else(|_| Value::text("×".to_string())),
                         "power" => power
-                            .map(|power| Value::from_float(power / 1e6).watts())
-                            .unwrap_or_else(|_| Value::from_string("×".to_string())),
+                            .map(|power| Value::watts(power / 1e6))
+                            .unwrap_or_else(|_| Value::text("×".to_string())),
                     }
                 }
             };

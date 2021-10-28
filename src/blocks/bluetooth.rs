@@ -13,15 +13,17 @@
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
 //! `mac` | MAC address of the Bluetooth device | Yes | N/A
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{name}"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$name.str() {$percentage.eng(2)|}"`
 //! `hide_disconnected` | Whether to hide thsi block when disconnected | No | `false`
 //!
-//! Placeholder    | Value                  | Type    | Unit
-//! ---------------|------------------------|---------|---------------
-//! `{name}`       | Device's name          | String  | N/A
-//! `{percentage}` | Device's battery level | Integer | %
+//! Placeholder  | Value                                                                 | Type   | Unit
+//! -------------|-----------------------------------------------------------------------|--------|------
+//! `name`       | Device's name                                                         | Text   | -
+//! `percentage` | Device's battery level (may be absent if the device is not supported) | Number | %
 //!
 //! # Examples
+//!
+//! This example just shows the icon when device is connected.
 //!
 //! ```toml
 //! [[block]]
@@ -42,12 +44,12 @@ use zbus_names::InterfaceName;
 
 use super::prelude::*;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 struct BluetoothConfig {
     mac: String,
     #[serde(default)]
-    format: FormatTemplate,
+    format: FormatConfig,
     #[serde(default)]
     hide_disconnected: bool,
 }
@@ -76,14 +78,14 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
 
         let (mut battery_stream, mut percentage): (
             Pin<Box<dyn Stream<Item = Option<u8>> + Send + Sync>>,
-            u8,
+            Option<u8>,
         ) = if let Some(bp) = &device.battery_proxy {
             (
                 Box::pin(bp.receive_percentage_changed().await),
-                bp.percentage().await.error("Failed to get percentage")?,
+                Some(bp.percentage().await.error("Failed to get percentage")?),
             )
         } else {
-            (Box::pin(futures::stream::empty()), 0)
+            (Box::pin(futures::stream::empty()), None)
         };
 
         let mut widget = api.new_widget().with_icon(device.icon)?;
@@ -95,10 +97,11 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 WidgetState::Idle
             });
 
-            widget.set_text(format.render(&map! {
-                "name" => Value::from_string(name.clone()),
-                "percentage" => Value::from_integer(percentage as _).percents(),
-            })?);
+            let mut values = map! {
+                "name" => Value::text(name.clone()),
+            };
+            percentage.map(|p| values.insert("percentage", Value::percents(p)));
+            widget.set_text(format.render(&values)?);
 
             if !connected && block_config.hide_disconnected {
                 api.send_empty_widget().await?;
@@ -120,7 +123,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                     connected = new_connected;
                 }
                 Some(Some(new_precentage)) = battery_stream.next() => {
-                    percentage = new_precentage;
+                    percentage = Some(new_precentage);
                 }
             }
         }

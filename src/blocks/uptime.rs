@@ -16,12 +16,15 @@
 //! block = "uptime"
 //! interval = "3600" # update every hour
 //! ```
+//!
+//! # TODO:
+//! - Add `time` or `dur` formatter to `src/formatting/formatter.rs`
 
 use super::prelude::*;
 use std::time::Duration;
 use tokio::fs::read_to_string;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct UptimeConfig {
     interval: u64,

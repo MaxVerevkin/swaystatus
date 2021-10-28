@@ -38,7 +38,7 @@ use zbus::dbus_interface;
 
 use super::prelude::*;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 struct CustomDBusConfig {
     path: String,

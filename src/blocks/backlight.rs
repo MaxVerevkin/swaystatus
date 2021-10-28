@@ -15,14 +15,14 @@
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
 //! `device` | The `/sys/class/backlight` device to read brightness information from.  When there is no `device` specified, this block will display information from the first device found in the `/sys/class/backlight` directory. If you only have one display, this approach should find it correctly.| No | Default device
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{brightness}"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$brightness.eng(2)"`
 //! `step_width` | The brightness increment to use when scrolling, in percent | No | `5`
 //! `root_scaling` | Scaling exponent reciprocal (ie. root) | No | `1.0`
 //! `invert_icons` | Invert icons' ordering, useful if you have colorful emoji | No | `false`
 //!
-//! Placeholder    | Value              | Type     | Unit
-//! ---------------|--------------------|----------|---------------
-//! `{brightness}` | Current brightness | Interger | Percents
+//! Placeholder  | Value              | Type   | Unit
+//! -------------|--------------------|--------|---------------
+//! `brightness` | Current brightness | Number | %
 //!
 //! # Example
 //!
@@ -38,7 +38,6 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use inotify::{Inotify, WatchMask};
-use serde_derive::Deserialize;
 use tokio::fs::read_dir;
 use tokio_stream::StreamExt;
 
@@ -90,11 +89,11 @@ const BACKLIGHT_ICONS: &[&str] = &[
     "backlight_full",
 ];
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 pub struct BacklightConfig {
     pub device: Option<String>,
-    pub format: FormatTemplate,
+    pub format: FormatConfig,
     pub step_width: u8,
     pub root_scaling: f64,
     pub invert_icons: bool,
@@ -217,7 +216,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     let mut events = events();
     tokio::spawn(async move {
         let block_config = BacklightConfig::deserialize(block_config).config_error()?;
-        let format = block_config.format.or_default("{brightness}")?;
+        let format = block_config.format.or_default("$brightness.eng(2)")?;
         let dbus_conn = api.system_dbus_connection().await?;
 
         let device = match &block_config.device {
@@ -250,7 +249,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
 
             text.set_icon(BACKLIGHT_ICONS[icon_index])?;
             text.set_text(format.render(&map! {
-                "brightness" => Value::from_integer(brightness as i64).percents(),
+                "brightness" => Value::percents(brightness as i64),
             })?);
             api.send_widget(text.get_data()).await?;
 

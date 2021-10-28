@@ -1,18 +1,50 @@
-use std::time::{Duration, Instant};
+//! Network information
+//!
+//! This block uses `sysfs` and `netlink` and thus does not require any external dependencies.
+//!
+//! # Configuration
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$speed_down.eng(3,B,K)$speed_up.eng(3,B,K)"`
+//! `format_alt` | If set, block will switch between `format` and `format_alt` on every click | No | None
+//! `device` | Network interface to monitor (as specified in `/sys/class/net/`) | No | If not set, device will be automatically selected every `interval`
+//! `interval` | Update interval in seconds | No | `2`
+//!
+//! Placeholder  | Value                    | Type   | Unit
+//! -------------|--------------------------|--------|---------------
+//! `speed_down` | Download speed           | Number | Bytes per second
+//! `speed_up`   | Upload speed             | Number | Bytes per second
+//! `graph_down` | Download speed graph     | Text   | -
+//! `graph_up`   | Upload speed graph       | Text   | -
+//! `device`     | The name of device       | Text   | -
+//! `ssid`       | Netfork SSID (WiFi only) | Text   | -
+//! `frequency`  | WiFi frequency           | Number | Hz
+//! `signal`     | WiFi signal              | Number | %
+//!
+//! # Example
+//!
+//! Display WiFi info if available
+//!
+//! ```toml
+//! [[block]]
+//! block = "net"
+//! format = "{$signal.eng(2) $ssid.str() $frequency.eng()|Wired connection} via $device.str()"
+//! ```
 
 use super::prelude::*;
-
 use crate::netlink::{default_interface, NetDevice};
 use crate::util;
+use std::time::{Duration, Instant};
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 pub struct NetConfig {
     /// Format string for `Net` block.
-    pub format: FormatTemplate,
+    pub format: FormatConfig,
 
     /// Format string that is applied afted a click
-    pub format_alt: Option<FormatTemplate>,
+    pub format_alt: Option<FormatConfig>,
 
     /// Format string for `Net` block.
     pub device: Option<String>,
@@ -38,7 +70,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
         let block_config = NetConfig::deserialize(block_config).config_error()?;
         let mut format = block_config
             .format
-            .or_default("{speed_down;K}{speed_up;k}")?;
+            .or_default("$speed_down.eng(3,B,K)$speed_up.eng(3,B,K)")?;
         let mut format_alt = block_config.format_alt;
 
         let mut text = api.new_widget();
@@ -84,20 +116,21 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             push_to_hist(&mut rx_hist, speed_down);
             push_to_hist(&mut tx_hist, speed_up);
 
-            // Get WiFi information
             let wifi = device.wifi_info()?;
 
+            let mut values = map! {
+                "speed_down" => Value::bytes(speed_down).icon(api.get_icon("net_down")?),
+                "speed_up" => Value::bytes(speed_up).icon(api.get_icon("net_up")?),
+                "graph_down" => Value::text(util::format_vec_to_bar_graph(&rx_hist)),
+                "graph_up" => Value::text(util::format_vec_to_bar_graph(&tx_hist)),
+                "device" => Value::text(device.interface),
+            };
+            wifi.0.map(|s| values.insert("ssid", Value::text(s)));
+            wifi.1.map(|f| values.insert("frequency", Value::hertz(f)));
+            wifi.2.map(|s| values.insert("signal", Value::percents(s)));
+
             text.set_icon(device.icon)?;
-            text.set_text(format.render(&map! {
-                "ssid" => Value::from_string(wifi.0.unwrap_or_else(|| "N/A".to_string())),
-                "signal_strength" => Value::from_integer(wifi.2.unwrap_or_default()).percents(),
-                "frequency" => Value::from_float(wifi.1.unwrap_or_default()).hertz(),
-                "speed_down" => Value::from_float(speed_down).bytes().icon(api.get_icon("net_down")?),
-                "speed_up" => Value::from_float(speed_up).bytes().icon(api.get_icon("net_up")?),
-                "graph_down" => Value::from_string(util::format_vec_to_bar_graph(&rx_hist)),
-                "graph_up" => Value::from_string(util::format_vec_to_bar_graph(&tx_hist)),
-                "device" => Value::from_string(device.interface),
-            })?);
+            text.set_text(format.render(&values)?);
 
             api.send_widget(text.get_data()).await?;
 

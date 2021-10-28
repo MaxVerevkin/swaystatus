@@ -1,6 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
+use super::prefix::Prefix;
 use crate::errors::*;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -17,20 +18,16 @@ pub enum Unit {
 
 impl fmt::Display for Unit {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Bytes => "B",
-                Self::Bits => "b",
-                Self::Percents => "%",
-                Self::Degrees => "°",
-                Self::Seconds => "s",
-                Self::Watts => "W",
-                Self::Hertz => "Hz",
-                Self::None => "",
-            }
-        )
+        f.write_str(match self {
+            Self::Bytes => "B",
+            Self::Bits => "b",
+            Self::Percents => "%",
+            Self::Degrees => "°",
+            Self::Seconds => "s",
+            Self::Watts => "W",
+            Self::Hertz => "Hz",
+            Self::None => "",
+        })
     }
 }
 
@@ -53,20 +50,23 @@ impl FromStr for Unit {
 }
 
 impl Unit {
-    //TODO support more complex conversions like Celsius -> Fahrenheit
-    pub fn convert(&self, into: Self) -> Result<f64> {
-        match self {
-            Self::Bits if into == Self::Bytes => Ok(1. / 8.),
-            Self::Bytes if into == Self::Bits => Ok(8.),
-            x if into == *x || into == Self::None => Ok(1.),
-            x => Err(Error::new(format!(
-                "It is not possible to convert '{:?}' to '{:?}'",
-                x, into
+    pub fn convert(self, value: f64, unit: Self) -> Result<f64> {
+        match (self, unit) {
+            (x, y) if x == y => Ok(value),
+            (Self::Bytes, Self::Bits) => Ok(value * 8.),
+            (Self::Bits, Self::Bytes) => Ok(value / 8.),
+            _ => Err(Error::new(format!(
+                "Failed to convert '{}' to '{}",
+                self, unit
             ))),
         }
     }
 
-    pub fn is_byte(&self) -> bool {
-        matches!(self, Self::Bytes | Self::Bits)
+    pub fn clamp_prefix(self, prefix: Prefix) -> Prefix {
+        match self {
+            Self::Bytes | Self::Bits => prefix.max(Prefix::One),
+            Self::Percents | Self::None => Prefix::One,
+            _ => prefix,
+        }
     }
 }

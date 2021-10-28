@@ -15,10 +15,10 @@
 //! `format_singular` | Same as `format` but for when exactly one task is pending | No | `"{count}"`
 //! `format_everything_done` | Same as `format` but for when all tasks are completed | No | `"{count}"`
 //!
-//! Placeholder     | Value                                       | Type    | Unit
-//! ----------------|---------------------------------------------|---------|-----
-//! `{count}`       | The number of tasks matching current filter | Integer | -
-//! `{filter_name}` | The name of current filter                  | String  | -
+//! Placeholder     | Value                                       | Type   | Unit
+//! ----------------|---------------------------------------------|--------|-----
+//! `{count}`       | The number of tasks matching current filter | Number | -
+//! `{filter_name}` | The name of current filter                  | Text   | -
 //!
 //! # Example
 //!
@@ -46,7 +46,7 @@ use super::prelude::*;
 
 use crate::de::deserialize_duration;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct TaskwarriorConfig {
     #[serde(deserialize_with = "deserialize_duration")]
@@ -55,9 +55,9 @@ struct TaskwarriorConfig {
     critical_threshold: u32,
     hide_when_zero: bool,
     filters: Vec<Filter>,
-    format: FormatTemplate,
-    format_singular: FormatTemplate,
-    format_everything_done: FormatTemplate,
+    format: FormatConfig,
+    format_singular: FormatConfig,
+    format_everything_done: FormatConfig,
 }
 
 impl Default for TaskwarriorConfig {
@@ -71,9 +71,9 @@ impl Default for TaskwarriorConfig {
                 name: "pending".to_string(),
                 filter: "-COMPLETED -DELETED".to_string(),
             }],
-            format: FormatTemplate::default(),
-            format_singular: FormatTemplate::default(),
-            format_everything_done: FormatTemplate::default(),
+            format: FormatConfig::default(),
+            format_singular: FormatConfig::default(),
+            format_everything_done: FormatConfig::default(),
         }
     }
 }
@@ -93,8 +93,8 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
         loop {
             let number_of_tasks = get_number_of_tasks(&filter.filter).await?;
             let values = map!(
-                "count" => Value::from_integer(number_of_tasks as i64),
-                "filter_name" => Value::from_string(filter.name.clone()),
+                "count" => Value::number(number_of_tasks),
+                "filter_name" => Value::text(filter.name.clone()),
             );
             widget.set_text(match number_of_tasks {
                 0 => format_everything_done.render(&values)?,
@@ -119,7 +119,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 _ = tokio::time::sleep(block_config.interval) =>(),
                 Some(BlockEvent::I3Bar(click)) = events.recv() => {
                     if click.button == MouseButton::Right {
-                        filter = filters.next().error( "failed to get next filter")?;
+                        filter = filters.next().error("failed to get next filter")?;
                     }
                 }
             }

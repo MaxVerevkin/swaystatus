@@ -74,7 +74,7 @@ use tokio::process::Command;
 use super::prelude::*;
 use crate::signals::Signal;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 pub struct CustomConfig {
     command: Option<String>,

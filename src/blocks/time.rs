@@ -32,10 +32,10 @@ use chrono_tz::Tz;
 
 use super::prelude::*;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct TimeConfig {
-    format: FormatTemplate,
+    format: FormatConfig,
     interval: u64,
     timezone: Option<Tz>,
     locale: Option<String>,

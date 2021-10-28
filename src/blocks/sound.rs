@@ -8,7 +8,7 @@ use super::prelude::*;
 
 const FILTER: &[char] = &['[', ']', '%'];
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 pub struct SoundConfig {
     pub name: Option<String>,
@@ -16,7 +16,7 @@ pub struct SoundConfig {
     pub device_kind: DeviceKind,
     pub natural_mapping: bool,
     pub step_width: u32,
-    pub format: FormatTemplate,
+    pub format: FormatConfig,
     pub show_volume_when_muted: bool,
     pub mappings: Option<HashMap<String, String>>,
     pub max_vol: Option<u32>,
@@ -30,7 +30,7 @@ impl Default for SoundConfig {
             device_kind: Default::default(),
             natural_mapping: false,
             step_width: 5,
-            format: FormatTemplate::default(),
+            format: FormatConfig::default(),
             show_volume_when_muted: false,
             mappings: None,
             max_vol: None,
@@ -75,9 +75,9 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             .args(&["-oL", "alsactl", "monitor"])
             .stdout(Stdio::piped())
             .spawn()
-            .error( "Failed to start alsactl monitor")?
+            .error("Failed to start alsactl monitor")?
             .stdout
-            .error( "Failed to pipe alsactl monitor output")?;
+            .error("Failed to pipe alsactl monitor output")?;
         let mut buffer = [0; 1024]; // Should be more than enough.
 
         loop {
@@ -92,8 +92,8 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             }
 
             text.set_text(format.render(&map! {
-                "volume" => Value::from_integer(volume as i64).percents(),
-                "output_name" => Value::from_string(output_name),
+                "volume" => Value::percents(volume),
+                "output_name" => Value::text(output_name),
             })?);
 
             if device.muted() {
@@ -172,12 +172,9 @@ impl AlsaSoundDevice {
             .output()
             .await
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
-            .error( "could not run amixer to get sound info")?;
+            .error("could not run amixer to get sound info")?;
 
-        let last_line = &output
-            .lines()
-            .last()
-            .error( "could not get sound info")?;
+        let last_line = &output.lines().last().error("could not get sound info")?;
 
         let mut last = last_line
             .split_whitespace()
@@ -186,9 +183,9 @@ impl AlsaSoundDevice {
 
         self.volume = last
             .next()
-            .error( "could not get volume")?
+            .error("could not get volume")?
             .parse::<u32>()
-            .error( "could not parse volume to u32")?;
+            .error("could not parse volume to u32")?;
 
         self.muted = last.next().map(|muted| muted == "off").unwrap_or(false);
 
@@ -213,7 +210,7 @@ impl AlsaSoundDevice {
             .args(&args)
             .output()
             .await
-            .error( "failed to set volume")?;
+            .error("failed to set volume")?;
 
         self.volume = capped_volume;
 
@@ -231,7 +228,7 @@ impl AlsaSoundDevice {
             .args(&args)
             .output()
             .await
-            .error( "failed to toggle mute")?;
+            .error("failed to toggle mute")?;
 
         self.muted = !self.muted;
 

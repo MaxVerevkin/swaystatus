@@ -16,33 +16,33 @@
 //! `critical_mem` | Percentage of memory usage, where state is set to critical | No | `95.0`
 //! `critical_swap` | Percentage of swap usage, where state is set to critical | No | `95.0`
 //!
-//! Placeholder                 | Value                                                                         | Type  | Unit
-//! ----------------------------|-------------------------------------------------------------------------------|-------|-------
-//! `{mem_total}`               | Memory total                                                                  | Float | Bytes
-//! `{mem_free}`                | Memory free                                                                   | Float | Bytes
-//! `{mem_free_percents}`       | Memory free                                                                   | Float | Percents
-//! `{mem_total_used}`          | Total memory used                                                             | Float | Bytes
-//! `{mem_total_used_percents}` | Total memory used                                                             | Float | Percents
-//! `{mem_used}`                | Memory used, excluding cached memory and buffers; similar to htop's green bar | Float | Bytes
-//! `{mem_used_percents}`       | Memory used, excluding cached memory and buffers; similar to htop's green bar | Float | Percents
-//! `{mem_avail}`               | Available memory, including cached memory and buffers                         | Float | Bytes
-//! `{mem_avail_percents}`      | Available memory, including cached memory and buffers                         | Float | Percents
-//! `{swap_total}`              | Swap total                                                                    | Float | Bytes
-//! `{swap_free}`               | Swap free                                                                     | Float | Bytes
-//! `{swap_free_percents}`      | Swap free                                                                     | Float | Percents
-//! `{swap_used}`               | Swap used                                                                     | Float | Bytes
-//! `{swap_used_percents}`      | Swap used                                                                     | Float | Percents
-//! `{buffers}`                 | Buffers, similar to htop's blue bar                                           | Float | Bytes
-//! `{buffers_percent}`         | Buffers, similar to htop's blue bar                                           | Float | Percents
-//! `{cached}`                  | Cached memory, similar to htop's yellow bar                                   | Float | Bytes
-//! `{cached_percent}`          | Cached memory, similar to htop's yellow bar                                   | Float | Percents
+//! Placeholder               | Value                                                                         | Type   | Unit
+//! --------------------------|-------------------------------------------------------------------------------|--------|-------
+//! `mem_total`               | Memory total                                                                  | Number | Bytes
+//! `mem_free`                | Memory free                                                                   | Number | Bytes
+//! `mem_free_percents`       | Memory free                                                                   | Number | Percents
+//! `mem_total_used`          | Total memory used                                                             | Number | Bytes
+//! `mem_total_used_percents` | Total memory used                                                             | Number | Percents
+//! `mem_used`                | Memory used, excluding cached memory and buffers; similar to htop's green bar | Number | Bytes
+//! `mem_used_percents`       | Memory used, excluding cached memory and buffers; similar to htop's green bar | Number | Percents
+//! `mem_avail`               | Available memory, including cached memory and buffers                         | Number | Bytes
+//! `mem_avail_percents`      | Available memory, including cached memory and buffers                         | Number | Percents
+//! `swap_total`              | Swap total                                                                    | Number | Bytes
+//! `swap_free`               | Swap free                                                                     | Number | Bytes
+//! `swap_free_percents`      | Swap free                                                                     | Number | Percents
+//! `swap_used`               | Swap used                                                                     | Number | Bytes
+//! `swap_used_percents`      | Swap used                                                                     | Number | Percents
+//! `buffers`                 | Buffers, similar to htop's blue bar                                           | Number | Bytes
+//! `buffers_percent`         | Buffers, similar to htop's blue bar                                           | Number | Percents
+//! `cached`                  | Cached memory, similar to htop's yellow bar                                   | Number | Bytes
+//! `cached_percent`          | Cached memory, similar to htop's yellow bar                                   | Number | Percents
 //!
 //! # Example
 //!
 //! ```toml
 //! [[block]]
 //! block = "memory"
-//! format_mem = "{mem_used_percents:1}"
+//! format_mem = "mem_used_percents.eng(1)"
 //! clickable = false
 //! interval = 30
 //! warning_mem = 70
@@ -60,11 +60,11 @@ use regex::Regex;
 use super::prelude::*;
 use crate::util::read_file;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct MemoryConfig {
-    format_mem: FormatTemplate,
-    format_swap: FormatTemplate,
+    format_mem: FormatConfig,
+    format_swap: FormatConfig,
     display_type: Memtype,
     clickable: bool,
     interval: u64,
@@ -128,24 +128,24 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             let mem_avail = mem_total - mem_used;
 
             let values = map!(
-                "mem_total" => Value::from_float(mem_total).bytes(),
-                "mem_free" => Value::from_float(mem_free).bytes(),
-                "mem_free_percents" => Value::from_float(mem_free / mem_total * 100.).percents(),
-                "mem_total_used" => Value::from_float(mem_total_used).bytes(),
-                "mem_total_used_percents" => Value::from_float(mem_total_used / mem_total * 100.).percents(),
-                "mem_used" => Value::from_float(mem_used).bytes(),
-                "mem_used_percents" => Value::from_float(mem_used / mem_total * 100.).percents(),
-                "mem_avail" => Value::from_float(mem_avail).bytes(),
-                "mem_avail_percents" => Value::from_float(mem_avail / mem_total * 100.).percents(),
-                "swap_total" => Value::from_float(swap_total).bytes(),
-                "swap_free" => Value::from_float(swap_free).bytes(),
-                "swap_free_percents" => Value::from_float(swap_free / swap_total * 100.).percents(),
-                "swap_used" => Value::from_float(swap_used).bytes(),
-                "swap_used_percents" => Value::from_float(swap_used / swap_total * 100.).percents(),
-                "buffers" => Value::from_float(buffers).bytes(),
-                "buffers_percent" => Value::from_float(buffers / mem_total * 100.).percents(),
-                "cached" => Value::from_float(cached).bytes(),
-                "cached_percent" => Value::from_float(cached / mem_total * 100.).percents(),
+                "mem_total" => Value::bytes(mem_total),
+                "mem_free" => Value::bytes(mem_free),
+                "mem_free_percents" => Value::percents(mem_free / mem_total * 100.),
+                "mem_total_used" => Value::bytes(mem_total_used),
+                "mem_total_used_percents" => Value::percents(mem_total_used / mem_total * 100.),
+                "mem_used" => Value::bytes(mem_used),
+                "mem_used_percents" => Value::percents(mem_used / mem_total * 100.),
+                "mem_avail" => Value::bytes(mem_avail),
+                "mem_avail_percents" => Value::percents(mem_avail / mem_total * 100.),
+                "swap_total" => Value::bytes(swap_total),
+                "swap_free" => Value::bytes(swap_free),
+                "swap_free_percents" => Value::percents(swap_free / swap_total * 100.),
+                "swap_used" => Value::bytes(swap_used),
+                "swap_used_percents" => Value::percents(swap_used / swap_total * 100.),
+                "buffers" => Value::bytes(buffers),
+                "buffers_percent" => Value::percents(buffers / mem_total * 100.),
+                "cached" => Value::bytes(cached),
+                "cached_percent" => Value::percents(cached / mem_total * 100.),
             );
 
             text_mem.set_text(format.0.render(&values)?);

@@ -12,11 +12,11 @@
 //! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{title^21}"`
 //! `autohide` | Whether to hide the block when no title is available | No | `true`
 //!
-//! Placeholder      | Value                                     | Type   | Unit
-//! -----------------|-------------------------------------------|--------|-----
-//! `{title}`        | Window's titile                           | String | -
-//! `{marks}`        | Window's marks                            | String | -
-//! `{visible_marks}`| Window's marks that do not start with `_` | String | -
+//! Placeholder     | Value                                     | Type | Unit
+//! ----------------|-------------------------------------------|------|-----
+//! `title`         | Window's titile (may be absent)           | Text | -
+//! `marks`         | Window's marks                            | Text | -
+//! `visible_marks` | Window's marks that do not start with `_` | Text | -
 //!
 //! # Example
 //!
@@ -24,20 +24,18 @@
 //! [[block]]
 //! block = "focused_window"
 //! [block.format]
-//! full = "{title^40}"
-//! short = "{title^20}"
+//! full = "$title.str(0,40)"
+//! short = "$title.str(0,20)"
 //! ```
 
-use serde_derive::Deserialize;
+use super::prelude::*;
 use swayipc_async::{Connection, Event, EventType, WindowChange, WorkspaceChange};
 use tokio_stream::StreamExt;
 
-use super::prelude::*;
-
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct FocusedWindowConfig {
-    format: FormatTemplate,
+    format: FormatConfig,
     autohide: bool,
 }
 
@@ -52,9 +50,8 @@ impl Default for FocusedWindowConfig {
 
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
-        let block_config =
-            FocusedWindowConfig::deserialize(block_config).config_error()?;
-        let format = block_config.format.clone().or_default("{title^21}")?;
+        let block_config = FocusedWindowConfig::deserialize(block_config).config_error()?;
+        let format = block_config.format.or_default("{title^21}")?;
         let mut widget = api.new_widget();
 
         let mut title = None;
@@ -62,20 +59,20 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
 
         let conn = Connection::new()
             .await
-            .error( "failed to open connection with swayipc")?;
+            .error("failed to open connection with swayipc")?;
 
         let mut events = conn
             .subscribe(&[EventType::Window, EventType::Workspace])
             .await
-            .error( "could not subscribe to window events")?;
+            .error("could not subscribe to window events")?;
 
         // Main loop
         loop {
             let event = events
                 .next()
                 .await
-                .error( "swayipc channel closed")?
-                .error( "bad event")?;
+                .error("swayipc channel closed")?
+                .error("bad event")?;
 
             let updated = match event {
                 Event::Window(e) => match e.change {
@@ -113,16 +110,19 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
 
             // Render and send widget
             if updated {
-                let mut widgets = vec![];
                 if title.is_some() || !block_config.autohide {
-                    widget.set_text(format.render(&map! {
-                        "title" => Value::from_string(title.clone().unwrap_or_default()),
-                        "marks" => Value::from_string(marks.iter().map(|m| format!("[{}]",m)).collect()),
-                        "visible_marks" => Value::from_string(marks.iter().filter(|m| !m.starts_with('_')).map(|m| format!("[{}]",m)).collect()),
-                    })?);
-                    widgets.push(widget.get_data());
+                    let mut values = map! {
+                        "marks" => Value::text(marks.iter().map(|m| format!("[{}]",m)).collect()),
+                        "visible_marks" => Value::text(marks.iter().filter(|m| !m.starts_with('_')).map(|m| format!("[{}]",m)).collect()),
+                    };
+                    title
+                        .clone()
+                        .map(|t| values.insert("title", Value::text(t)));
+                    widget.set_text(format.render(&values)?);
+                    api.send_widget(widget.get_data()).await?;
+                } else {
+                    api.send_empty_widget().await?;
                 }
-                api.send_widgets(widgets).await?;
             }
         }
     })

@@ -4,24 +4,24 @@
 //!
 //! Key        | Values                                                                                | Required | Default
 //! -----------|---------------------------------------------------------------------------------------|----------|--------
-//! `format`   | A string to customise the output of this block. See below for available placeholders. | No       | `"{1m}"`
+//! `format`   | A string to customise the output of this block. See below for available placeholders. | No       | `"$1m.eng()"`
 //! `interval` | Update interval in seconds                                                            | No       | `3`
 //! `info`     | Minimum load, where state is set to info                                              | No       | `0.3`
 //! `warning`  | Minimum load, where state is set to warning                                           | No       | `0.6`
 //! `critical` | Minimum load, where state is set to critical                                          | No       | `0.9`
 //!
-//! Placeholder    | Value                  | Type  | Unit
-//! ---------------|------------------------|-------|-----
-//! `{1m}`         | 1 minute load average  | Float | -
-//! `{5m}`         | 5 minute load average  | Float | -
-//! `{15m}`        | 15 minute load average | Float | -
+//! Placeholder  | Value                  | Type   | Unit
+//! -------------|------------------------|--------|-----
+//! `1m`         | 1 minute load average  | Number | -
+//! `5m`         | 5 minute load average  | Number | -
+//! `15m`        | 15 minute load average | Number | -
 //!
 //! # Example
 //!
 //! ```toml
 //! [[block]]
 //! block = "load"
-//! format = "1min avg: {1m}"
+//! format = "1min avg: $1m.eng()"
 //! interval = 1
 //! ```
 
@@ -33,10 +33,10 @@ use crate::de::deserialize_duration;
 
 use crate::util;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct LoadConfig {
-    format: FormatTemplate,
+    format: FormatConfig,
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
     info: f64,
@@ -69,7 +69,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             .error("Your system doesn't support /proc/cpuinfo")?
             .lines()
             .filter(|l| l.starts_with("processor"))
-            .count() as u32;
+            .count() as f64;
 
         let loadavg_path = Path::new("/proc/loadavg");
         loop {
@@ -93,16 +93,16 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 .flatten()
                 .error("bad /proc/loadavg file")?;
 
-            text.set_state(match m1 / (logical_cores as f64) {
+            text.set_state(match m1 / logical_cores {
                 x if x > block_config.critical => WidgetState::Critical,
                 x if x > block_config.warning => WidgetState::Warning,
                 x if x > block_config.info => WidgetState::Info,
                 _ => WidgetState::Idle,
             });
             text.set_text(format.render(&map!(
-                "1m" => Value::from_float(m1),
-                "5m" => Value::from_float(m5),
-                "15m" => Value::from_float(m15),
+                "1m" => Value::number(m1),
+                "5m" => Value::number(m5),
+                "15m" => Value::number(m15),
             ))?);
 
             api.send_widget(text.get_data()).await?;
