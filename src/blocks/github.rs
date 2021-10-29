@@ -56,7 +56,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
     tokio::spawn(async move {
         let block_config = GithubConfig::deserialize(block_config).config_error()?;
         let interval = Duration::from_secs(block_config.interval);
-        let format = block_config.format.or_default("total.eng(1)|X")?;
+        let format = block_config.format.or_default("$total.eng(1)|X")?;
         let mut text = api.new_widget().with_icon("github")?;
 
         // Http client
