@@ -6,8 +6,8 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format_mem` | A string to customise the output of this block when in "Memory" view. See below for available placeholders. | No | `"{mem_free;M}/{mem_total;M}({mem_total_used_percents})"`
-//! `format_swap` | A string to customise the output of this block when in "Swap" view. See below for available placeholders. | No | `"{swap_free;M}/{swap_total;M}({swap_used_percents})"`
+//! `format_mem` | A string to customise the output of this block when in "Memory" view. See below for available placeholders. | No | `"{mem_free;M}/{mem_total;M}({mem_total_used_percents}) "`
+//! `format_swap` | A string to customise the output of this block when in "Swap" view. See below for available placeholders. | No | `"{swap_free;M}/{swap_total;M}({swap_used_percents}) "`
 //! `display_type` | Default view displayed on startup: "`memory`" or "`swap`" | No | `"memory"`
 //! `clickable` | Whether the view should switch between memory and swap on click | No | `true`
 //! `interval` | Update interval in seconds | No | `5`
@@ -94,23 +94,29 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     let mut events = events();
     tokio::spawn(async move {
         let block_config = MemoryConfig::deserialize(block_config).config_error()?;
-
-        let format = (
-            block_config
-                .format_mem
-                .or_default("{mem_free;M}/{mem_total;M}({mem_total_used_percents})")?,
-            block_config
-                .format_swap
-                .or_default("{swap_free;M}/{swap_total;M}({swap_used_percents})")?,
-        );
-
-        let mut text_mem = api.new_widget().with_icon("memory_mem")?;
-        let mut text_swap = api.new_widget().with_icon("memory_swap")?;
-
-        let mut memtype = block_config.display_type;
-        let clickable = block_config.clickable;
-
         let interval = Duration::from_secs(block_config.interval);
+
+        let format_mem = block_config.format_mem.init(
+            "{mem_free;M}/{mem_total;M}({mem_total_used_percents}) ",
+            &api,
+        )?;
+        let format_swap = block_config
+            .format_swap
+            .init("{swap_free;M}/{swap_total;M}({swap_used_percents}) ", &api)?;
+
+        let clickable = block_config.clickable;
+        let mut memtype = block_config.display_type;
+        let mut format = match memtype {
+            Memtype::Memory => {
+                api.set_icon("memory_mem")?;
+                &format_mem
+            }
+            Memtype::Swap => {
+                api.set_icon("memory_swap")?;
+                &format_swap
+            }
+        };
+        api.set_format(format.clone());
 
         loop {
             let mem_state = Memstate::new().await?;
@@ -147,16 +153,9 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 "cached" => Value::bytes(cached),
                 "cached_percent" => Value::percents(cached / mem_total * 100.),
             );
+            api.set_values(values);
 
-            text_mem.set_text(format.0.render(&values)?);
-            text_swap.set_text(format.1.render(&values)?);
-
-            let text = match memtype {
-                Memtype::Memory => &mut text_mem,
-                Memtype::Swap => &mut text_swap,
-            };
-
-            text.set_state(match memtype {
+            api.set_state(match memtype {
                 Memtype::Memory => match mem_used / mem_total * 100. {
                     x if x > block_config.critical_mem => WidgetState::Critical,
                     x if x > block_config.warning_mem => WidgetState::Warning,
@@ -169,17 +168,27 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 },
             });
 
-            api.send_widget(text.get_data()).await?;
+            api.render();
+            api.flush().await?;
 
             tokio::select! {
                 _ = tokio::time::sleep(interval) =>(),
                 event = events.recv() => {
-                    if let BlockEvent::I3Bar(click) = event.unwrap() {
+                    if let BlockEvent::Click(click) = event.unwrap() {
                         if click.button == MouseButton::Left && clickable {
-                            memtype = match memtype {
-                                Memtype::Swap => Memtype::Memory,
-                                Memtype::Memory => Memtype::Swap,
-                            };
+                            match memtype {
+                                Memtype::Swap => {
+                                    format = &format_mem;
+                                    memtype = Memtype::Memory;
+                                    api.set_icon("memory_mem")?;
+                                }
+                                Memtype::Memory => {
+                                    format = &format_swap;
+                                    memtype = Memtype::Swap;
+                                    api.set_icon("memory_swap")?;
+                                }
+                            }
+                            api.set_format(format.clone());
                         }
                     }
                 }
@@ -229,7 +238,7 @@ impl Memstate {
             zfs_arc_cache: 0,
         };
 
-        let mut line = String::new();
+        let mut line = StdString::new();
         while file
             .read_line(&mut line)
             .await

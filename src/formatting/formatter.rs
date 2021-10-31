@@ -1,13 +1,55 @@
+use smallvec::SmallVec;
+use smartstring::alias::String;
+use std::fmt::Debug;
+use std::str::FromStr;
+use std::time::{Duration, Instant};
+
 use super::prefix::Prefix;
 use super::unit::Unit;
 use super::value::Value;
+use crate::blocks::CommonApi;
 use crate::errors::*;
-use std::fmt::Debug;
-use std::str::FromStr;
+use crate::{Request, RequestCmd};
+
+const DEFAULT_STR_MIN_WIDTH: usize = 0;
+const DEFAULT_STR_MAX_WIDTH: Option<usize> = None;
+
+const DEFAULT_STRROT_WIDTH: usize = 15;
+const DEFAULT_STRROT_INTERVAL: f64 = 1.0;
+
+const DEFAULT_BAR_WIDTH: usize = 5;
+const DEFAULT_BAR_MAX_VAL: f64 = 100.0;
+
+pub const DEFAULT_STRING_FORMATTER: StrFormatter = StrFormatter {
+    min_width: DEFAULT_STR_MIN_WIDTH,
+    max_width: DEFAULT_STR_MAX_WIDTH,
+};
+
+// TODO: split those defaults
+pub const DEFAULT_NUMBER_FORMATTER: EngFormatter = EngFormatter(EngFixConfig {
+    width: 2,
+    unit: UnitConfig {
+        unit: None,
+        has_space: false,
+        hidden: false,
+    },
+    prefix: PrefixConfig {
+        prefix: None,
+        has_space: false,
+        hidden: false,
+    },
+});
+
+pub const DEFAULT_FLAG_FORMATTER: FlagFormatter = FlagFormatter;
 
 enum StrArgs {
     MinWidth,
     MaxWidth,
+}
+
+enum RotStrArgs {
+    Width,
+    Interval,
 }
 
 enum BarArgs {
@@ -23,6 +65,10 @@ enum EngFixArgs {
 
 pub trait Formatter: Debug {
     fn format(&self, val: &Value) -> Result<String>;
+
+    fn init(&self, _api: &CommonApi) {
+        // Do nothig
+    }
 }
 
 pub fn new_formatter(name: &str, args: &[String]) -> Result<Box<dyn Formatter + Send + Sync>> {
@@ -30,12 +76,13 @@ pub fn new_formatter(name: &str, args: &[String]) -> Result<Box<dyn Formatter + 
         "str" => {
             let min_width: usize = match args.get(StrArgs::MinWidth as usize) {
                 Some(v) => v.parse().error("Width must be a positive integer")?,
-                None => 0,
+                None => DEFAULT_STR_MIN_WIDTH,
             };
             let max_width: Option<usize> =
                 match args.get(StrArgs::MaxWidth as usize).map(|x| x.as_str()) {
-                    Some("inf") | None => None,
+                    Some("inf") => None,
                     Some(v) => Some(v.parse().error("Width must be a positive integer")?),
+                    None => DEFAULT_STR_MAX_WIDTH,
                 };
             if let Some(max_width) = max_width {
                 if max_width < min_width {
@@ -49,14 +96,32 @@ pub fn new_formatter(name: &str, args: &[String]) -> Result<Box<dyn Formatter + 
                 max_width,
             }))
         }
+        "rot-str" => {
+            let width: usize = match args.get(RotStrArgs::Width as usize) {
+                Some(v) => v.parse().error("Width must be a positive integer")?,
+                None => DEFAULT_STRROT_WIDTH,
+            };
+            let interval: f64 = match args.get(RotStrArgs::Interval as usize) {
+                Some(v) => v.parse().error("Interval must be a positive number")?,
+                None => DEFAULT_STRROT_INTERVAL,
+            };
+            if interval < 0.1 {
+                return Err(Error::new("Interval must be a positive number"));
+            }
+            Ok(Box::new(RotStrFormatter {
+                width,
+                interval,
+                init_time: Instant::now(),
+            }))
+        }
         "bar" => {
             let width: usize = match args.get(BarArgs::Width as usize) {
                 Some(v) => v.parse().error("Width must be a positive integer")?,
-                None => 5,
+                None => DEFAULT_BAR_WIDTH,
             };
             let max_value: f64 = match args.get(BarArgs::MaxValue as usize) {
                 Some(v) => v.parse().error("Max value must be a number")?,
-                None => 100.,
+                None => DEFAULT_BAR_MAX_VAL,
             };
             Ok(Box::new(BarFormatter { width, max_value }))
         }
@@ -89,12 +154,78 @@ impl Formatter for StrFormatter {
                         return Ok(text.chars().take(max_width).collect());
                     }
                 }
-                Ok(text.to_string())
+                Ok(text.clone())
             }
             Value::Number { .. } => Err(Error::new_format(
                 "A number cannot be formatted with 'str' formatter",
             )),
+            Value::Flag => Err(Error::new_format(
+                "A flag cannot be formatted with 'str' formatter",
+            )),
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RotStrFormatter {
+    width: usize,
+    interval: f64,
+    init_time: Instant,
+}
+
+impl Formatter for RotStrFormatter {
+    fn format(&self, val: &Value) -> Result<String> {
+        match val {
+            Value::Text(text) => {
+                let full_width = text.chars().count();
+                if full_width <= self.width {
+                    let mut res = text.clone();
+                    for _ in 0..(self.width - full_width) {
+                        res.push(' ');
+                    }
+                    Ok(res)
+                } else {
+                    let full_width = full_width + 1; // Now we include '|' at the end
+                    let step = (self.init_time.elapsed().as_secs_f64() / self.interval
+                        % full_width as f64) as usize;
+                    let w1 = self.width.min(full_width - step);
+                    let w2 = self.width - w1;
+                    Ok(text
+                        .chars()
+                        .chain(Some('|'))
+                        .skip(step)
+                        .take(w1)
+                        .chain(text.chars().take(w2))
+                        .collect())
+                }
+            }
+            Value::Number { .. } => Err(Error::new_format(
+                "A number cannot be formatted with 'rot-str' formatter",
+            )),
+            Value::Flag => Err(Error::new_format(
+                "A flag cannot be formatted with 'rot-str' formatter",
+            )),
+        }
+    }
+
+    fn init(&self, api: &CommonApi) {
+        let tx = api.request_sender.clone();
+        let mut interval = tokio::time::interval(Duration::from_secs_f64(self.interval));
+
+        let mut cmds = SmallVec::new();
+        cmds.push(RequestCmd::Render);
+
+        let request = Request {
+            block_id: api.id,
+            cmds,
+        };
+
+        tokio::spawn(async move {
+            loop {
+                tx.send(request.clone()).await.unwrap();
+                interval.tick().await;
+            }
+        });
     }
 }
 
@@ -123,6 +254,9 @@ impl Formatter for BarFormatter {
             }
             Value::Text(_) => Err(Error::new_format(
                 "Text cannot be formatted with 'bar' formatter",
+            )),
+            Value::Flag => Err(Error::new_format(
+                "A flag cannot be formatted with 'bar' formatter",
             )),
         }
     }
@@ -265,8 +399,8 @@ impl Formatter for EngFormatter {
 
                 let mut retval = icon.clone();
                 retval.push_str(&match self.0.width as isize - digits {
-                    isize::MIN..=0 => format!("{:.0}", val),
-                    1 => format!(" {:.0}", val),
+                    isize::MIN..=0 => format!("{}", val.floor()),
+                    1 => format!(" {}", val.floor() as i64),
                     rest => format!("{:.*}", rest as usize - 1, val),
                 });
                 if !self.0.prefix.hidden {
@@ -287,6 +421,9 @@ impl Formatter for EngFormatter {
             Value::Text(_) => Err(Error::new_format(
                 "Text cannot be formatted with 'eng' formatter",
             )),
+            Value::Flag => Err(Error::new_format(
+                "A flag cannot be formatted with 'eng' formatter",
+            )),
         }
     }
 }
@@ -304,8 +441,23 @@ impl Formatter for FixFormatter {
                 // icon,
             } => Err(Error::new_format("'fix' formatter is not implemented yet")),
             Value::Text(_) => Err(Error::new_format(
-                "Text cannot be formatted with 'eng' formatter",
+                "Text cannot be formatted with 'fix' formatter",
             )),
+            Value::Flag => Err(Error::new_format(
+                "A flag cannot be formatted with 'fix' formatter",
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FlagFormatter;
+
+impl Formatter for FlagFormatter {
+    fn format(&self, val: &Value) -> Result<String> {
+        match val {
+            Value::Number { .. } | Value::Text(_) => unreachable!(),
+            Value::Flag => Ok(String::new()),
         }
     }
 }

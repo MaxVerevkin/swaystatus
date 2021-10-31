@@ -6,7 +6,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$speed_down.eng(3,B,K)$speed_up.eng(3,B,K)"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$speed_down.eng(3,B,K)$speed_up.eng(3,B,K) "`
 //! `format_alt` | If set, block will switch between `format` and `format_alt` on every click | No | None
 //! `device` | Network interface to monitor (as specified in `/sys/class/net/`) | No | If not set, device will be automatically selected every `interval`
 //! `interval` | Update interval in seconds | No | `2`
@@ -64,17 +64,20 @@ impl Default for NetConfig {
     }
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+pub fn spawn(config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let mut events = events();
     tokio::spawn(async move {
-        let block_config = NetConfig::deserialize(block_config).config_error()?;
-        let mut format = block_config
+        let config = NetConfig::deserialize(config).config_error()?;
+        let mut format = config
             .format
-            .or_default("$speed_down.eng(3,B,K)$speed_up.eng(3,B,K)")?;
-        let mut format_alt = block_config.format_alt;
+            .init("$speed_down.eng(3,B,K)$speed_up.eng(3,B,K) ", &api)?;
+        let mut format_alt = match config.format_alt {
+            Some(f) => Some(f.init("", &api)?),
+            None => None,
+        };
+        api.set_format(format.clone());
 
-        let mut text = api.new_widget();
-        let interval = Duration::from_secs(block_config.interval);
+        let interval = Duration::from_secs(config.interval);
 
         // Stats
         let mut stats = None;
@@ -88,11 +91,12 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
 
             // Get interface name
             let device = NetDevice::from_interface(
-                block_config
+                config
                     .device
                     .clone()
+                    .map(Into::into)
                     .or_else(default_interface)
-                    .unwrap_or_else(|| "lo".to_string()),
+                    .unwrap_or_else(|| "lo".into()),
             )
             .await;
 
@@ -123,23 +127,27 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 "speed_up" => Value::bytes(speed_up).icon(api.get_icon("net_up")?),
                 "graph_down" => Value::text(util::format_vec_to_bar_graph(&rx_hist)),
                 "graph_up" => Value::text(util::format_vec_to_bar_graph(&tx_hist)),
-                "device" => Value::text(device.interface),
+                "device" => Value::text(device.interface.into()),
             };
-            wifi.0.map(|s| values.insert("ssid", Value::text(s)));
-            wifi.1.map(|f| values.insert("frequency", Value::hertz(f)));
-            wifi.2.map(|s| values.insert("signal", Value::percents(s)));
+            wifi.0
+                .map(|s| values.insert("ssid".into(), Value::text(s.into())));
+            wifi.1
+                .map(|f| values.insert("frequency".into(), Value::hertz(f)));
+            wifi.2
+                .map(|s| values.insert("signal".into(), Value::percents(s)));
 
-            text.set_icon(device.icon)?;
-            text.set_text(format.render(&values)?);
-
-            api.send_widget(text.get_data()).await?;
+            api.set_values(values);
+            api.set_icon(device.icon)?;
+            api.render();
+            api.flush().await?;
 
             tokio::select! {
                 _ = tokio::time::sleep(interval) =>(),
-                Some(BlockEvent::I3Bar(click)) = events.recv() => {
+                Some(BlockEvent::Click(click)) = events.recv() => {
                     if click.button == MouseButton::Left {
                         if let Some(ref mut format_alt) = format_alt {
                             std::mem::swap(format_alt, &mut format);
+                            api.set_format(format.clone());
                         }
                     }
                 }

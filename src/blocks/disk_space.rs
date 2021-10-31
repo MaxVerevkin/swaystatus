@@ -6,7 +6,7 @@
 //! ----|--------|----------|--------
 //! `path` | Path to collect information from | No | `"/"`
 //! `interval` | Update time in seconds | No | `20`
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$available.eng()"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$available.eng() "`
 //! `warning` | A value which will trigger warning block state | No | `20.0`
 //! `alert` | A value which will trigger critical block state | No | `10.0`
 //! `info_type` | Determines which information will affect the block state. Possible values are `"available"`, `"free"` and `"used"` | No | `"available"`
@@ -67,7 +67,7 @@ struct DiskSpaceConfig {
 impl Default for DiskSpaceConfig {
     fn default() -> Self {
         Self {
-            path: "/".to_string(),
+            path: "/".into(),
             info_type: InfoType::Available,
             format: Default::default(),
             alert_unit: None,
@@ -85,8 +85,8 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
         let icon = api.get_icon("disk_drive")?;
         let icon = icon.trim();
 
-        let mut text = api.new_widget();
-        let format = block_config.format.or_default("$available.eng()")?;
+        let format = block_config.format.init("$available.eng() ", &api)?;
+        api.set_format(format);
 
         let unit = match block_config.alert_unit.as_deref() {
             Some("TB") => Some(Prefix::Tera),
@@ -117,16 +117,15 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             } as f64;
 
             let percentage = result / (total as f64) * 100.;
-            let values = map!(
+            api.set_values(map!(
                 "path" => Value::text(block_config.path.clone()),
                 "percentage" => Value::percents(percentage),
                 "total" => Value::bytes(total as f64),
                 "used" => Value::bytes(used as f64),
                 "available" => Value::bytes(available as f64),
                 "free" => Value::bytes(free as f64),
-                "icon" => Value::text(icon.to_string()),
-            );
-            text.set_text(format.render(&values)?);
+                "icon" => Value::text(icon.into()),
+            ));
 
             // Send percentage to alert check if we don't want absolute alerts
             let alert_val = match unit {
@@ -139,7 +138,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
             };
 
             // Compute state
-            let state = match block_config.info_type {
+            api.set_state(match block_config.info_type {
                 InfoType::Used => {
                     if alert_val > block_config.alert {
                         WidgetState::Critical
@@ -158,10 +157,11 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                         WidgetState::Idle
                     }
                 }
-            };
-            text.set_state(state);
+            });
 
-            api.send_widget(text.get_data()).await?;
+            api.render();
+            api.flush().await?;
+
             interval.tick().await;
         }
     })

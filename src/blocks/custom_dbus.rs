@@ -41,47 +41,46 @@ use super::prelude::*;
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 struct CustomDBusConfig {
-    path: String,
+    path: StdString,
 }
 
 struct Block {
-    widget: Widget,
     api: CommonApi,
 }
 
 #[dbus_interface(name = "rs.swaystatus.dbus")]
 impl Block {
-    async fn set_icon(&mut self, icon: &str) -> String {
-        if let Err(e) = self.widget.set_icon(icon) {
+    async fn set_icon(&mut self, icon: &str) -> StdString {
+        if let Err(e) = self.api.set_icon(icon) {
             return e.to_string();
         }
-        if let Err(e) = self.api.send_widget(self.widget.get_data()).await {
+        if let Err(e) = self.api.flush().await {
             return e.to_string();
         }
-        "OK".to_string()
+        "OK".into()
     }
 
-    async fn set_text(&mut self, full: String, short: String) -> String {
-        self.widget.set_text((full, Some(short)));
-        if let Err(e) = self.api.send_widget(self.widget.get_data()).await {
+    async fn set_text(&mut self, full: StdString, short: StdString) -> StdString {
+        self.api.set_text((full.into(), Some(short.into())));
+        if let Err(e) = self.api.flush().await {
             return e.to_string();
         }
-        "OK".to_string()
+        "OK".into()
     }
 
-    async fn set_state(&mut self, state: &str) -> String {
+    async fn set_state(&mut self, state: &str) -> StdString {
         match state {
-            "idle" => self.widget.set_state(WidgetState::Idle),
-            "info" => self.widget.set_state(WidgetState::Info),
-            "good" => self.widget.set_state(WidgetState::Good),
-            "warning" => self.widget.set_state(WidgetState::Warning),
-            "critical" => self.widget.set_state(WidgetState::Critical),
+            "idle" => self.api.set_state(WidgetState::Idle),
+            "info" => self.api.set_state(WidgetState::Info),
+            "good" => self.api.set_state(WidgetState::Good),
+            "warning" => self.api.set_state(WidgetState::Warning),
+            "critical" => self.api.set_state(WidgetState::Critical),
             _ => return format!("'{}' is not a valid state", state),
         }
-        if let Err(e) = self.api.send_widget(self.widget.get_data()).await {
+        if let Err(e) = self.api.flush().await {
             return e.to_string();
         }
-        "OK".to_string()
+        "OK".into()
     }
 }
 
@@ -95,13 +94,7 @@ pub fn spawn(block_config: toml::Value, api: CommonApi, _: EventsRxGetter) -> Bl
         dbus_conn
             .object_server_mut()
             .await
-            .at(
-                path,
-                Block {
-                    widget: api.new_widget(),
-                    api,
-                },
-            )
+            .at(path, Block { api })
             .error("Failed to setup DBus server")?;
         Ok(())
     })

@@ -44,18 +44,22 @@ impl Error {
     }
 }
 
-// impl<E: StdError> From<E> for Error {
-//     fn from(err: E) -> Self {
-//         Self {
-//             kind: ErrorKind::Other,
-//             message: None,
-//             cause: Arc::new(err),
-//         }
-//     }
-// }
+pub trait InBlock {
+    fn in_block(self, block: &'static str) -> Self;
+}
+
+impl<T> InBlock for Result<T> {
+    fn in_block(self, block: &'static str) -> Self {
+        self.map_err(|mut e| {
+            e.block = Some(block);
+            e
+        })
+    }
+}
 
 pub trait ResultExt<T> {
     fn error<M: Into<String>>(self, message: M) -> Result<T>;
+    fn or_error<M: Into<String>, F: FnOnce() -> M>(self, f: F) -> Result<T>;
     fn config_error(self) -> Result<T>;
     fn format_error<M: Into<String>>(self, message: M) -> Result<T>;
 }
@@ -65,6 +69,15 @@ impl<T, E: StdError + Send + Sync + 'static> ResultExt<T> for StdResult<T, E> {
         self.map_err(|e| Error {
             kind: ErrorKind::Other,
             message: Some(message.into()),
+            cause: Some(Arc::new(e)),
+            block: None,
+        })
+    }
+
+    fn or_error<M: Into<String>, F: FnOnce() -> M>(self, f: F) -> Result<T> {
+        self.map_err(|e| Error {
+            kind: ErrorKind::Other,
+            message: Some(f().into()),
             cause: Some(Arc::new(e)),
             block: None,
         })

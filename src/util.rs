@@ -127,20 +127,12 @@ pub async fn has_command(command: &str) -> Result<bool> {
 macro_rules! map {
     ($($key:expr => $value:expr),+ $(,)*) => {{
         let mut m = ::std::collections::HashMap::new();
-        $(m.insert($key, $value);)+
+        $(m.insert($key.into(), $value.into());)+
         m
     }};
 }
 
-macro_rules! map_to_owned {
-    ($($key:expr => $value:expr),+ $(,)*) => {{
-        let mut m = ::std::collections::HashMap::new();
-        $(m.insert($key.to_owned(), $value.to_owned());)+
-        m
-    }};
-}
-
-pub fn format_vec_to_bar_graph(content: &[f64]) -> String {
+pub fn format_vec_to_bar_graph(content: &[f64]) -> smartstring::alias::String {
     // (x * one eighth block) https://en.wikipedia.org/wiki/Block_Elements
     static BARS: [char; 8] = [
         '\u{2581}', '\u{2582}', '\u{2583}', '\u{2584}', '\u{2585}', '\u{2586}', '\u{2587}',

@@ -1,9 +1,11 @@
 use super::unit::Unit;
+use smartstring::alias::String;
 
 #[derive(Debug, Clone)]
 pub enum Value {
     Text(String),
     Number { val: f64, unit: Unit, icon: String },
+    Flag,
 }
 
 pub trait IntoF64 {
@@ -67,8 +69,8 @@ impl Value {
 impl Value {
     pub fn icon(self, icon: String) -> Self {
         match self {
-            Self::Text(_) => todo!(),
             Self::Number { val, unit, .. } => Self::Number { val, unit, icon },
+            _ => todo!(),
         }
     }
 }

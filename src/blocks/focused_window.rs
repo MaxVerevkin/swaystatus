@@ -51,10 +51,9 @@ impl Default for FocusedWindowConfig {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config = FocusedWindowConfig::deserialize(block_config).config_error()?;
-        let format = block_config.format.or_default("{title^21}")?;
-        let mut widget = api.new_widget();
+        api.set_format(block_config.format.init("$title.rot-str(15)|", &api)?);
 
-        let mut title = None;
+        let mut title: Option<String> = None;
         let mut marks = Vec::new();
 
         let conn = Connection::new()
@@ -81,13 +80,13 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                         true
                     }
                     WindowChange::Focus => {
-                        title = e.container.name;
+                        title = e.container.name.as_ref().map(|t| t.into());
                         marks = e.container.marks;
                         true
                     }
                     WindowChange::Title => {
                         if e.container.focused {
-                            title = e.container.name;
+                            title = e.container.name.as_ref().map(|t| t.into());
                             true
                         } else {
                             false
@@ -108,7 +107,6 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 _ => false,
             };
 
-            // Render and send widget
             if updated {
                 if title.is_some() || !block_config.autohide {
                     let mut values = map! {
@@ -117,12 +115,14 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                     };
                     title
                         .clone()
-                        .map(|t| values.insert("title", Value::text(t)));
-                    widget.set_text(format.render(&values)?);
-                    api.send_widget(widget.get_data()).await?;
+                        .map(|t| values.insert("title".into(), Value::text(t)));
+                    api.set_values(values);
+                    api.show();
+                    api.render();
                 } else {
-                    api.send_empty_widget().await?;
+                    api.hide();
                 }
+                api.flush().await?;
             }
         }
     })

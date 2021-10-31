@@ -11,24 +11,25 @@
 //! `critical_threshold` | The threshold of pending (or started) tasks when the block turns into a critical state | No | `20`
 //! `hide_when_zero` | Whethere to hide the block when the number of tasks is zero | No | `false`
 //! `filters` | A list of tables with the keys `name` and `filter`. `filter` specifies the criteria that must be met for a task to be counted towards this filter. | No | ```[{name = "pending", filter = "-COMPLETED -DELETED"}]```
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{count}"`
-//! `format_singular` | Same as `format` but for when exactly one task is pending | No | `"{count}"`
-//! `format_everything_done` | Same as `format` but for when all tasks are completed | No | `"{count}"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$count.eng(1)"`
 //!
-//! Placeholder     | Value                                       | Type   | Unit
-//! ----------------|---------------------------------------------|--------|-----
-//! `{count}`       | The number of tasks matching current filter | Number | -
-//! `{filter_name}` | The name of current filter                  | Text   | -
+//! Placeholder   | Value                                       | Type   | Unit
+//! --------------|---------------------------------------------|--------|-----
+//! `count`       | The number of tasks matching current filter | Number | -
+//! `filter_name` | The name of current filter                  | Text   | -
+//! `done`        | Present only if `count` is zero             | Flag   | -
+//! `single`      | Present only if `count` is one              | Flag   | -
 //!
 //! # Example
+//!
+//! In this example, block will display "All done" if `count` is zero, "One task" if `count` is one
+//! and "Tasks: N" if there are more than one task.
 //!
 //! ```toml
 //! [[block]]
 //! block = "taskwarrior"
 //! interval = 60
-//! format = "{count} open tasks ({filter_name})"
-//! format_singular = "{count} open task ({filter_name})"
-//! format_everything_done = "nothing to do!"
+//! format = "$done{All done}|$single{One task}|Tasks: $count.eng(1)"
 //! warning_threshold = 10
 //! critical_threshold = 20
 //! [[block.filters]]
@@ -39,12 +40,10 @@
 //! filter = "project:some-project +PENDING"
 //! ```
 
+use super::prelude::*;
+use crate::de::deserialize_duration;
 use std::time::Duration;
 use tokio::process::Command;
-
-use super::prelude::*;
-
-use crate::de::deserialize_duration;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
@@ -56,8 +55,6 @@ struct TaskwarriorConfig {
     hide_when_zero: bool,
     filters: Vec<Filter>,
     format: FormatConfig,
-    format_singular: FormatConfig,
-    format_everything_done: FormatConfig,
 }
 
 impl Default for TaskwarriorConfig {
@@ -68,12 +65,10 @@ impl Default for TaskwarriorConfig {
             critical_threshold: 20,
             hide_when_zero: false,
             filters: vec![Filter {
-                name: "pending".to_string(),
-                filter: "-COMPLETED -DELETED".to_string(),
+                name: "pending".into(),
+                filter: "-COMPLETED -DELETED".into(),
             }],
             format: FormatConfig::default(),
-            format_singular: FormatConfig::default(),
-            format_everything_done: FormatConfig::default(),
         }
     }
 }
@@ -82,42 +77,46 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     let mut events = events();
     tokio::spawn(async move {
         let block_config = TaskwarriorConfig::deserialize(block_config).config_error()?;
-        let format = block_config.format.or_default("{count}")?;
-        let format_singular = block_config.format_singular.or_default("{count}")?;
-        let format_everything_done = block_config.format_everything_done.or_default("{count}")?;
-        let mut widget = api.new_widget().with_icon("tasks")?;
+        api.set_format(block_config.format.init("$count.eng(1)", &api)?);
+        api.set_icon("tasks")?;
 
         let mut filters = block_config.filters.iter().cycle();
         let mut filter = filters.next().error("failed to get next filter")?;
 
         loop {
             let number_of_tasks = get_number_of_tasks(&filter.filter).await?;
-            let values = map!(
-                "count" => Value::number(number_of_tasks),
-                "filter_name" => Value::text(filter.name.clone()),
-            );
-            widget.set_text(match number_of_tasks {
-                0 => format_everything_done.render(&values)?,
-                1 => format_singular.render(&values)?,
-                _ => format.render(&values)?,
-            });
-            widget.set_state(if number_of_tasks >= block_config.critical_threshold {
-                WidgetState::Critical
-            } else if number_of_tasks >= block_config.warning_threshold {
-                WidgetState::Warning
-            } else {
-                WidgetState::Idle
-            });
 
-            let mut widgets = Vec::new();
             if number_of_tasks != 0 || !block_config.hide_when_zero {
-                widgets.push(widget.get_data());
+                let mut values = map!(
+                    "count" => Value::number(number_of_tasks),
+                    "filter_name" => Value::text(filter.name.clone()),
+                );
+                if number_of_tasks == 0 {
+                    values.insert("done".into(), Value::Flag);
+                } else if number_of_tasks == 1 {
+                    values.insert("single".into(), Value::Flag);
+                }
+                api.set_values(values);
+
+                api.set_state(if number_of_tasks >= block_config.critical_threshold {
+                    WidgetState::Critical
+                } else if number_of_tasks >= block_config.warning_threshold {
+                    WidgetState::Warning
+                } else {
+                    WidgetState::Idle
+                });
+
+                api.show();
+                api.render();
+            } else {
+                api.hide();
             }
-            api.send_widgets(widgets).await?;
+
+            api.flush().await?;
 
             tokio::select! {
                 _ = tokio::time::sleep(block_config.interval) =>(),
-                Some(BlockEvent::I3Bar(click)) = events.recv() => {
+                Some(BlockEvent::Click(click)) = events.recv() => {
                     if click.button == MouseButton::Right {
                         filter = filters.next().error("failed to get next filter")?;
                     }
@@ -128,21 +127,20 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
 }
 
 async fn get_number_of_tasks(filter: &str) -> Result<u32> {
-    String::from_utf8(
-        Command::new("sh")
-            .args(&["-c", &format!("task rc.gc=off {} count", filter)])
-            .output()
-            .await
-            .error("failed to run taskwarrior for getting the number of tasks")?
-            .stdout,
-    )
-    .error("failed to get the number of tasks from taskwarrior (invalid UTF-8)")?
-    .trim()
-    .parse::<u32>()
-    .error("could not parse the result of taskwarrior")
+    let output = Command::new("task")
+        .args(&["rc.gc=off", filter, "count"])
+        .output()
+        .await
+        .error("failed to run taskwarrior for getting the number of tasks")?
+        .stdout;
+    std::str::from_utf8(&output)
+        .error("failed to get the number of tasks from taskwarrior (invalid UTF-8)")?
+        .trim()
+        .parse::<u32>()
+        .error("could not parse the result of taskwarrior")
 }
 
-#[derive(serde_derive::Deserialize, Debug, Default, Clone)]
+#[derive(Deserialize, Debug, Default, Clone)]
 #[serde(deny_unknown_fields)]
 struct Filter {
     pub name: String,

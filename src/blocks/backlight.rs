@@ -15,7 +15,7 @@
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
 //! `device` | The `/sys/class/backlight` device to read brightness information from.  When there is no `device` specified, this block will display information from the first device found in the `/sys/class/backlight` directory. If you only have one display, this approach should find it correctly.| No | Default device
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$brightness.eng(2)"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$brightness "`
 //! `step_width` | The brightness increment to use when scrolling, in percent | No | `5`
 //! `root_scaling` | Scaling exponent reciprocal (ie. root) | No | `1.0`
 //! `invert_icons` | Invert icons' ordering, useful if you have colorful emoji | No | `false`
@@ -145,7 +145,7 @@ impl<'a> BacklightDevice<'a> {
             }),
             device_name: device_path
                 .file_name()
-                .map(|x| x.to_str().unwrap().to_string())
+                .map(|x| x.to_str().unwrap().into())
                 .error("Malformed device path")?,
             max_brightness: read_brightness_raw(&device_path.join(FILE_MAX_BRIGHTNESS)).await?,
             root_scaling: root_scaling.clamp(ROOT_SCALDING_RANGE.start, ROOT_SCALDING_RANGE.end),
@@ -212,17 +212,17 @@ impl<'a> BacklightDevice<'a> {
     }
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+pub fn spawn(config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let mut events = events();
     tokio::spawn(async move {
-        let block_config = BacklightConfig::deserialize(block_config).config_error()?;
-        let format = block_config.format.or_default("$brightness.eng(2)")?;
+        let config = BacklightConfig::deserialize(config).config_error()?;
         let dbus_conn = api.system_dbus_connection().await?;
+        api.set_format(config.format.init("$brightness ", &api)?);
 
-        let device = match &block_config.device {
-            None => BacklightDevice::default(block_config.root_scaling, &dbus_conn).await?,
+        let device = match &config.device {
+            None => BacklightDevice::default(config.root_scaling, &dbus_conn).await?,
             Some(path) => {
-                BacklightDevice::from_device(path, block_config.root_scaling, &dbus_conn).await?
+                BacklightDevice::from_device(path, config.root_scaling, &dbus_conn).await?
             }
         };
 
@@ -238,34 +238,33 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             .event_stream(&mut buffer)
             .error("Failed to create event stream")?;
 
-        let mut text = api.new_widget();
-
         loop {
             let brightness = device.brightness().await?;
             let mut icon_index = (usize::from(brightness) * BACKLIGHT_ICONS.len()) / 101;
-            if block_config.invert_icons {
+            if config.invert_icons {
                 icon_index = BACKLIGHT_ICONS.len() - icon_index;
             }
 
-            text.set_icon(BACKLIGHT_ICONS[icon_index])?;
-            text.set_text(format.render(&map! {
+            api.set_icon(BACKLIGHT_ICONS[icon_index])?;
+            api.set_values(map! {
                 "brightness" => Value::percents(brightness as i64),
-            })?);
-            api.send_widget(text.get_data()).await?;
+            });
+            api.render();
+            api.flush().await?;
 
             tokio::select! {
                 _ = file_changes.next() => (),
-                Some(BlockEvent::I3Bar(event)) = events.recv() => {
+                Some(BlockEvent::Click(event)) = events.recv() => {
                     let brightness = device.brightness().await?;
                     match event.button {
                         MouseButton::WheelUp => {
                             device
-                                .set_brightness(brightness + block_config.step_width)
+                                .set_brightness(brightness + config.step_width)
                                 .await?;
                         }
                         MouseButton::WheelDown => {
                             device
-                                .set_brightness(brightness.saturating_sub(block_config.step_width))
+                                .set_brightness(brightness.saturating_sub(config.step_width))
                                 .await?;
                         }
                         _ => (),

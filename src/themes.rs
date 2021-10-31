@@ -3,10 +3,10 @@ use std::fmt;
 use std::ops::Add;
 use std::str::FromStr;
 
+use color_space::{Hsv, Rgb};
 use serde::de::{self, Deserialize, Deserializer, MapAccess, Visitor};
 use serde_derive::Deserialize;
-
-use color_space::{Hsv, Rgb};
+use smartstring::alias::String;
 
 use crate::errors::{self, OptionExt, ResultExt, ToSerdeError};
 use crate::util;
@@ -28,6 +28,7 @@ impl Color {
                 "#{:02X}{:02X}{:02X}{:02X}",
                 rgb.r as u8, rgb.g as u8, rgb.b as u8, a
             )
+            .into()
         };
         match self {
             Color::Auto | Color::None => None,
@@ -266,7 +267,7 @@ impl<'de> Deserialize<'de> for Theme {
                     }
                 }
 
-                let theme = theme.unwrap_or_else(|| "plain".to_string());
+                let theme = theme.unwrap_or_else(|| "plain".into());
                 let mut theme = Theme::from_file(&theme).serde_error()?;
 
                 if let Some(ref overrides) = overrides {

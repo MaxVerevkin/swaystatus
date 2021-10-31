@@ -42,24 +42,26 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     let mut events = events();
     tokio::spawn(async move {
         let block_config = SoundConfig::deserialize(block_config).config_error()?;
-        let format = block_config.format.or_default("{volume}")?;
-        let mut text = api.new_widget();
+        api.set_format(block_config.format.init("$volume.eng(2)|", &api)?);
 
         let device_kind = block_config.device_kind;
         let icon = |volume: u32| -> String {
-            let prefix = match device_kind {
-                DeviceKind::Source => "microphone",
-                DeviceKind::Sink => "volume",
-            };
-
-            let suffix = match volume {
-                0 => "muted",
-                1..=20 => "empty",
-                21..=70 => "half",
-                _ => "full",
-            };
-
-            format!("{}_{}", prefix, suffix)
+            let mut icon = String::new();
+            let _ = write!(
+                icon,
+                "{}_{}",
+                match device_kind {
+                    DeviceKind::Source => "microphone",
+                    DeviceKind::Sink => "volume",
+                },
+                match volume {
+                    0 => "muted",
+                    1..=20 => "empty",
+                    21..=70 => "half",
+                    _ => "full",
+                }
+            );
+            icon
         };
 
         let step_width = block_config.step_width.clamp(0, 50) as i32;
@@ -87,32 +89,33 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
 
             if let Some(m) = &block_config.mappings {
                 if let Some(mapped) = m.get(&output_name) {
-                    output_name = mapped.to_string();
+                    output_name = mapped.clone();
                 }
             }
 
-            text.set_text(format.render(&map! {
+            let mut values = map! {
                 "volume" => Value::percents(volume),
                 "output_name" => Value::text(output_name),
-            })?);
+            };
 
             if device.muted() {
-                text.set_icon(&icon(0))?;
-                text.set_state(WidgetState::Warning);
+                api.set_icon(&icon(0))?;
+                api.set_state(WidgetState::Warning);
                 if !block_config.show_volume_when_muted {
-                    text.set_text((String::new(), None));
+                    values.remove("volume");
                 }
             } else {
-                text.set_icon(&icon(volume))?;
-                text.set_spacing(WidgetSpacing::Normal);
-                text.set_state(WidgetState::Idle);
+                api.set_icon(&icon(volume))?;
+                api.set_state(WidgetState::Idle);
             }
 
-            api.send_widget(text.get_data()).await?;
+            api.set_values(values);
+            api.render();
+            api.flush().await?;
 
             tokio::select! {
                 _ = monitor.read(&mut buffer) => (),
-                Some(BlockEvent::I3Bar(click)) = events.recv() => {
+                Some(BlockEvent::Click(click)) = events.recv() => {
                     match click.button {
                         MouseButton::Right => {
                             device.toggle().await?;
@@ -167,11 +170,11 @@ impl AlsaSoundDevice {
         };
         args.extend(&["-D", &self.device, "get", &self.name]);
 
-        let output = Command::new("amixer")
+        let output: String = Command::new("amixer")
             .args(&args)
             .output()
             .await
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+            .map(|o| std::str::from_utf8(&o.stdout).unwrap().trim().into())
             .error("could not run amixer to get sound info")?;
 
         let last_line = &output.lines().last().error("could not get sound info")?;

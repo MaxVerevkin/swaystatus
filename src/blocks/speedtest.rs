@@ -6,7 +6,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$ping.eng()$speed_down.eng()$speed_up.eng()"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$ping.eng()$speed_down.eng()$speed_up.eng() "`
 //! `interval` | Update interval in seconds | No | `1800`
 //!
 //! Placeholder  | Value          | Type   | Unit
@@ -50,14 +50,16 @@ impl Default for SpeedtestConfig {
 
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
+        let block_config = SpeedtestConfig::deserialize(block_config).config_error()?;
+        api.set_format(
+            block_config
+                .format
+                .init("$ping.eng()$speed_down.eng()$speed_up.eng() ", &api)?,
+        );
+
         let icon_ping = api.get_icon("ping")?;
         let icon_down = api.get_icon("net_down")?;
         let icon_up = api.get_icon("net_up")?;
-        let block_config = SpeedtestConfig::deserialize(block_config).config_error()?;
-        let format = block_config
-            .format
-            .or_default("$ping.eng()$speed_down.eng()$speed_up.eng()")?;
-        let mut text = api.new_widget();
 
         let mut command = Command::new("speedtest-cli");
         command.arg("--json");
@@ -69,17 +71,17 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 .error("failed to run 'speedtest-cli'")?
                 .stdout;
             let output =
-                String::from_utf8(output).error("'speedtest-cli' produced non-UTF8 outupt")?;
+                std::str::from_utf8(&output).error("'speedtest-cli' produced non-UTF8 outupt")?;
             let output: SpeedtestCliOutput =
-                serde_json::from_str(&output).error("'speedtest-cli' produced wrong JSON")?;
+                serde_json::from_str(output).error("'speedtest-cli' produced wrong JSON")?;
 
-            text.set_text(format.render(&map! {
+            api.set_values(map! {
                 "ping" => Value::seconds(output.ping * 1e-3).icon(icon_ping.clone()),
                 "speed_down" => Value::bits(output.download).icon(icon_down.clone()),
                 "speed_up" => Value::bits(output.upload).icon(icon_up.clone()),
-            })?);
-
-            api.send_widget(text.get_data()).await?;
+            });
+            api.render();
+            api.flush().await?;
             tokio::time::sleep(block_config.interval).await;
         }
     })

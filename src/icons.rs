@@ -1,10 +1,9 @@
-use std::collections::HashMap;
-use std::fmt;
-
+use crate::util;
 use serde::de::{self, Deserialize, Deserializer, MapAccess, Visitor};
 use serde_derive::Deserialize;
-
-use crate::util;
+use smartstring::alias::String;
+use std::collections::HashMap;
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct Icons(pub HashMap<String, String>);
@@ -12,7 +11,7 @@ pub struct Icons(pub HashMap<String, String>);
 impl Default for Icons {
     fn default() -> Self {
         // "none" icon set
-        Self(map_to_owned! {
+        Self(map! {
             "backlight_empty" => "BRIGHT",
             "backlight_full" => "BRIGHT",
             "backlight_1" =>  "BRIGHT",

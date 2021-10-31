@@ -4,7 +4,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$total.eng(1)|X"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$total.eng(1) |X "`
 //! `interval` | Update interval in seconds | No | `30`
 //! `token` | A GitHub personal access token with the "notifications" scope | Yes | -
 //! `hide` | Hide this block if the total count of notifications is zero | No | `true`
@@ -56,8 +56,8 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
     tokio::spawn(async move {
         let block_config = GithubConfig::deserialize(block_config).config_error()?;
         let interval = Duration::from_secs(block_config.interval);
-        let format = block_config.format.or_default("$total.eng(1)|X")?;
-        let mut text = api.new_widget().with_icon("github")?;
+        api.set_format(block_config.format.init("$total.eng(1) |X ", &api)?);
+        api.set_icon("github")?;
 
         // Http client
         let client = reqwest::Client::new();
@@ -69,15 +69,17 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
         loop {
             let total = get_total(&request).await;
 
-            let mut widgets = Vec::new();
             if total != Some(0) || !block_config.hide {
                 let mut values = HashMap::new();
-                total.map(|t| values.insert("total", Value::number(t)));
-                text.set_text(format.render(&values)?);
-                widgets.push(text.get_data());
+                total.map(|t| values.insert("total".into(), Value::number(t)));
+                api.set_values(values);
+                api.show();
+                api.render();
+            } else {
+                api.hide();
             }
+            api.flush().await?;
 
-            api.send_widgets(widgets).await?;
             tokio::time::sleep(interval).await;
         }
     })

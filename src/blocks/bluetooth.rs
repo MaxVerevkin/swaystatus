@@ -36,6 +36,8 @@
 //! # TODO:
 //! - Don't throw errors when there is no bluetooth
 
+#![allow(clippy::type_complexity)]
+
 use futures::{Stream, StreamExt};
 use std::convert::TryFrom;
 use std::pin::Pin;
@@ -58,10 +60,11 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     let mut events = events();
     tokio::spawn(async move {
         let block_config = BluetoothConfig::deserialize(block_config).config_error()?;
-        let format = block_config.format.or_default("{name}")?;
+        api.set_format(block_config.format.init("$name.str()", &api)?);
 
         let dbus_conn = api.system_dbus_connection().await?;
         let device = Device::from_mac(&dbus_conn, &block_config.mac).await?;
+        api.set_icon(device.icon)?;
 
         let name = device
             .device_proxy
@@ -88,29 +91,27 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             (Box::pin(futures::stream::empty()), None)
         };
 
-        let mut widget = api.new_widget().with_icon(device.icon)?;
-
         loop {
-            widget.set_state(if connected {
-                WidgetState::Good
+            if connected || !block_config.hide_disconnected {
+                api.set_state(if connected {
+                    WidgetState::Good
+                } else {
+                    WidgetState::Idle
+                });
+                let mut values = map! {
+                    "name" => Value::text((&name).into()),
+                };
+                percentage.map(|p| values.insert("percentage".into(), Value::percents(p)));
+                api.set_values(values);
+                api.show();
+                api.render();
             } else {
-                WidgetState::Idle
-            });
-
-            let mut values = map! {
-                "name" => Value::text(name.clone()),
-            };
-            percentage.map(|p| values.insert("percentage", Value::percents(p)));
-            widget.set_text(format.render(&values)?);
-
-            if !connected && block_config.hide_disconnected {
-                api.send_empty_widget().await?;
-            } else {
-                api.send_widget(widget.get_data()).await?;
+                api.hide();
             }
+            api.flush().await?;
 
             tokio::select! {
-                Some(BlockEvent::I3Bar(click)) = events.recv() => {
+                Some(BlockEvent::Click(click)) = events.recv() => {
                     if click.button == MouseButton::Right {
                         if connected {
                             let _ = device.device_proxy.disconnect().await;
@@ -139,7 +140,7 @@ trait Device1 {
     fn connected(&self) -> zbus::Result<bool>;
 
     #[dbus_proxy(property)]
-    fn name(&self) -> zbus::Result<String>;
+    fn name(&self) -> zbus::Result<StdString>;
 }
 
 #[zbus::dbus_proxy(interface = "org.bluez.Battery1", default_service = "org.bluez")]

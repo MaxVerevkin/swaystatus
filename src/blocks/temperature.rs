@@ -70,7 +70,7 @@ impl Default for TemperatureConfig {
             idle: 45,
             info: 60,
             warning: 80,
-            chip: "coretemp".to_string(),
+            chip: "coretemp".into(),
         }
     }
 }
@@ -79,9 +79,9 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     let mut events = events();
     tokio::spawn(async move {
         let block_config = TemperatureConfig::deserialize(block_config).config_error()?;
-        let format = block_config.format.or_default("{average} avg, {max} max")?;
-        let mut text = api.new_widget().with_icon("thermometer")?;
         let mut collapsed = block_config.collapsed;
+        api.set_format(block_config.format.init("{average} avg, {max} max", &api)?);
+        api.set_icon("thermometer")?;
 
         loop {
             // Get chip info
@@ -90,20 +90,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             let max_temp = temp.iter().max().cloned().unwrap_or(0);
             let avg_temp = (temp.iter().sum::<i32>() as f64) / (temp.len() as f64);
 
-            // Render!
-            let values = map! {
-                "average" => Value::degrees(avg_temp),
-                "min" => Value::degrees(min_temp),
-                "max" => Value::degrees(max_temp),
-            };
-            text.set_text(if collapsed {
-                (String::new(), None)
-            } else {
-                format.render(&values)?
-            });
-
-            // Set state
-            text.set_state(match max_temp {
+            api.set_state(match max_temp {
                 x if x <= block_config.good => WidgetState::Good,
                 x if x <= block_config.idle => WidgetState::Idle,
                 x if x <= block_config.info => WidgetState::Info,
@@ -111,11 +98,23 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 _ => WidgetState::Critical,
             });
 
-            api.send_widget(text.get_data()).await?;
+            if collapsed {
+                api.collapse();
+            } else {
+                api.set_values(map! {
+                    "average" => Value::degrees(avg_temp),
+                    "min" => Value::degrees(min_temp),
+                    "max" => Value::degrees(max_temp),
+                });
+                api.show();
+                api.render();
+            }
+
+            api.flush().await?;
 
             tokio::select! {
                 _ = tokio::time::sleep(block_config.interval) => (),
-                Some(BlockEvent::I3Bar(click)) = events.recv() => {
+                Some(BlockEvent::Click(click)) = events.recv() => {
                     if click.button == MouseButton::Left {
                         collapsed = !collapsed;
                     }

@@ -1,7 +1,7 @@
-use std::sync::Arc;
-
 use serde::de::{Deserialize, Deserializer};
 use serde_derive::Deserialize;
+use smartstring::alias::String;
+use std::sync::Arc;
 use toml::value;
 
 use crate::blocks::BlockType;
@@ -20,6 +20,7 @@ pub struct SharedConfig {
 
 impl SharedConfig {
     pub fn get_icon(&self, icon: &str) -> crate::errors::Result<String> {
+        // TODO avoid allocations
         use crate::errors::OptionExt;
         Ok(self.icons_format.replace(
             "{icon}",
@@ -27,7 +28,7 @@ impl SharedConfig {
                 .0
                 .get(icon)
                 .error(format!("Icon '{}' not found: please check your icons file or open a new issue on GitHub if you use precompiled icons", icon))?,
-        ))
+        ).into())
     }
 }
 
@@ -36,7 +37,7 @@ impl Default for SharedConfig {
         Self {
             theme: Arc::new(Theme::default()),
             icons: Arc::new(Icons::default()),
-            icons_format: Arc::new(" {icon} ".to_string()),
+            icons_format: Arc::new(" {icon} ".into()),
         }
     }
 }
@@ -56,7 +57,7 @@ pub struct Config {
 
 impl Config {
     fn default_icons_format() -> Arc<String> {
-        Arc::new(" {icon} ".to_string())
+        Arc::new(" {icon} ".into())
     }
 
     pub fn into_parts(self) -> (SharedConfig, Vec<(BlockType, value::Value)>, bool) {

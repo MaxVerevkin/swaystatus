@@ -31,14 +31,13 @@ pub struct SwayKbdConfig {
     #[serde(default)]
     pub format: FormatConfig,
     #[serde(default)]
-    pub mappings: Option<HashMap<String, String>>,
+    pub mappings: Option<HashMap<StdString, StdString>>,
 }
 
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config = SwayKbdConfig::deserialize(block_config).config_error()?;
-        let format = block_config.format.or_default("$layout.str()")?;
-        let mut text = api.new_widget();
+        api.set_format(block_config.format.init("$layout.str()", &api)?);
 
         // New connection
         let mut connection = Connection::new()
@@ -64,15 +63,16 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
 
         loop {
             let layout_mapped = if let Some(ref mappings) = block_config.mappings {
-                mappings.get(&layout).unwrap_or(&layout).to_string()
+                mappings.get(&layout).unwrap_or(&layout).into()
             } else {
-                layout.clone()
+                (&layout).into()
             };
 
-            text.set_text(format.render(&map! {
+            api.set_values(map! {
                 "layout" => Value::text(layout_mapped),
-            })?);
-            api.send_widget(text.get_data()).await?;
+            });
+            api.render();
+            api.flush().await?;
 
             // Wait for new event
             loop {

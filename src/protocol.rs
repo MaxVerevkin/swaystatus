@@ -84,7 +84,7 @@ pub fn print_blocks(blocks: &[Vec<I3BarBlock>], config: &SharedConfig) -> Result
 
         if let Some(ref separator) = config.theme.separator {
             let separator = I3BarBlock {
-                full_text: separator.clone(),
+                full_text: separator.clone().into(),
                 background: sep_bg,
                 color: sep_fg,
                 ..Default::default()

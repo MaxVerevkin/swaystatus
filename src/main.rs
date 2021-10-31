@@ -20,21 +20,24 @@ use futures::stream::StreamExt;
 use futures::Future;
 use futures::TryFutureExt;
 use protocol::i3bar_event::I3BarEvent;
+use smallvec::SmallVec;
+use smartstring::alias::String;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::task::JoinError;
 
-use blocks::prelude::*;
-use blocks::CommonConfig;
+use blocks::{block_name, BlockEvent, BlockType, CommonApi, CommonConfig};
 use click::ClickHandler;
 use config::Config;
 use config::SharedConfig;
-use protocol::i3bar_block::I3BarBlock;
+use errors::*;
+use formatting::{value::Value, Format};
 use protocol::i3bar_event::process_events;
 use signals::{process_signals, Signal};
 use util::deserialize_file;
+use widget::{Widget, WidgetState};
 
 const DBUS_WELL_KNOWN_NAME: &str = "rs.swaystatus";
 
@@ -92,7 +95,7 @@ fn main() {
                 // Create widget with error message
                 let error_widget = Widget::new(0, Default::default())
                     .with_state(WidgetState::Critical)
-                    .with_full_text(error.to_string());
+                    .with_full_text(error.to_string().into());
 
                 // Print errors
                 println!("[{}],", error_widget.get_data().render());
@@ -140,19 +143,55 @@ async fn run(config: Option<&str>, noinit: bool, never_pause: bool) -> Result<()
         .await
 }
 
-type BlockFuture = dyn Future<Output = StdResult<Result<()>, JoinError>>;
+type BlockFuture = dyn Future<Output = std::result::Result<Result<()>, JoinError>>;
+
+pub struct Block {
+    block_type: BlockType,
+
+    event_sender: Option<mpsc::Sender<BlockEvent>>,
+    click_handler: ClickHandler,
+
+    hidden: bool,
+    collapsed: bool,
+    widget: Widget,
+    buttons: Vec<Widget>,
+
+    values: HashMap<String, Value>,
+    format: Option<Arc<Format>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Request {
+    pub block_id: usize,
+    pub cmds: SmallVec<[RequestCmd; 4]>,
+}
+
+#[derive(Debug, Clone)]
+pub enum RequestCmd {
+    Hide,
+    Collapse,
+    Show,
+
+    SetIcon(String),
+    SetState(WidgetState),
+    SetText((String, Option<String>)),
+    SetValues(HashMap<String, Value>),
+    SetFormat(Arc<Format>),
+
+    AddButton(usize, String),
+    SetButton(usize, String),
+
+    Render,
+}
 
 pub struct Swaystatus {
-    pub blocks_cnt: usize,
     pub shared_config: SharedConfig,
 
+    pub blocks: Vec<Block>,
     pub spawned_blocks: FuturesUnordered<Pin<Box<BlockFuture>>>,
-    pub block_event_sentders: HashMap<usize, mpsc::Sender<BlockEvent>>,
-    pub rendered_blocks: Vec<Vec<I3BarBlock>>,
-    pub block_click_handlers: Vec<ClickHandler>,
 
-    pub message_sender: mpsc::Sender<BlockMessage>,
-    pub message_receiver: mpsc::Receiver<BlockMessage>,
+    pub request_sender: mpsc::Sender<Request>,
+    pub request_receiver: mpsc::Receiver<Request>,
 
     pub dbus_connection: Arc<async_lock::Mutex<Option<zbus::Connection>>>,
     pub system_dbus_connection: Arc<async_lock::Mutex<Option<zbus::Connection>>>,
@@ -160,18 +199,15 @@ pub struct Swaystatus {
 
 impl Swaystatus {
     pub fn new(shared_config: SharedConfig) -> Self {
-        let (message_sender, message_receiver) = mpsc::channel(64);
+        let (request_sender, request_receiver) = mpsc::channel(64);
         Self {
-            blocks_cnt: 0,
             shared_config,
 
+            blocks: Vec::new(),
             spawned_blocks: FuturesUnordered::new(),
-            block_event_sentders: HashMap::new(),
-            rendered_blocks: Vec::new(),
-            block_click_handlers: Vec::new(),
 
-            message_sender,
-            message_receiver,
+            request_sender,
+            request_receiver,
 
             dbus_connection: Arc::new(async_lock::Mutex::new(None)),
             system_dbus_connection: Arc::new(async_lock::Mutex::new(None)),
@@ -195,29 +231,41 @@ impl Swaystatus {
         }
 
         let api = CommonApi {
-            id: self.blocks_cnt,
+            id: self.blocks.len(),
             shared_config,
-            message_sender: self.message_sender.clone(),
+
+            request_sender: self.request_sender.clone(),
+            cmd_buf: SmallVec::new(),
+
             dbus_connection: Arc::clone(&self.dbus_connection),
             system_dbus_connection: Arc::clone(&self.system_dbus_connection),
         };
 
+        let mut block = Block {
+            block_type,
+
+            event_sender: None,
+            click_handler: common_config.click,
+
+            hidden: false,
+            collapsed: false,
+            widget: Widget::new(api.id, api.shared_config.clone()),
+            buttons: Vec::new(),
+
+            values: HashMap::new(),
+            format: None,
+        };
+
         let handle = blocks::block_spawner(block_type)(block_config, api, &mut || {
             let (sender, receiver) = mpsc::channel(64);
-            self.block_event_sentders.insert(self.blocks_cnt, sender);
+            block.event_sender = Some(sender);
             receiver
         });
-        let handle = handle.and_then(move |r| async move {
-            Ok(r.map_err(|mut e| {
-                e.block = Some(blocks::block_name(block_type));
-                e
-            }))
-        });
+        let handle =
+            handle.and_then(move |r| async move { Ok(r.in_block(block_name(block_type))) });
 
         self.spawned_blocks.push(Box::pin(handle));
-        self.block_click_handlers.push(common_config.click);
-        self.rendered_blocks.push(Vec::new());
-        self.blocks_cnt += 1;
+        self.blocks.push(block);
         Ok(())
     }
 
@@ -232,36 +280,76 @@ impl Swaystatus {
                 Some(block_result) = self.spawned_blocks.next() => {
                     block_result.error("Error handler: Failed to read block exit status")??;
                 },
-                // Recieve widgets from blocks
-                Some(message) = self.message_receiver.recv() => {
-                    match message {
-                        BlockMessage::None(id) => {
-                            self.rendered_blocks
-                                .get_mut(id)
-                                .error("Failed to handle block's message")?.clear();
-                        }
-                        BlockMessage::Single(id, widget) => {
-                            let w = self.rendered_blocks
-                                .get_mut(id)
-                                .error("Failed to handle block's message")?;
-                            w.clear();
-                            w.push(widget);
-                        }
-                        BlockMessage::Many(id, widgets) => {
-                            *self.rendered_blocks
-                                .get_mut(id)
-                                .error("Failed to handle block's message")?
-                                    = widgets;
+                // Recieve messages from blocks
+                Some(request) = self.request_receiver.recv() => {
+                    let block = self.blocks.get_mut(request.block_id).error("Message receiver: ID out of bounds")?;
+                    for cmd in request.cmds {
+                        match cmd {
+                            RequestCmd::Hide => block.hidden = true,
+                            RequestCmd::Collapse => block.collapsed = true,
+                            RequestCmd::Show => {
+                                block.hidden = false;
+                                block.collapsed = false;
+                            }
+                            RequestCmd::SetIcon(icon) => block.widget.icon = icon,
+                            RequestCmd::SetText(text) => block.widget.set_text(text),
+                            RequestCmd::SetState(state) => {
+                                block.widget.set_state(state);
+                                for b in &mut block.buttons {
+                                    b.set_state(state);
+                                }
+                            }
+                            RequestCmd::SetValues(values) => block.values = values,
+                            RequestCmd::SetFormat(format) => block.format = Some(format),
+                            RequestCmd::AddButton(instance, icon) => block.buttons.push(
+                                Widget::new(request.block_id, block.widget.shared_config.clone())
+                                    .with_instance(instance)
+                                    .with_icon_str(icon)
+                            ),
+                            RequestCmd::SetButton(instance, icon) => {
+                                for b in &mut block.buttons {
+                                    if b.instance == Some(instance) {
+                                        b.icon = icon.clone();
+                                    }
+                                }
+                            }
+                            RequestCmd::Render => {
+                                if let Some(format) = &block.format {
+                                    block.widget.set_text(
+                                        format
+                                            .render(&block.values)
+                                            .in_block(block_name(block.block_type))?
+                                    );
+                                }
+                            }
                         }
                     }
-                    protocol::print_blocks(&self.rendered_blocks, &self.shared_config)?;
+
+                    // FIXME
+                    let mut vec = Vec::new();
+                    for b in &mut self.blocks {
+                        if !b.hidden {
+                            let mut v = Vec::new();
+                            if b.collapsed {
+                                b.widget.set_text((String::new(), None));
+                                v.push(b.widget.get_data());
+                            } else {
+                                v.push(b.widget.get_data());
+                                for button in &b.buttons {
+                                    v.push(button.get_data());
+                                }
+                            }
+                            vec.push(v);
+                        }
+                    }
+                    protocol::print_blocks(&vec, &self.shared_config)?;
                 }
                 // Handle clicks
                 Some(event) = events_receiver.recv() => {
-                    let update = self.block_click_handlers.get(event.id).unwrap().handle(event.button).await;
-                    if update {
-                        if let Some(sender) = self.block_event_sentders.get(&event.id) {
-                            sender.send(BlockEvent::I3Bar(event)).await.unwrap();
+                    let block = self.blocks.get(event.id).error("Events receiver: ID out of bounds")?;
+                    if block.click_handler.handle(event.button).await {
+                        if let Some(sender) = &block.event_sender {
+                            sender.send(BlockEvent::Click(event)).await.error("Failed to send event to block")?;
                         }
                     }
                 }
@@ -269,8 +357,10 @@ impl Swaystatus {
                 Some(signal) = signals_receiver.recv() => match signal {
                     Signal::Usr2 => restart(),
                     signal => {
-                        for sender in self.block_event_sentders.values() {
-                            sender.send(BlockEvent::Signal(signal)).await.unwrap();
+                        for block in &self.blocks {
+                            if let Some(sender) = &block.event_sender {
+                                sender.send(BlockEvent::Signal(signal)).await.error("Failed to send signal to block")?;
+                            }
                         }
                     }
                 }
