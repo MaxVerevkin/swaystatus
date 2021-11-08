@@ -31,8 +31,15 @@
 //! blocking_cmd = false
 //! ```
 //!
-//! # TODO
 //!
+//! # Icons Used
+//! - `pomodoro`
+//! - `pomodoro_started`
+//! - `pomodoro_stopped`
+//! - `pomodoro_paused`
+//! - `pomodoro_break`
+//!
+//! # TODO
 //! - Use different icons.
 //! - Use format strings.
 

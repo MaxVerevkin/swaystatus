@@ -13,8 +13,8 @@
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
 //! `mac` | MAC address of the Bluetooth device | Yes | N/A
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$name.str() {$percentage.eng(2)|}"`
-//! `hide_disconnected` | Whether to hide thsi block when disconnected | No | `false`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$name{ $percentage|}"`
+//! `hide_disconnected` | Whether to hide the block when disconnected | No | `false`
 //!
 //! Placeholder  | Value                                                                 | Type   | Unit
 //! -------------|-----------------------------------------------------------------------|--------|------
@@ -32,6 +32,13 @@
 //! hide_disconnected = true
 //! format = ""
 //! ```
+//!
+//! # Icons Used
+//! - `headphones` for bluetooth devices identifying as "audio-card"
+//! - `joystick` for bluetooth devices identifying as "input-gaming"
+//! - `keyboard` for bluetooth devices identifying as "input-keyboard"
+//! - `mouse` for bluetooth devices identifying as "input-mouse"
+//! - `bluetooth` for all other devices
 //!
 //! # TODO:
 //! - Don't throw errors when there is no bluetooth
@@ -60,7 +67,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     let mut events = events();
     tokio::spawn(async move {
         let block_config = BluetoothConfig::deserialize(block_config).config_error()?;
-        api.set_format(block_config.format.init("$name.str()", &api)?);
+        api.set_format(block_config.format.init("$name{ $percentage|}", &api)?);
 
         let dbus_conn = api.system_dbus_connection().await?;
         let device = Device::from_mac(&dbus_conn, &block_config.mac).await?;

@@ -4,7 +4,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$layout.str()"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$layout"`
 //! `mappings` | Layouts' names can be mapped to custom names. See below for an example. | No | None
 //!
 //! Placeholder | Value          | Type   | Unit
@@ -37,7 +37,7 @@ pub struct SwayKbdConfig {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config = SwayKbdConfig::deserialize(block_config).config_error()?;
-        api.set_format(block_config.format.init("$layout.str()", &api)?);
+        api.set_format(block_config.format.init("$layout", &api)?);
 
         // New connection
         let mut connection = Connection::new()

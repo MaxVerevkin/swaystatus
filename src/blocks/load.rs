@@ -4,7 +4,7 @@
 //!
 //! Key        | Values                                                                                | Required | Default
 //! -----------|---------------------------------------------------------------------------------------|----------|--------
-//! `format`   | A string to customise the output of this block. See below for available placeholders. | No       | `"$1m.eng() "`
+//! `format`   | A string to customise the output of this block. See below for available placeholders. | No       | `"$1m"`
 //! `interval` | Update interval in seconds                                                            | No       | `3`
 //! `info`     | Minimum load, where state is set to info                                              | No       | `0.3`
 //! `warning`  | Minimum load, where state is set to warning                                           | No       | `0.6`
@@ -21,9 +21,12 @@
 //! ```toml
 //! [[block]]
 //! block = "load"
-//! format = "1min avg: $1m.eng()"
+//! format = "1min avg: $1m"
 //! interval = 1
 //! ```
+//!
+//! # Icons Used
+//! - `cogs`
 
 use std::path::Path;
 use std::time::Duration;
@@ -60,7 +63,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
     tokio::spawn(async move {
         let block_config = LoadConfig::deserialize(block_config).config_error()?;
         let mut interval = tokio::time::interval(block_config.interval);
-        api.set_format(block_config.format.init("$1m.eng()", &api)?);
+        api.set_format(block_config.format.init("$1m", &api)?);
         api.set_icon("cogs")?;
 
         // borrowed from https://docs.rs/cpuinfo/0.1.1/src/cpuinfo/count/logical.rs.html#4-6

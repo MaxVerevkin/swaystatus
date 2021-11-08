@@ -6,8 +6,8 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format_mem` | A string to customise the output of this block when in "Memory" view. See below for available placeholders. | No | `"{mem_free;M}/{mem_total;M}({mem_total_used_percents}) "`
-//! `format_swap` | A string to customise the output of this block when in "Swap" view. See below for available placeholders. | No | `"{swap_free;M}/{swap_total;M}({swap_used_percents}) "`
+//! `format_mem` | A string to customise the output of this block when in "Memory" view. See below for available placeholders. | No | `"$mem_free.eng(3,B,M)/$mem_total.eng(3,B,M)($mem_total_used_percents.eng(2))"`
+//! `format_swap` | A string to customise the output of this block when in "Swap" view. See below for available placeholders. | No | `"$swap_free.eng(3,B,M)/$swap_total.eng(3,B,M)($swap_used_percents.eng(2))"`
 //! `display_type` | Default view displayed on startup: "`memory`" or "`swap`" | No | `"memory"`
 //! `clickable` | Whether the view should switch between memory and swap on click | No | `true`
 //! `interval` | Update interval in seconds | No | `5`
@@ -48,6 +48,10 @@
 //! warning_mem = 70
 //! critical_mem = 90
 //! ```
+//!
+//! # Icons Used
+//! - `memory_mem`
+//! - `memory_swap`
 
 use std::path::Path;
 use std::str::FromStr;
@@ -97,12 +101,13 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
         let interval = Duration::from_secs(block_config.interval);
 
         let format_mem = block_config.format_mem.init(
-            "{mem_free;M}/{mem_total;M}({mem_total_used_percents}) ",
+            "$mem_free.eng(3,B,M)/$mem_total.eng(3,B,M)($mem_total_used_percents.eng(2))",
             &api,
         )?;
-        let format_swap = block_config
-            .format_swap
-            .init("{swap_free;M}/{swap_total;M}({swap_used_percents}) ", &api)?;
+        let format_swap = block_config.format_swap.init(
+            "$swap_free.eng(3,B,M)/$swap_total.eng(3,B,M)($swap_used_percents.eng(2))",
+            &api,
+        )?;
 
         let clickable = block_config.clickable;
         let mut memtype = block_config.display_type;

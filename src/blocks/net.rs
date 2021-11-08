@@ -6,7 +6,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$speed_down.eng(3,B,K)$speed_up.eng(3,B,K) "`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$speed_down.eng(3,B,K)$speed_up.eng(3,B,K)"`
 //! `format_alt` | If set, block will switch between `format` and `format_alt` on every click | No | None
 //! `device` | Network interface to monitor (as specified in `/sys/class/net/`) | No | If not set, device will be automatically selected every `interval`
 //! `interval` | Update interval in seconds | No | `2`
@@ -31,6 +31,14 @@
 //! block = "net"
 //! format = "{$signal.eng(2) $ssid.str() $frequency.eng()|Wired connection} via $device.str()"
 //! ```
+//!
+//! # Icons Used
+//! - `net_loopback`
+//! - `net_vpn`
+//! - `net_wired`
+//! - `net_wireless`
+//! - `net_up`
+//! - `net_down`
 
 use super::prelude::*;
 use crate::netlink::{default_interface, NetDevice};
@@ -70,7 +78,7 @@ pub fn spawn(config: toml::Value, mut api: CommonApi, events: EventsRxGetter) ->
         let config = NetConfig::deserialize(config).config_error()?;
         let mut format = config
             .format
-            .init("$speed_down.eng(3,B,K)$speed_up.eng(3,B,K) ", &api)?;
+            .init("$speed_down.eng(3,B,K)$speed_up.eng(3,B,K)", &api)?;
         let mut format_alt = match config.format_alt {
             Some(f) => Some(f.init("", &api)?),
             None => None,

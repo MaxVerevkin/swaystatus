@@ -9,7 +9,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"{title^21}"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$title.rot-str(15)|"`
 //! `autohide` | Whether to hide the block when no title is available | No | `true`
 //!
 //! Placeholder     | Value                                     | Type | Unit
@@ -24,8 +24,8 @@
 //! [[block]]
 //! block = "focused_window"
 //! [block.format]
-//! full = "$title.str(0,40)"
-//! short = "$title.str(0,20)"
+//! full = "$title.rot-str(15)"
+//! short = "$title.rot-str(10)"
 //! ```
 
 use super::prelude::*;

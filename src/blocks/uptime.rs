@@ -17,6 +17,9 @@
 //! interval = "3600" # update every hour
 //! ```
 //!
+//! # Used Icons
+//! - `uptime`
+//!
 //! # TODO:
 //! - Add `time` or `dur` formatter to `src/formatting/formatter.rs`
 

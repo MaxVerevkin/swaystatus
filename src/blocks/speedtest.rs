@@ -6,7 +6,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$ping.eng()$speed_down.eng()$speed_up.eng() "`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$ping$speed_down$speed_up"`
 //! `interval` | Update interval in seconds | No | `1800`
 //!
 //! Placeholder  | Value          | Type   | Unit
@@ -25,6 +25,11 @@
 //! interval = 1800
 //! format = "$speed_down.eng(4,B)$speed_up(4,B)"
 //! ```
+//!
+//! # Icons Used
+//! - `ping`
+//! - `net_down`
+//! - `net_up`
 
 use super::prelude::*;
 use crate::de::deserialize_duration;
@@ -54,7 +59,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
         api.set_format(
             block_config
                 .format
-                .init("$ping.eng()$speed_down.eng()$speed_up.eng() ", &api)?,
+                .init("$ping$speed_down$speed_up", &api)?,
         );
 
         let icon_ping = api.get_icon("ping")?;

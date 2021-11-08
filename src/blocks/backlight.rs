@@ -9,13 +9,12 @@
 //!
 //! Some devices expose raw values that are best handled with nonlinear scaling. The human perception of lightness is close to the cube root of relative luminance, so settings for `root_scaling` between 2.4 and 3.0 are worth trying. For devices with few discrete steps this should be 1.0 (linear). More information: <https://en.wikipedia.org/wiki/Lightness>
 //!
-//!
 //! # Configuration
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
 //! `device` | The `/sys/class/backlight` device to read brightness information from.  When there is no `device` specified, this block will display information from the first device found in the `/sys/class/backlight` directory. If you only have one display, this approach should find it correctly.| No | Default device
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$brightness "`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$brightness"`
 //! `step_width` | The brightness increment to use when scrolling, in percent | No | `5`
 //! `root_scaling` | Scaling exponent reciprocal (ie. root) | No | `1.0`
 //! `invert_icons` | Invert icons' ordering, useful if you have colorful emoji | No | `false`
@@ -31,6 +30,23 @@
 //! block = "backlight"
 //! device = "intel_backlight"
 //! ```
+//!
+//! # Icons Used
+//! - `backlight_empty` (when brightness between 0 and 6%)
+//! - `backlight_1` (when brightness between 7 and 13%)
+//! - `backlight_2` (when brightness between 14 and 20%)
+//! - `backlight_3` (when brightness between 21 and 26%)
+//! - `backlight_4` (when brightness between 27 and 33%)
+//! - `backlight_5` (when brightness between 34 and 40%)
+//! - `backlight_6` (when brightness between 41 and 46%)
+//! - `backlight_7` (when brightness between 47 and 53%)
+//! - `backlight_8` (when brightness between 54 and 60%)
+//! - `backlight_9` (when brightness between 61 and 67%)
+//! - `backlight_10` (when brightness between 68 and 73%)
+//! - `backlight_11` (when brightness between 74 and 80%)
+//! - `backlight_12` (when brightness between 81 and 87%)
+//! - `backlight_13` (when brightness between 88 and 93%)
+//! - `backlight_full` (when brightness above 94%)
 
 use std::cmp::max;
 use std::convert::TryInto;
@@ -91,7 +107,7 @@ const BACKLIGHT_ICONS: &[&str] = &[
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
-pub struct BacklightConfig {
+struct BacklightConfig {
     pub device: Option<String>,
     pub format: FormatConfig,
     pub step_width: u8,
@@ -120,7 +136,7 @@ async fn read_brightness_raw(device_file: &Path) -> Result<u64> {
         .error("Failed to read value from brightness file")
 }
 
-/// Represents a physical backlit device whose brightness level can be queried.
+/// Represents a physical backlight device whose brightness level can be queried.
 pub struct BacklightDevice<'a> {
     device_name: String,
     brightness_file: PathBuf,
@@ -200,7 +216,7 @@ impl<'a> BacklightDevice<'a> {
             .error("Brightness is not in [0, 100]")
     }
 
-    /// Set the brightness value for this backlit device, as a percent.
+    /// Set the brightness value for this backlight device, as a percent.
     pub async fn set_brightness(&self, value: u8) -> Result<()> {
         let value = value.clamp(0, 100);
         let ratio = (value as f64 / 100.0).powf(self.root_scaling);
@@ -217,7 +233,7 @@ pub fn spawn(config: toml::Value, mut api: CommonApi, events: EventsRxGetter) ->
     tokio::spawn(async move {
         let config = BacklightConfig::deserialize(config).config_error()?;
         let dbus_conn = api.system_dbus_connection().await?;
-        api.set_format(config.format.init("$brightness ", &api)?);
+        api.set_format(config.format.init("$brightness", &api)?);
 
         let device = match &config.device {
             None => BacklightDevice::default(config.root_scaling, &dbus_conn).await?,

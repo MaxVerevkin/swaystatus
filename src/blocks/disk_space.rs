@@ -6,7 +6,7 @@
 //! ----|--------|----------|--------
 //! `path` | Path to collect information from | No | `"/"`
 //! `interval` | Update time in seconds | No | `20`
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$available.eng() "`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$available"`
 //! `warning` | A value which will trigger warning block state | No | `20.0`
 //! `alert` | A value which will trigger critical block state | No | `10.0`
 //! `info_type` | Determines which information will affect the block state. Possible values are `"available"`, `"free"` and `"used"` | No | `"available"`
@@ -33,6 +33,8 @@
 //! warning = 15.0
 //! format = "$icon.str() $available.eng(2)"
 //! ```
+//! # Icons Used
+//! - `disk_drive`
 
 use std::path::Path;
 use std::time::Duration;
@@ -85,7 +87,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
         let icon = api.get_icon("disk_drive")?;
         let icon = icon.trim();
 
-        let format = block_config.format.init("$available.eng() ", &api)?;
+        let format = block_config.format.init("$available", &api)?;
         api.set_format(format);
 
         let unit = match block_config.alert_unit.as_deref() {

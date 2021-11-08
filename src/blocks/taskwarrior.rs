@@ -39,6 +39,9 @@
 //! name = "some-project"
 //! filter = "project:some-project +PENDING"
 //! ```
+//!
+//! # Icons Used
+//! - `tasks`
 
 use super::prelude::*;
 use crate::de::deserialize_duration;

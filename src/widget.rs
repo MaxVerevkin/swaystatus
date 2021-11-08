@@ -39,13 +39,13 @@ impl WidgetState {
 #[derive(Clone, Debug)]
 pub struct Widget {
     pub instance: Option<usize>,
-    full_text: String,
-    short_text: Option<String>,
+    pub full_text: String,
+    pub short_text: Option<String>,
     pub icon: String,
-    full_spacing: WidgetSpacing,
-    short_spacing: WidgetSpacing,
+    pub full_spacing: WidgetSpacing,
+    pub short_spacing: WidgetSpacing,
     pub shared_config: SharedConfig,
-    inner: I3BarBlock,
+    pub inner: I3BarBlock,
 }
 
 impl Widget {
@@ -95,11 +95,6 @@ impl Widget {
         self
     }
 
-    // pub fn with_spacing(mut self, spacing: WidgetSpacing) -> Self {
-    //     self.set_spacing(spacing);
-    //     self
-    // }
-
     /*
      * Setters
      */
@@ -132,12 +127,6 @@ impl Widget {
 
         self.inner.background = key_bg;
         self.inner.color = key_fg;
-    }
-
-    #[allow(dead_code)]
-    pub fn set_spacing(&mut self, spacing: WidgetSpacing) {
-        self.full_spacing = spacing;
-        self.short_spacing = spacing;
     }
 
     /// Constuct `I3BarBlock` from this widget

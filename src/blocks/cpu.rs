@@ -4,7 +4,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$utilization.eng(2)"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$utilization"`
 //! `format_alt` | If set, block will switch between `format` and `format_alt` on every click | No | None
 //! `interval` | Update interval in seconds | No | `5`
 //!
@@ -26,6 +26,11 @@
 //! format = "$barchart.str() $utilization.eng()"
 //! format_alt = "$frequency.eng() \\|$boost.str()"
 //! ```
+//!
+//! # Icons Used
+//! - `cpu`
+//! - `cpu_boost_on`
+//! - `cpu_boost_off`
 
 use std::path::Path;
 use std::str::FromStr;
@@ -63,7 +68,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     tokio::spawn(async move {
         let block_config = CpuConfig::deserialize(block_config).config_error()?;
         let interval = Duration::from_secs(block_config.interval);
-        let mut format = block_config.format.init("$utilization.eng(2)", &api)?;
+        let mut format = block_config.format.init("$utilization", &api)?;
         let mut format_alt = match block_config.format_alt {
             Some(f) => Some(f.init("", &api)?),
             None => None,

@@ -14,7 +14,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders | No | `"{average} avg, {max} max"`
+//! `format` | A string to customise the output of this block. See below for available placeholders | No | `"$average avg, $max max"`
 //! `interval` | Update interval in seconds | No | `5`
 //! `collapsed` | Whether the block will be collapsed by default | No | `false`
 //! `good` | Maximum temperature to set state to good | No | `20` °C (`68` °F)
@@ -37,6 +37,9 @@
 //! interval = 10
 //! format = "{min} min, {max} max, {average} avg"
 //! ```
+//!
+//! # Icons Used
+//! - `thermometer`
 //!
 //! # TODO
 //! - Support Fahrenheit scale
@@ -80,7 +83,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     tokio::spawn(async move {
         let block_config = TemperatureConfig::deserialize(block_config).config_error()?;
         let mut collapsed = block_config.collapsed;
-        api.set_format(block_config.format.init("{average} avg, {max} max", &api)?);
+        api.set_format(block_config.format.init("$average avg, $max max", &api)?);
         api.set_icon("thermometer")?;
 
         loop {

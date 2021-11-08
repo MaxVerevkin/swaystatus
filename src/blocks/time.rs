@@ -4,7 +4,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | Format string. See [chrono docs](https://docs.rs/chrono/0.3.0/chrono/format/strftime/index.html#specifiers) for all options. | No | `%a %d/%m %R`
+//! `format` | Format string. See [chrono docs](https://docs.rs/chrono/0.3.0/chrono/format/strftime/index.html#specifiers) for all options. | No | `"%a %d/%m %R"`
 //! `format_short` | Same as `format` but used when there is no enough space on the bar | No | None
 //! `interval` | Update interval in seconds | No | 10
 //! `timezone` | A timezone specifier (e.g. "Europe/Lisbon") | No | Local timezone
@@ -21,6 +21,9 @@
 //! full = "%d/%m %R"
 //! short = "%R"
 //! ```
+//!
+//! # Icons Used
+//! - `time`
 
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -61,7 +64,10 @@ pub fn spawn(config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> Bloc
 
         // `FormatTemplate` doesn't do much stuff here - we just want to get the original "full" and
         // "short" formats, so we "render" it without providing any placeholders.
-        let (format, format_short) = config.format.init("", &api)?.render(&HashMap::new())?;
+        let (format, format_short) = config
+            .format
+            .init("%a %d/%m %R", &api)?
+            .render(&HashMap::new())?;
         let format = format.as_str();
         let format_short = format_short.as_deref();
 

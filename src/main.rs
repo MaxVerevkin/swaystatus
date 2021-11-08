@@ -325,7 +325,7 @@ impl Swaystatus {
                         }
                     }
 
-                    // FIXME
+                    // TODO: cache
                     let mut vec = Vec::new();
                     for b in &mut self.blocks {
                         if !b.hidden {

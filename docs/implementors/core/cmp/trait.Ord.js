@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["swaystatus"] = [{"text":"impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html\" title=\"trait core::cmp::Ord\">Ord</a> for <a class=\"enum\" href=\"swaystatus/formatting/prefix/enum.Prefix.html\" title=\"enum swaystatus::formatting::prefix::Prefix\">Prefix</a>","synthetic":false,"types":["swaystatus::formatting::prefix::Prefix"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

@@ -1,4 +1,4 @@
-//! Information about an internal power supply
+//! Information about the internal power supply
 //!
 //! This block can display the current battery state (Full, Charging or Discharging), percentage
 //! charged and estimate time until (dis)charged for an internal power supply.
@@ -10,7 +10,7 @@
 //! `device` | The device in `/sys/class/power_supply/` to read from. When using UPower, this can also be `"DisplayDevice"`. | No | Any battery device
 //! `driver` | One of `"sysfs"` or `"upower"` | No | `"sysfs"`
 //! `interval` | Update interval, in seconds. Only relevant for `driver = "sysfs"`. | No | `10`
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$percentage |"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$percentage|"`
 //! `full_format` | Same as `format` but for when the battery is full | No | `""`
 //! `allow_missing` | Don't display errors when the battery cannot be found. Only works with the `sysfs` driver. | No | `false`
 //! `hide_missing` | Completely hide this block if the battery cannot be found. | No | `false`
@@ -21,11 +21,39 @@
 //! `critical` | Minimum battery level, where state is set to critical | No | `15`
 //! `full_threshold` | Percentage at which the battery is considered full (`full_format` shown) | No | `100`
 //!
-//! Placeholder    | Value                                                                   | Type              | Unit
-//! ---------------|-------------------------------------------------------------------------|-------------------|-----
+//! Placeholder    | Value                                                                 | Type              | Unit
+//! ---------------|-----------------------------------------------------------------------|-------------------|-----
 //! `percentage` | Battery level, in percent                                               | String or Integer | Percents
 //! `time`       | Time remaining until (dis)charge is complete                            | String            | -
 //! `power`      | Power consumption by the battery or from the power supply when charging | String or Float   | Watts
+//!
+//! # Examples
+//!
+//! Hide missing battery:
+//!
+//! ```toml
+//! [block]
+//! block = "battery"
+//! hide_missing = true
+//! ```
+//!
+//! Allow missing battery:
+//!
+//! ```toml
+//! [block]
+//! block = "battery"
+//! format = "$percentage|N/A"
+//! allow_missing = true
+//! ```
+//!
+//! # Icons Used
+//! - `bat_charging`
+//! - `bat_not_available`
+//! - `bat_empty` (charge between 0 and 5%)
+//! - `bat_quarter` (charge between 6 and 25%)
+//! - `bat_half` (charge between 26 and 50%)
+//! - `bat_three_quarters` (charge between 51 and 75%)
+//! - `bat_full` (charge over 75%)
 
 use std::collections::HashMap;
 use std::convert::Infallible;
@@ -113,7 +141,7 @@ pub fn spawn(config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> Bloc
     tokio::spawn(async move {
         let config = BatteryConfig::deserialize(config).config_error()?;
 
-        let format = config.format.init("$percentage |", &api)?;
+        let format = config.format.init("$percentage", &api)?;
         let format_full = config.full_format.init("", &api)?;
 
         // Get _any_ battery device if not set in the config

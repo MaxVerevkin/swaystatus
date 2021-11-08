@@ -1,6 +1,9 @@
+//! The collection of blocks
+
 pub mod prelude;
 
 use serde::de::Deserialize;
+use serde_derive::Deserialize;
 use smallvec::SmallVec;
 use smartstring::alias::String;
 use std::collections::HashMap;
@@ -18,64 +21,62 @@ use crate::widget::WidgetState;
 use crate::{Request, RequestCmd};
 
 macro_rules! define_blocks {
-    ($($type:ident $mod:ident,)*) => {
-        $(mod $mod;)*
+    ($($block:ident,)*) => {
+        $(mod $block;)*
 
-        #[derive(serde_derive::Deserialize, Debug, Clone, Copy, PartialEq)]
-        #[serde(rename_all = "snake_case")]
+        #[derive(Deserialize, Debug, Clone, Copy)]
         pub enum BlockType {
-            $($type,)*
+            $(
+                #[allow(non_camel_case_types)]
+                $block,
+            )*
         }
 
         const BLOCK_NAMES: &[&str] = &[
-            $(stringify!($mod),)*
+            $(stringify!($block),)*
         ];
 
         const BLOCK_SPAWNERS: &[&BlockSpawnerFn] = &[
-            $(&$mod::spawn as &BlockSpawnerFn,)*
+            $(&$block::spawn as &BlockSpawnerFn,)*
         ];
 
         /// Matches the block's type to block's name
         #[inline(always)]
         pub fn block_name(block: BlockType) -> &'static str {
-            // SAFETY: The length of BlockType and BLOCK_NAMES is equal because the number of $type
-            // is equal to the number of $mod (provided by the macro declaration)
-            unsafe { BLOCK_NAMES.get_unchecked(block as usize) }
+            BLOCK_NAMES[block as usize]
         }
 
         /// Matches the block's type to block's spawner function
         #[inline(always)]
         pub fn block_spawner(block: BlockType) -> &'static BlockSpawnerFn {
-            // SAFETY: The length of BlockType and BLOCK_SPAWNERS is equal because the number of
-            // $type is equal to the number of $mod (provided by the macro declaration)
-            unsafe { BLOCK_SPAWNERS.get_unchecked(block as usize) }
+            BLOCK_SPAWNERS[block as usize]
         }
     };
 }
 
 define_blocks!(
-    Backlight backlight,
-    Battery battery,
-    Bluetooth bluetooth,
-    Cpu cpu,
-    Custom custom,
-    CustomDbus custom_dbus,
-    DiskSpace disk_space,
-    FocusedWindow focused_window,
-    Github github,
-    Load load,
-    Memory memory,
-    Music music,
-    Net net,
-    Pomodoro pomodoro,
-    Sound sound,
-    Speedtest speedtest,
-    SwayKbd sway_kbd,
-    Taskwarrior taskwarrior,
-    Temperature temperature,
-    Time time,
-    Toggle toggle,
-    Uptime uptime,
+    backlight,
+    battery,
+    bluetooth,
+    cpu,
+    custom,
+    custom_dbus,
+    disk_space,
+    focused_window,
+    github,
+    load,
+    memory,
+    music,
+    net,
+    pomodoro,
+    sound,
+    speedtest,
+    sway_kbd,
+    taskwarrior,
+    temperature,
+    time,
+    toggle,
+    uptime,
     // Weather weather,
 );
 
@@ -229,7 +230,7 @@ impl CommonApi {
     }
 }
 
-#[derive(serde_derive::Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct CommonConfig {
     #[serde(default)]
     pub click: ClickHandler,

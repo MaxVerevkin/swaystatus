@@ -33,12 +33,15 @@
 //! command_off = "~/.screenlayout/builtin.sh"
 //! interval = 5
 //! ```
+//!
+//! # Icons Used
+//! - `toggle_off`
+//! - `toggle_on`
 
+use super::prelude::*;
 use std::env;
 use std::time::Duration;
 use tokio::process::Command;
-
-use super::prelude::*;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
