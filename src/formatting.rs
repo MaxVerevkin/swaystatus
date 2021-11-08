@@ -1,3 +1,5 @@
+//! TODO: write docs
+
 pub mod config;
 pub mod formatter;
 pub mod prefix;
