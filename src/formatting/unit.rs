@@ -6,13 +6,21 @@ use crate::errors::*;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Unit {
+    /// `B`
     Bytes,
+    /// `b`
     Bits,
+    /// `%`
     Percents,
+    /// `deg`
     Degrees,
+    /// `s`
     Seconds,
+    /// `W`
     Watts,
+    /// `Hz`
     Hertz,
+    /// ``
     None,
 }
 

@@ -22,7 +22,7 @@ use crate::{Request, RequestCmd};
 
 macro_rules! define_blocks {
     ($($block:ident,)*) => {
-        $(mod $block;)*
+        $(pub mod $block;)*
 
         #[derive(Deserialize, Debug, Clone, Copy)]
         pub enum BlockType {

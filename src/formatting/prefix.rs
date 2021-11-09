@@ -7,13 +7,21 @@ use crate::errors::*;
 /// SI prefix
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Prefix {
+    /// `n`
     Nano = -3,
+    /// `u`
     Micro = -2,
+    /// `m`
     Milli = -1,
+    /// `1`
     One = 0,
+    /// `K`
     Kilo = 1,
+    /// `M`
     Mega = 2,
+    /// `G`
     Giga = 3,
+    /// `T`
     Tera = 4,
 }
 
