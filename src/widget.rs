@@ -1,9 +1,8 @@
-use serde_derive::Deserialize;
-
 use crate::config::SharedConfig;
-use crate::errors::*;
 use crate::protocol::i3bar_block::I3BarBlock;
 use crate::themes::{Color, Theme};
+use serde_derive::Deserialize;
+use smartstring::alias::String;
 
 #[derive(Debug, Copy, Clone, Deserialize)]
 pub enum WidgetSpacing {
@@ -39,13 +38,14 @@ impl WidgetState {
 
 #[derive(Clone, Debug)]
 pub struct Widget {
-    full_text: Option<String>,
-    short_text: Option<String>,
-    icon: Option<String>,
-    full_spacing: WidgetSpacing,
-    short_spacing: WidgetSpacing,
-    shared_config: SharedConfig,
-    inner: I3BarBlock,
+    pub instance: Option<usize>,
+    pub full_text: String,
+    pub short_text: Option<String>,
+    pub icon: String,
+    pub full_spacing: WidgetSpacing,
+    pub short_spacing: WidgetSpacing,
+    pub shared_config: SharedConfig,
+    pub inner: I3BarBlock,
 }
 
 impl Widget {
@@ -59,9 +59,10 @@ impl Widget {
         };
 
         Widget {
-            full_text: None,
+            instance: None,
+            full_text: String::new(),
             short_text: None,
-            icon: None,
+            icon: String::new(),
             full_spacing: WidgetSpacing::Hidden,
             short_spacing: WidgetSpacing::Hidden,
             shared_config,
@@ -74,19 +75,16 @@ impl Widget {
      */
 
     pub fn with_instance(mut self, instance: usize) -> Self {
+        self.instance = Some(instance);
         self.inner.instance = Some(instance.to_string());
         self
     }
 
-    pub fn with_icon(mut self, name: &str) -> Result<Self> {
-        self.set_icon(name)?;
-        Ok(self)
-    }
-
-    pub fn with_text(mut self, content: (String, Option<String>)) -> Self {
-        self.set_text(content);
+    pub fn with_icon_str(mut self, icon: String) -> Self {
+        self.icon = icon;
         self
     }
+
     pub fn with_full_text(mut self, content: String) -> Self {
         self.set_full_text(content);
         self
@@ -97,23 +95,9 @@ impl Widget {
         self
     }
 
-    pub fn with_spacing(mut self, spacing: WidgetSpacing) -> Self {
-        self.set_spacing(spacing);
-        self
-    }
-
     /*
      * Setters
      */
-
-    pub fn set_icon(&mut self, name: &str) -> Result<()> {
-        if name.is_empty() {
-            self.icon = None;
-        } else {
-            self.icon = Some(self.shared_config.get_icon(name)?);
-        }
-        Ok(())
-    }
 
     pub fn set_text(&mut self, content: (String, Option<String>)) {
         if content.0.is_empty() {
@@ -126,7 +110,7 @@ impl Widget {
         } else {
             self.short_spacing = WidgetSpacing::Normal;
         }
-        self.full_text = Some(content.0);
+        self.full_text = content.0;
         self.short_text = content.1;
     }
     pub fn set_full_text(&mut self, content: String) {
@@ -135,7 +119,7 @@ impl Widget {
         } else {
             self.full_spacing = WidgetSpacing::Normal;
         }
-        self.full_text = Some(content);
+        self.full_text = content;
     }
 
     pub fn set_state(&mut self, state: WidgetState) {
@@ -145,52 +129,41 @@ impl Widget {
         self.inner.color = key_fg;
     }
 
-    pub fn set_spacing(&mut self, spacing: WidgetSpacing) {
-        self.full_spacing = spacing;
-        self.short_spacing = spacing;
-    }
-
     /// Constuct `I3BarBlock` from this widget
     pub fn get_data(&self) -> I3BarBlock {
         let mut data = self.inner.clone();
 
         data.full_text = format!(
             "{}{}{}",
-            self.icon.clone().unwrap_or_else(|| {
-                match self.full_spacing {
-                    WidgetSpacing::Normal => " ",
-                    WidgetSpacing::Inline => "",
-                    WidgetSpacing::Hidden => "",
-                }
-                .to_string()
-            }),
-            self.full_text.clone().unwrap_or_default(),
+            match (self.icon.as_str(), self.full_spacing) {
+                ("", WidgetSpacing::Normal) => " ",
+                ("", WidgetSpacing::Inline) => "",
+                ("", WidgetSpacing::Hidden) => "",
+                (icon, _) => icon,
+            },
+            self.full_text,
             match self.full_spacing {
                 WidgetSpacing::Normal => " ",
                 WidgetSpacing::Inline => " ",
                 WidgetSpacing::Hidden => "",
             }
-            .to_string()
         );
 
         data.short_text = self.short_text.as_ref().map(|short_text| {
             format!(
                 "{}{}{}",
-                self.icon.clone().unwrap_or_else(|| {
-                    match self.short_spacing {
-                        WidgetSpacing::Normal => " ",
-                        WidgetSpacing::Inline => "",
-                        WidgetSpacing::Hidden => "",
-                    }
-                    .to_string()
-                }),
+                match (self.icon.as_str(), self.short_spacing) {
+                    ("", WidgetSpacing::Normal) => " ",
+                    ("", WidgetSpacing::Inline) => "",
+                    ("", WidgetSpacing::Hidden) => "",
+                    (icon, _) => icon,
+                },
                 short_text,
                 match self.short_spacing {
                     WidgetSpacing::Normal => " ",
                     WidgetSpacing::Inline => " ",
                     WidgetSpacing::Hidden => "",
                 }
-                .to_string()
             )
         });
 

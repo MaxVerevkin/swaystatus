@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["swaystatus"] = [{"text":"impl Interface for <a class=\"struct\" href=\"swaystatus/blocks/custom_dbus/struct.Block.html\" title=\"struct swaystatus::blocks::custom_dbus::Block\">Block</a>","synthetic":false,"types":["swaystatus::blocks::custom_dbus::Block"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

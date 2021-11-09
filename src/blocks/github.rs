@@ -1,10 +1,36 @@
-use reqwest::header;
-
-use std::time::Duration;
+//! The number of GitHub notifications
+//!
+//! # Configuration
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$total.eng(1)|X"`
+//! `interval` | Update interval in seconds | No | `30`
+//! `token` | A GitHub personal access token with the "notifications" scope | Yes | -
+//! `hide` | Hide this block if the total count of notifications is zero | No | `true`
+//!
+//! Placeholder  | Value          | Type   | Unit
+//! -------------|----------------|--------|---------------
+//! `total`      | The total number of notifications. Absent if something went wrong, e.g. no internet connection or token is invalid. TODO: handle invalid token differently. | Number | None
+//!
+//! # Example
+//!
+//! ```toml
+//! [[block]]
+//! block = "github"
+//! format = "$total.eng(2)|N/A"
+//! interval = 60
+//! token = "..."
+//! ```
+//!
+//! # Icons Used
+//! - `github`
 
 use super::prelude::*;
+use reqwest::header;
+use std::{collections::HashMap, time::Duration};
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct GithubConfig {
     /// Update interval in seconds
@@ -12,7 +38,7 @@ pub struct GithubConfig {
     pub interval: u64,
 
     #[serde(default)]
-    pub format: FormatTemplate,
+    pub format: FormatConfig,
 
     // A GitHub personal access token with the "notifications" scope is requried
     pub token: String,
@@ -33,8 +59,8 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
     tokio::spawn(async move {
         let block_config = GithubConfig::deserialize(block_config).config_error()?;
         let interval = Duration::from_secs(block_config.interval);
-        let format = block_config.format.or_default("{total:1}")?;
-        let mut text = api.new_widget().with_icon("github")?;
+        api.set_format(block_config.format.init("$total.eng(1)|X", &api)?);
+        api.set_icon("github")?;
 
         // Http client
         let client = reqwest::Client::new();
@@ -46,28 +72,27 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
         loop {
             let total = get_total(&request).await;
 
-            let mut widgets = Vec::new();
             if total != Some(0) || !block_config.hide {
-                text.set_text(match total {
-                    Some(total) => format.render(&map! {
-                        "total" => Value::from_integer(total as i64),
-                    })?,
-                    None => ("x".to_string(), None),
-                });
-                widgets.push(text.get_data());
+                let mut values = HashMap::new();
+                total.map(|t| values.insert("total".into(), Value::number(t)));
+                api.set_values(values);
+                api.show();
+                api.render();
+            } else {
+                api.hide();
             }
+            api.flush().await?;
 
-            api.send_widgets(widgets).await?;
             tokio::time::sleep(interval).await;
         }
     })
 }
 
-async fn get_total(request: &reqwest::RequestBuilder) -> Option<i64> {
+async fn get_total(request: &reqwest::RequestBuilder) -> Option<usize> {
     // Send request
     let result = request.try_clone()?.send().await.ok()?.text().await.ok()?;
     // Convert to JSON
     let notifications: Vec<serde_json::Value> = serde_json::from_str(&result).ok()?;
     // The total number of notifications is just the length of a list
-    Some(notifications.len() as i64)
+    Some(notifications.len())
 }

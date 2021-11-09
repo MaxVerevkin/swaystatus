@@ -74,15 +74,15 @@ use tokio::process::Command;
 use super::prelude::*;
 use crate::signals::Signal;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 pub struct CustomConfig {
-    command: Option<String>,
-    cycle: Option<Vec<String>>,
+    command: Option<StdString>,
+    cycle: Option<Vec<StdString>>,
     interval: u64,
     json: bool,
     hide_when_empty: bool,
-    shell: Option<String>,
+    shell: Option<StdString>,
     one_shot: bool,
     signal: Option<i32>,
 }
@@ -102,10 +102,10 @@ impl Default for CustomConfig {
     }
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+pub fn spawn(config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let mut events = events();
     tokio::spawn(async move {
-        let block_config = CustomConfig::deserialize(block_config).config_error()?;
+        let config = CustomConfig::deserialize(config).config_error()?;
         let CustomConfig {
             command,
             cycle,
@@ -115,10 +115,9 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             shell,
             one_shot,
             signal,
-        } = block_config;
+        } = config;
 
         let interval = Duration::from_secs(interval);
-        let mut widget = api.new_widget();
 
         // Choose the shell in this priority:
         // 1) `shell` config option
@@ -146,13 +145,15 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 .trim();
 
             // {"icon": "ICON", "state": "STATE", "text": "YOURTEXT", "short_text": "YOUR SHORT TEXT"}
-            let widgets = if stdout.is_empty() && hide_when_empty {
-                vec![]
+            if stdout.is_empty() && hide_when_empty {
+                api.hide();
             } else if json {
                 let vals: HashMap<String, String> =
                     serde_json::from_str(stdout).error("invalid JSON")?;
-                widget.set_icon(vals.get("icon").map(|s| s.as_str()).unwrap_or(""))?;
-                widget.set_state(match vals.get("state").map(|s| s.as_str()).unwrap_or("") {
+
+                api.show();
+                api.set_icon(vals.get("icon").map(|s| s.as_str()).unwrap_or(""))?;
+                api.set_state(match vals.get("state").map(|s| s.as_str()).unwrap_or("") {
                     "Info" => WidgetState::Info,
                     "Good" => WidgetState::Good,
                     "Warning" => WidgetState::Warning,
@@ -161,14 +162,12 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 });
                 let text = vals.get("text").cloned().unwrap_or_default();
                 let short_text = vals.get("short_text").cloned();
-                widget.set_text((text, short_text));
-                vec![widget.get_data()]
+                api.set_text((text, short_text));
             } else {
-                widget.set_full_text(stdout.to_string());
-                vec![widget.get_data()]
+                api.show();
+                api.set_text((stdout.into(), None));
             };
-
-            api.send_widgets(widgets).await?;
+            api.flush().await?;
 
             loop {
                 tokio::select! {
@@ -180,7 +179,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                     Some(event) = events.recv() => {
                         match (event, signal) {
                             (BlockEvent::Signal(Signal::Custom(s)), Some(signal)) if s == signal => break,
-                            (BlockEvent::I3Bar(_), _) => break,
+                            (BlockEvent::Click(_), _) => break,
                             _ => (),
                         }
                     },

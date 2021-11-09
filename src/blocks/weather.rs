@@ -1,9 +1,8 @@
-use std::time::Duration;
-
-use serde_derive::Deserialize;
+// TODO: revisit
 
 use super::prelude::*;
 use crate::de::deserialize_duration;
+use std::time::Duration;
 
 const IP_API_URL: &str = "https://ipapi.co/json";
 
@@ -193,12 +192,12 @@ fn convert_wind_direction(direction_opt: Option<f64>) -> String {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct WeatherConfig {
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
-    format: FormatTemplate,
+    format: FormatConfig,
     service: WeatherService,
     autolocate: bool,
 }
@@ -217,10 +216,7 @@ impl Default for WeatherConfig {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config = WeatherConfig::deserialize(block_config).config_error()?;
-        let format = block_config
-            .format
-            .clone()
-            .or_default("{weather} {temp}\u{00b0}")?;
+        let format = block_config.format.or_default("{weather} {temp}\u{00b0}")?;
 
         loop {
             let data = block_config.service.get(block_config.autolocate).await?;
@@ -239,14 +235,14 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 };
 
             let keys = map! {
-                "weather" => Value::from_string(data.weather[0].main.to_string()),
-                "temp" => Value::from_float(data.main.temp),
-                "humidity" => Value::from_float(data.main.humidity),
-                "apparent" => Value::from_float(apparent_temp),
-                "wind" => Value::from_float(kmh_wind_speed),
-                "wind_kmh" => Value::from_float(kmh_wind_speed),
-                "direction" => Value::from_string(convert_wind_direction(data.wind.deg)),
-                "location" => Value::from_string(data.name),
+                "weather" => Value::text(data.weather[0].main.to_string()),
+                "temp" => Value::number(data.main.temp),
+                "humidity" => Value::number(data.main.humidity),
+                "apparent" => Value::number(apparent_temp),
+                "wind" => Value::number(kmh_wind_speed),
+                "wind_kmh" => Value::number(kmh_wind_speed),
+                "direction" => Value::text(convert_wind_direction(data.wind.deg)),
+                "location" => Value::text(data.name),
             };
 
             let icon = match data.weather[0].main.as_str() {

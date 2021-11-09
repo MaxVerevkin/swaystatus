@@ -1,21 +1,55 @@
+//! CPU statistics
+//!
+//! # Configuration
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$utilization"`
+//! `format_alt` | If set, block will switch between `format` and `format_alt` on every click | No | None
+//! `interval` | Update interval in seconds | No | `5`
+//!
+//! Placeholder      | Value                                                          | Type   | Unit
+//! -----------------|----------------------------------------------------------------|--------|---------------
+//! `utilization`    | Average CPU utilization                                        | Number | %
+//! `utilization<N>` | Utilization of Nth logical CPU                                 | Number | %
+//! `barchart`       | Utilization of all logical CPUs presented as a barchart        | Text   | -
+//! `frequency`      | Average CPU frequency                                          | Number | Hz
+//! `frequency<N>`   | Frequency of Nth logical CPU                                   | Number | Hz
+//! `boost`          | CPU turbo boost status (may be absent if CPU is not supported) | Text   | -
+//!
+//! # Example
+//!
+//! ```toml
+//! [[block]]
+//! block = "cpu"
+//! interval = 1
+//! format = "$barchart.str() $utilization.eng()"
+//! format_alt = "$frequency.eng() \\|$boost.str()"
+//! ```
+//!
+//! # Icons Used
+//! - `cpu`
+//! - `cpu_boost_on`
+//! - `cpu_boost_off`
+
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
+
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 use super::prelude::*;
-
 use crate::util::read_file;
 
 const CPU_BOOST_PATH: &str = "/sys/devices/system/cpu/cpufreq/boost";
 const CPU_NO_TURBO_PATH: &str = "/sys/devices/system/cpu/intel_pstate/no_turbo";
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(serde_derive::Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 pub struct CpuConfig {
-    pub format: FormatTemplate,
-    pub format_alt: Option<FormatTemplate>,
+    pub format: FormatConfig,
+    pub format_alt: Option<FormatConfig>,
     pub interval: u64,
 }
 
@@ -33,14 +67,17 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     let mut events = events();
     tokio::spawn(async move {
         let block_config = CpuConfig::deserialize(block_config).config_error()?;
-        let mut format = block_config.format.or_default("{utilization}")?;
-        let mut format_alt = block_config.format_alt;
+        let interval = Duration::from_secs(block_config.interval);
+        let mut format = block_config.format.init("$utilization", &api)?;
+        let mut format_alt = match block_config.format_alt {
+            Some(f) => Some(f.init("", &api)?),
+            None => None,
+        };
+        api.set_format(format.clone());
 
+        api.set_icon("cpu")?;
         let boost_icon_on = api.get_icon("cpu_boost_on")?;
         let boost_icon_off = api.get_icon("cpu_boost_off")?;
-
-        let mut text = api.new_widget().with_icon("cpu")?;
-        let interval = Duration::from_secs(block_config.interval);
 
         // Store previous /proc/stat state
         let mut cputime = read_proc_stat().await?;
@@ -62,14 +99,6 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             }
             cputime = new_cputime;
 
-            // Set state
-            text.set_state(match utilization_avg {
-                x if x > 0.9 => WidgetState::Critical,
-                x if x > 0.6 => WidgetState::Warning,
-                x if x > 0.3 => WidgetState::Info,
-                _ => WidgetState::Idle,
-            });
-
             // Create barchart indicating per-core utilization
             let mut barchart = String::new();
             const BOXCHARS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
@@ -78,40 +107,44 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             }
 
             // Read boot state on intel CPUs
-            let boost = match boost_status().await {
-                Some(true) => &boost_icon_on,
-                Some(false) => &boost_icon_off,
-                _ => "",
-            };
+            let boost = boost_status().await.map(|status| match status {
+                true => boost_icon_on.clone(),
+                false => boost_icon_off.clone(),
+            });
 
-            let mut values = map_to_owned!(
-                "barchart" => Value::from_string(barchart),
-                "boost" => Value::from_string(boost.to_string()),
-                "frequency" => Value::from_float(freq_avg).hertz(),
-                "utilization" => Value::from_integer((utilization_avg * 100.) as i64).percents(),
+            let mut values = map!(
+                "barchart" => Value::text(barchart),
+                "frequency" => Value::hertz(freq_avg),
+                "utilization" => Value::percents(utilization_avg * 100.),
             );
+            boost.map(|b| values.insert("boost".into(), Value::text(b)));
             for (i, freq) in freqs.iter().enumerate() {
-                values.insert(
-                    format!("frequency{}", i + 1),
-                    Value::from_float(*freq).hertz(),
-                );
+                values.insert(format!("frequency{}", i + 1).into(), Value::hertz(*freq));
             }
             for (i, utilization) in utilizations.iter().enumerate() {
                 values.insert(
-                    format!("utilization{}", i + 1),
-                    Value::from_integer((utilization * 100.) as i64).percents(),
+                    format!("utilization{}", i + 1).into(),
+                    Value::percents(utilization * 100.),
                 );
             }
 
-            text.set_text(format.render(&values)?);
-            api.send_widget(text.get_data()).await?;
+            api.set_values(values);
+            api.set_state(match utilization_avg {
+                x if x > 0.9 => WidgetState::Critical,
+                x if x > 0.6 => WidgetState::Warning,
+                x if x > 0.3 => WidgetState::Info,
+                _ => WidgetState::Idle,
+            });
+            api.render();
+            api.flush().await?;
 
             tokio::select! {
                 _ = tokio::time::sleep(interval) => (),
-                Some(BlockEvent::I3Bar(click)) = events.recv() => {
+                Some(BlockEvent::Click(click)) = events.recv() => {
                     if click.button == MouseButton::Left {
                         if let Some(ref mut format_alt) = format_alt {
                             std::mem::swap(format_alt, &mut format);
+                            api.set_format(format.clone());
                         }
                     }
                 }
@@ -129,7 +162,7 @@ async fn read_frequencies() -> Result<Vec<f64>> {
         .error("failed to read /proc/cpuinfo")?;
     let mut file = BufReader::new(file);
 
-    let mut line = String::new();
+    let mut line = StdString::new();
     while file
         .read_line(&mut line)
         .await
@@ -186,7 +219,7 @@ async fn read_proc_stat() -> Result<(CpuTime, Vec<CpuTime>)> {
         .error("failed to read /proc/stat")?;
     let mut file = BufReader::new(file);
 
-    let mut line = String::new();
+    let mut line = StdString::new();
     while file
         .read_line(&mut line)
         .await

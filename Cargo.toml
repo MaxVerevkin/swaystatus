@@ -2,7 +2,7 @@
 name = "swaystatus"
 version = "0.1.0"
 authors = ["Max Verevkin <me@maxverevkin.tk>"]
-edition = "2018"
+edition = "2021"
 
 [features]
 # Make widgets' borders visible. (for debugging purposes)
@@ -23,6 +23,7 @@ tokio-stream = "0.1"
 async-trait = "0.1"
 regex = "1.5"
 
+
 # zbus 2.0.0-beta.7 doesn't work for bluetooth block
 zbus = {git = "https://gitlab.freedesktop.org/dbus/zbus/"}
 zbus_names = {git = "https://gitlab.freedesktop.org/dbus/zbus/"}
@@ -31,6 +32,14 @@ async-lock = "2.4"
 
 # TODO: remove
 color_space = "0.5"
+
+[dependencies.smallvec]
+version = "1.7"
+features = ["union", "const_generics"]
+
+[dependencies.smartstring]
+version = "0.2"
+features = ["serde"]
 
 [dependencies.serde]
 version = "1.0"

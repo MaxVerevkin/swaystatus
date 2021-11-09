@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Signal",""]],"fn":[["process_signals","Starts a thread that listens for provided signals and sends these on the provided channel"]]});

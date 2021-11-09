@@ -16,12 +16,18 @@
 //! block = "uptime"
 //! interval = "3600" # update every hour
 //! ```
+//!
+//! # Used Icons
+//! - `uptime`
+//!
+//! # TODO:
+//! - Add `time` or `dur` formatter to `src/formatting/formatter.rs`
 
 use super::prelude::*;
 use std::time::Duration;
 use tokio::fs::read_to_string;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct UptimeConfig {
     interval: u64,
@@ -37,7 +43,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
     tokio::spawn(async move {
         let block_config = UptimeConfig::deserialize(block_config).config_error()?;
         let mut interval = tokio::time::interval(Duration::from_secs(block_config.interval));
-        let mut widget = api.new_widget().with_icon("uptime")?;
+        api.set_icon("uptime")?;
 
         loop {
             let uptime = read_to_string("/proc/uptime")
@@ -68,8 +74,8 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 format!("{}m {}s", minutes, seconds)
             };
 
-            widget.set_full_text(text);
-            api.send_widget(widget.get_data()).await?;
+            api.set_text((text.into(), None));
+            api.flush().await?;
             interval.tick().await;
         }
     })

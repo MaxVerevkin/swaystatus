@@ -6,12 +6,10 @@ use zbus::MessageStream;
 use zbus_names::{OwnedBusName, OwnedInterfaceName};
 use zvariant::derive::Type;
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::time::Duration;
 
 use super::prelude::*;
-use crate::util::escape_pango_text;
 
 mod zbus_mpris;
 
@@ -19,36 +17,36 @@ const PLAY_PAUSE_BTN: usize = 1;
 const NEXT_BTN: usize = 2;
 const PREV_BTN: usize = 3;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Default)]
 #[serde(deny_unknown_fields, default)]
 struct MusicConfig {
     // TODO add stuff here
-    width: usize,
-
     buttons: Vec<String>,
+
+    format: FormatConfig,
 }
 
-impl Default for MusicConfig {
-    fn default() -> Self {
-        Self {
-            width: 10,
-            buttons: Vec::new(),
-        }
-    }
-}
+// impl Default for MusicConfig {
+//     fn default() -> Self {
+//         Self {
+//             buttons: Vec::new(),
+//             format: Default::default(),
+//         }
+//     }
+// }
 
 #[derive(Debug, Clone, Type, serde_derive::Deserialize)]
 struct PropChange {
     _interface_name: OwnedInterfaceName,
-    changed_properties: HashMap<String, OwnedValue>,
-    _invalidated_properties: Vec<String>,
+    changed_properties: HashMap<StdString, OwnedValue>,
+    _invalidated_properties: Vec<StdString>,
 }
 
 #[derive(Debug, Clone, Type, serde_derive::Deserialize)]
 struct OwnerChange {
     pub name: OwnedBusName,
-    pub old_owner: Optional<String>,
-    pub new_owner: Optional<String>,
+    pub old_owner: Optional<StdString>,
+    pub new_owner: Optional<StdString>,
 }
 
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
@@ -56,22 +54,18 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     tokio::spawn(async move {
         let block_config = MusicConfig::deserialize(block_config).config_error()?;
         let dbus_conn = api.dbus_connection().await?;
+        api.set_format(block_config.format.init("$title_artist.rot-str()|", &api)?);
+        api.set_icon("music")?;
 
-        let mut text = api.new_widget().with_icon("music")?;
-        let mut play_pause_button = api
-            .new_widget()
-            .with_instance(PLAY_PAUSE_BTN)
-            .with_spacing(WidgetSpacing::Hidden);
-        let mut next_button = api
-            .new_widget()
-            .with_instance(NEXT_BTN)
-            .with_spacing(WidgetSpacing::Hidden)
-            .with_icon("music_next")?;
-        let mut prev_button = api
-            .new_widget()
-            .with_instance(PREV_BTN)
-            .with_spacing(WidgetSpacing::Hidden)
-            .with_icon("music_prev")?;
+        // Init buttons
+        for button in &block_config.buttons {
+            match button.as_str() {
+                "play" => api.add_button(PLAY_PAUSE_BTN, "music_play")?,
+                "next" => api.add_button(NEXT_BTN, "music_next")?,
+                "prev" => api.add_button(PREV_BTN, "music_prev")?,
+                x => return Err(Error::new(format!("Unknown button: '{}'", x))),
+            }
+        }
 
         let mut players = get_all_players(&dbus_conn).await?;
         let mut cur_player = None;
@@ -94,57 +88,56 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
         let mut dbus_stream = MessageStream::from(&dbus_conn);
 
         loop {
-            let mut player = cur_player.map(|c| players.get_mut(c).unwrap());
-            let widgets = match player {
+            let player = cur_player.map(|c| players.get_mut(c).unwrap());
+            match player {
                 Some(ref player) => {
-                    text.set_full_text(escape_pango_text(
-                        player.rotating.display(block_config.width),
-                    ));
+                    api.show();
 
-                    match player.status {
-                        Some(PlaybackStatus::Playing) => {
-                            text.set_state(WidgetState::Info);
-                            play_pause_button.set_state(WidgetState::Info);
-                            next_button.set_state(WidgetState::Info);
-                            prev_button.set_state(WidgetState::Info);
-                            play_pause_button.set_icon("music_pause")?;
+                    let mut values = HashMap::new();
+                    player
+                        .title
+                        .clone()
+                        .map(|t| values.insert("title".into(), Value::text(t)));
+                    player
+                        .artist
+                        .clone()
+                        .map(|t| values.insert("artist".into(), Value::text(t)));
+                    match (&player.title, &player.artist) {
+                        (Some(x), None) | (None, Some(x)) => {
+                            values.insert("title_artist".into(), Value::text(x.clone()));
                         }
-                        _ => {
-                            text.set_state(WidgetState::Idle);
-                            play_pause_button.set_state(WidgetState::Idle);
-                            next_button.set_state(WidgetState::Idle);
-                            prev_button.set_state(WidgetState::Idle);
-                            play_pause_button.set_icon("music_play")?;
+                        (Some(t), Some(a)) => {
+                            values.insert(
+                                "title_artist".into(),
+                                Value::text(format!("{}|{}", t, a).into()),
+                            );
                         }
+                        _ => (),
                     }
+                    if let (Some(mut t), Some(a)) = (player.title.clone(), &player.artist) {
+                        t.push('|');
+                        t.push_str(a);
+                        values.insert("title_artist".into(), Value::text(t));
+                    }
+                    api.set_values(values);
 
-                    let mut output = vec![text.get_data()];
-                    for button in &block_config.buttons {
-                        match button.as_str() {
-                            "play" => output.push(play_pause_button.get_data()),
-                            "next" => output.push(next_button.get_data()),
-                            "prev" => output.push(prev_button.get_data()),
-                            _ => (),
-                        }
-                    }
-                    output
+                    let (state, play_icon) = match player.status {
+                        Some(PlaybackStatus::Playing) => (WidgetState::Info, "music_pause"),
+                        _ => (WidgetState::Idle, "music_play"),
+                    };
+                    api.set_state(state);
+                    api.set_button(PLAY_PAUSE_BTN, play_icon)?;
                 }
                 None => {
-                    text.set_text((String::new(), None));
-                    text.set_state(WidgetState::Idle);
-                    vec![text.get_data()]
+                    api.collapse();
+                    api.set_state(WidgetState::Idle);
                 }
-            };
-
-            api.send_widgets(widgets).await?;
-
-            if let Some(ref mut player) = player {
-                player.rotating.rotate();
             }
 
+            api.render();
+            api.flush().await?;
+
             tokio::select! {
-                // Time to update rotating text
-                _ = tokio::time::sleep(Duration::from_secs(1)) => (),
                 // Wait for a DBUS event
                 Some(msg) = dbus_stream.next() => {
                     let msg = msg.unwrap();
@@ -152,26 +145,26 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                         Some("PropertiesChanged") => {
                             let header = msg.header().unwrap();
                             let sender = header.sender().unwrap().unwrap();
-                            let player = players.iter_mut().find(|p| p.owner == sender.to_string()).unwrap();
+                            if let Some(player) = players.iter_mut().find(|p| p.owner == sender.to_string()) {
+                                let body: PropChange = msg.body_unchecked().unwrap();
+                                let props = body.changed_properties;
 
-                            let body: PropChange = msg.body_unchecked().unwrap();
-                            let props = body.changed_properties;
-
-                            if let Some(status) = props.get("PlaybackStatus") {
-                                let status: &str = status.downcast_ref().unwrap();
-                                player.status = PlaybackStatus::from_str(status);
-                            }
-                            if let Some(metadata) = props.get("Metadata") {
-                                let metadata =
-                                    zbus_mpris::PlayerMetadata::try_from(metadata.clone()).unwrap();
-                                player.update_metadata(metadata);
+                                if let Some(status) = props.get("PlaybackStatus") {
+                                    let status: &str = status.downcast_ref().unwrap();
+                                    player.status = PlaybackStatus::from_str(status);
+                                }
+                                if let Some(metadata) = props.get("Metadata") {
+                                    let metadata =
+                                        zbus_mpris::PlayerMetadata::try_from(metadata.clone()).unwrap();
+                                    player.update_metadata(metadata);
+                                }
                             }
                         }
                         Some("NameOwnerChanged") => {
                             let body: OwnerChange = msg.body_unchecked().unwrap();
                             dbg!(&body);
-                            let old: Option<String> = body.old_owner.into();
-                            let new: Option<String> = body.new_owner.into();
+                            let old: Option<StdString> = body.old_owner.into();
+                            let new: Option<StdString> = body.new_owner.into();
                             match (old, new) {
                                 (None, Some(new)) => if new != body.name.to_string() {
                                     players.push(Player::new(&dbus_conn, body.name, new).await?);
@@ -198,7 +191,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                     }
                 }
                 // Wait for a click
-                Some(BlockEvent::I3Bar(click)) = events.recv() => {
+                Some(BlockEvent::Click(click)) = events.recv() => {
                     match click.button {
                         MouseButton::Left => {
                             if let Some(ref player) = player {
@@ -258,16 +251,17 @@ async fn get_all_players(dbus_conn: &zbus::Connection) -> Result<Vec<Player<'_>>
 #[derive(Debug)]
 struct Player<'a> {
     status: Option<PlaybackStatus>,
-    owner: String,
+    owner: StdString,
     player_proxy: zbus_mpris::PlayerProxy<'a>,
-    rotating: RotatingText,
+    title: Option<String>,
+    artist: Option<String>,
 }
 
 impl<'a> Player<'a> {
     async fn new(
         dbus_conn: &'a zbus::Connection,
         bus_name: OwnedBusName,
-        owner: String,
+        owner: StdString,
     ) -> Result<Player<'a>> {
         let proxy = zbus_mpris::PlayerProxy::builder(dbus_conn)
             .destination(bus_name.clone())
@@ -288,12 +282,14 @@ impl<'a> Player<'a> {
             status: PlaybackStatus::from_str(&status),
             owner,
             player_proxy: proxy,
-            rotating: RotatingText::from_metadata(metadata),
+            title: metadata.title().map(Into::into),
+            artist: metadata.artist().map(Into::into),
         })
     }
 
     fn update_metadata(&mut self, metadata: zbus_mpris::PlayerMetadata) {
-        self.rotating = RotatingText::from_metadata(metadata);
+        self.title = metadata.title().map(Into::into);
+        self.artist = metadata.artist().map(Into::into);
     }
 
     async fn play_pause(&self) -> Result<()> {
@@ -326,35 +322,6 @@ impl PlaybackStatus {
             "Playing" => Some(Self::Playing),
             "Stopped" => Some(Self::Stopped),
             _ => None,
-        }
-    }
-}
-
-// TODO move to util.rs or somewhere else
-#[derive(Debug)]
-pub struct RotatingText(VecDeque<char>);
-impl RotatingText {
-    pub fn from_metadata(metadata: zbus_mpris::PlayerMetadata) -> Self {
-        let title = metadata.title();
-        let artist = metadata.artist();
-        Self::new(match (title, artist.as_deref()) {
-            (Some(t), Some(a)) => format!("{}|{}|", t, a),
-            (None, Some(s)) | (Some(s), None) => format!("{}|", s),
-            _ => "".to_string(),
-        })
-    }
-
-    pub fn new(text: String) -> Self {
-        Self(text.chars().collect())
-    }
-
-    pub fn display(&self, len: usize) -> String {
-        self.0.iter().cycle().take(len).collect()
-    }
-
-    pub fn rotate(&mut self) {
-        if let Some(c) = self.0.pop_front() {
-            self.0.push_back(c);
         }
     }
 }

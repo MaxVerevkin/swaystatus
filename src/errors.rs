@@ -17,9 +17,10 @@ pub struct Error {
 }
 
 /// A set of errors that can occur during the runtime of swaystatus
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorKind {
     Config,
+    Format,
     Other,
 }
 
@@ -32,21 +33,35 @@ impl Error {
             block: None,
         }
     }
+
+    pub fn new_format<T: Into<String>>(message: T) -> Self {
+        Self {
+            kind: ErrorKind::Format,
+            message: Some(message.into()),
+            cause: None,
+            block: None,
+        }
+    }
 }
 
-// impl<E: StdError> From<E> for Error {
-//     fn from(err: E) -> Self {
-//         Self {
-//             kind: ErrorKind::Other,
-//             message: None,
-//             cause: Arc::new(err),
-//         }
-//     }
-// }
+pub trait InBlock {
+    fn in_block(self, block: &'static str) -> Self;
+}
+
+impl<T> InBlock for Result<T> {
+    fn in_block(self, block: &'static str) -> Self {
+        self.map_err(|mut e| {
+            e.block = Some(block);
+            e
+        })
+    }
+}
 
 pub trait ResultExt<T> {
     fn error<M: Into<String>>(self, message: M) -> Result<T>;
+    fn or_error<M: Into<String>, F: FnOnce() -> M>(self, f: F) -> Result<T>;
     fn config_error(self) -> Result<T>;
+    fn format_error<M: Into<String>>(self, message: M) -> Result<T>;
 }
 
 impl<T, E: StdError + Send + Sync + 'static> ResultExt<T> for StdResult<T, E> {
@@ -54,6 +69,15 @@ impl<T, E: StdError + Send + Sync + 'static> ResultExt<T> for StdResult<T, E> {
         self.map_err(|e| Error {
             kind: ErrorKind::Other,
             message: Some(message.into()),
+            cause: Some(Arc::new(e)),
+            block: None,
+        })
+    }
+
+    fn or_error<M: Into<String>, F: FnOnce() -> M>(self, f: F) -> Result<T> {
+        self.map_err(|e| Error {
+            kind: ErrorKind::Other,
+            message: Some(f().into()),
             cause: Some(Arc::new(e)),
             block: None,
         })
@@ -67,11 +91,21 @@ impl<T, E: StdError + Send + Sync + 'static> ResultExt<T> for StdResult<T, E> {
             block: None,
         })
     }
+
+    fn format_error<M: Into<String>>(self, message: M) -> Result<T> {
+        self.map_err(|e| Error {
+            kind: ErrorKind::Format,
+            message: Some(message.into()),
+            cause: Some(Arc::new(e)),
+            block: None,
+        })
+    }
 }
 
 pub trait OptionExt<T> {
     fn error<M: Into<String>>(self, message: M) -> Result<T>;
     fn config_error(self) -> Result<T>;
+    fn format_error<M: Into<String>>(self, message: M) -> Result<T>;
 }
 
 impl<T> OptionExt<T> for Option<T> {
@@ -92,6 +126,15 @@ impl<T> OptionExt<T> for Option<T> {
             block: None,
         })
     }
+
+    fn format_error<M: Into<String>>(self, message: M) -> Result<T> {
+        self.ok_or_else(|| Error {
+            kind: ErrorKind::Format,
+            message: Some(message.into()),
+            cause: None,
+            block: None,
+        })
+    }
 }
 
 impl fmt::Display for Error {
@@ -99,7 +142,7 @@ impl fmt::Display for Error {
         match self.block {
             Some(block) => {
                 match self.kind {
-                    ErrorKind::Config => f.write_str("Configuration errror")?,
+                    ErrorKind::Config | ErrorKind::Format => f.write_str("Configuration errror")?,
                     ErrorKind::Other => f.write_str("Error")?,
                 }
 

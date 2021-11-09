@@ -31,19 +31,24 @@
 //! blocking_cmd = false
 //! ```
 //!
-//! # TODO
 //!
+//! # Icons Used
+//! - `pomodoro`
+//! - `pomodoro_started`
+//! - `pomodoro_stopped`
+//! - `pomodoro_paused`
+//! - `pomodoro_break`
+//!
+//! # TODO
 //! - Use different icons.
 //! - Use format strings.
 
+use super::prelude::*;
+use crate::subprocess::{spawn_shell, spawn_shell_sync};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
-use super::prelude::*;
-
-use crate::subprocess::{spawn_shell, spawn_shell_sync};
-
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct PomodoroConfig {
     message: String,
@@ -55,9 +60,9 @@ struct PomodoroConfig {
 impl Default for PomodoroConfig {
     fn default() -> Self {
         Self {
-            message: "Pomodoro over! Take a break!".to_string(),
-            break_message: "Break over! Time to work!".to_string(),
-            notify_cmd: Some("swaynag -m '{msg}'".to_string()),
+            message: "Pomodoro over! Take a break!".into(),
+            break_message: "Break over! Time to work!".into(),
+            notify_cmd: Some("swaynag -m '{msg}'".into()),
             blocking_cmd: true,
         }
     }
@@ -65,20 +70,20 @@ impl Default for PomodoroConfig {
 
 struct Block {
     api: CommonApi,
-    widget: Widget,
     block_config: PomodoroConfig,
     events_receiver: mpsc::Receiver<BlockEvent>,
 }
 
 impl Block {
     async fn set_text(&mut self, text: String) -> Result<()> {
-        self.widget.set_full_text(text);
-        self.api.send_widget(self.widget.get_data()).await
+        self.api.set_text((text, None));
+        self.api.render();
+        self.api.flush().await
     }
 
     async fn wait_for_click(&mut self, button: MouseButton) {
         loop {
-            if let Some(BlockEvent::I3Bar(click)) = self.events_receiver.recv().await {
+            if let Some(BlockEvent::Click(click)) = self.events_receiver.recv().await {
                 if click.button == button {
                     break;
                 }
@@ -99,8 +104,8 @@ impl Block {
 
     async fn read_u64(&mut self, mut number: u64, msg: &str) -> Result<u64> {
         loop {
-            self.set_text(format!("{} {}", msg, number)).await?;
-            if let Some(BlockEvent::I3Bar(click)) = self.events_receiver.recv().await {
+            self.set_text(format!("{} {}", msg, number).into()).await?;
+            if let Some(BlockEvent::Click(click)) = self.events_receiver.recv().await {
                 match click.button {
                     MouseButton::Left => break,
                     MouseButton::WheelUp => number += 1,
@@ -120,7 +125,7 @@ impl Block {
     ) -> Result<()> {
         for pomodoro in 0..pomodoros {
             // Task timer
-            self.widget.set_state(WidgetState::Idle);
+            self.api.set_state(WidgetState::Idle);
             let timer = Instant::now();
             loop {
                 let elapsed = timer.elapsed();
@@ -137,10 +142,10 @@ impl Block {
                         (left.as_secs() + 59) / 60,
                     )
                 };
-                self.set_text(text).await?;
+                self.set_text(text.into()).await?;
                 tokio::select! {
                     _ = tokio::time::sleep(Duration::from_secs(10)) => (),
-                    Some(BlockEvent::I3Bar(click)) = self.events_receiver.recv() => {
+                    Some(BlockEvent::Click(click)) = self.events_receiver.recv() => {
                         if click.button == MouseButton::Middle {
                             return Ok(());
                         }
@@ -149,7 +154,7 @@ impl Block {
             }
 
             // Show break message
-            self.widget.set_state(WidgetState::Good);
+            self.api.set_state(WidgetState::Good);
             self.set_text(self.block_config.message.clone()).await?;
             if let Some(cmd) = &self.block_config.notify_cmd {
                 let cmd = cmd.replace("{msg}", &self.block_config.message);
@@ -178,11 +183,11 @@ impl Block {
                     break;
                 }
                 let left = break_len - elapsed;
-                self.set_text(format!("Break: {} min", (left.as_secs() + 59) / 60,))
+                self.set_text(format!("Break: {} min", (left.as_secs() + 59) / 60,).into())
                     .await?;
                 tokio::select! {
                     _ = tokio::time::sleep(Duration::from_secs(10)) => (),
-                    Some(BlockEvent::I3Bar(click)) = self.events_receiver.recv() => {
+                    Some(BlockEvent::Click(click)) = self.events_receiver.recv() => {
                         if click.button == MouseButton::Middle {
                             return Ok(());
                         }
@@ -191,7 +196,7 @@ impl Block {
             }
 
             // Show task message
-            self.widget.set_state(WidgetState::Good);
+            self.api.set_state(WidgetState::Good);
             self.set_text(self.block_config.break_message.clone())
                 .await?;
             if let Some(cmd) = &self.block_config.notify_cmd {
@@ -213,21 +218,20 @@ impl Block {
     }
 }
 
-pub fn spawn(block_config: toml::Value, api: CommonApi, events: EventsRxGetter) -> BlockHandle {
+pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
     let events = events();
     tokio::spawn(async move {
         let block_config = PomodoroConfig::deserialize(block_config).config_error()?;
-        let widget = api.new_widget().with_icon("pomodoro")?;
+        api.set_icon("pomodoro")?;
         let mut block = Block {
             api,
-            widget,
             block_config,
             events_receiver: events,
         };
 
         loop {
             // Send collaped block
-            block.widget.set_state(WidgetState::Idle);
+            block.api.set_state(WidgetState::Idle);
             block.set_text(String::new()).await?;
 
             // Wait for left click

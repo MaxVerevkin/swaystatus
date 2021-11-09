@@ -33,14 +33,17 @@
 //! command_off = "~/.screenlayout/builtin.sh"
 //! interval = 5
 //! ```
+//!
+//! # Icons Used
+//! - `toggle_off`
+//! - `toggle_on`
 
+use super::prelude::*;
 use std::env;
 use std::time::Duration;
 use tokio::process::Command;
 
-use super::prelude::*;
-
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct ToggleConfig {
     command_on: String,
@@ -58,9 +61,8 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
         let block_config = ToggleConfig::deserialize(block_config).config_error()?;
         let interval = block_config.interval.map(Duration::from_secs);
 
-        let mut widget = api.new_widget();
         if let Some(text) = block_config.text {
-            widget.set_full_text(text);
+            api.set_text((text, None));
         }
 
         // Choose the shell in this priority:
@@ -81,12 +83,12 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 .is_empty();
 
             // Update widget
-            widget.set_icon(if is_toggled {
+            api.set_icon(if is_toggled {
                 "toggle_on"
             } else {
                 "toggle_off"
             })?;
-            api.send_widget(widget.get_data()).await?;
+            api.flush().await?;
 
             // TODO: try not to duplicate code
             loop {
@@ -94,7 +96,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                     Some(interval) => {
                         tokio::select! {
                             _ = tokio::time::sleep(interval) => break,
-                            Some(BlockEvent::I3Bar(click)) = events.recv() => {
+                            Some(BlockEvent::Click(click)) = events.recv() => {
                                 if click.button == MouseButton::Left {
                                     let cmd = if is_toggled {
                                         &block_config.command_off
@@ -107,17 +109,17 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                                         .await
                                         .error("Failed to run command")?;
                                     if output.status.success() {
-                                        widget.set_state(WidgetState::Idle);
+                                        api.set_state(WidgetState::Idle);
                                         break;
                                     } else {
-                                        widget.set_state(WidgetState::Critical);
+                                        api.set_state(WidgetState::Critical);
                                     }
                                 }
                             },
                         }
                     }
                     None => {
-                        if let Some(BlockEvent::I3Bar(click)) = events.recv().await {
+                        if let Some(BlockEvent::Click(click)) = events.recv().await {
                             if click.button == MouseButton::Left {
                                 let cmd = if is_toggled {
                                     &block_config.command_off
@@ -130,10 +132,10 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                                     .await
                                     .error("Failed to run command")?;
                                 if output.status.success() {
-                                    widget.set_state(WidgetState::Idle);
+                                    api.set_state(WidgetState::Idle);
                                     break;
                                 } else {
-                                    widget.set_state(WidgetState::Critical);
+                                    api.set_state(WidgetState::Critical);
                                 }
                             }
                         }

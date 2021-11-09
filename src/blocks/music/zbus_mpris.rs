@@ -36,8 +36,11 @@ impl TryFrom<OwnedValue> for PlayerMetadata {
 }
 
 impl PlayerMetadata {
-    pub fn title(&self) -> Option<&str> {
-        self.0.get("xesam:title")?.downcast_ref()
+    pub fn title(&self) -> Option<String> {
+        self.0
+            .get("xesam:title")?
+            .downcast_ref::<str>()
+            .map(Into::into)
     }
 
     pub fn artist(&self) -> Option<String> {

@@ -6,8 +6,8 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format_mem` | A string to customise the output of this block when in "Memory" view. See below for available placeholders. | No | `"{mem_free;M}/{mem_total;M}({mem_total_used_percents})"`
-//! `format_swap` | A string to customise the output of this block when in "Swap" view. See below for available placeholders. | No | `"{swap_free;M}/{swap_total;M}({swap_used_percents})"`
+//! `format_mem` | A string to customise the output of this block when in "Memory" view. See below for available placeholders. | No | `"$mem_free.eng(3,B,M)/$mem_total.eng(3,B,M)($mem_total_used_percents.eng(2))"`
+//! `format_swap` | A string to customise the output of this block when in "Swap" view. See below for available placeholders. | No | `"$swap_free.eng(3,B,M)/$swap_total.eng(3,B,M)($swap_used_percents.eng(2))"`
 //! `display_type` | Default view displayed on startup: "`memory`" or "`swap`" | No | `"memory"`
 //! `clickable` | Whether the view should switch between memory and swap on click | No | `true`
 //! `interval` | Update interval in seconds | No | `5`
@@ -16,38 +16,42 @@
 //! `critical_mem` | Percentage of memory usage, where state is set to critical | No | `95.0`
 //! `critical_swap` | Percentage of swap usage, where state is set to critical | No | `95.0`
 //!
-//! Placeholder                 | Value                                                                         | Type  | Unit
-//! ----------------------------|-------------------------------------------------------------------------------|-------|-------
-//! `{mem_total}`               | Memory total                                                                  | Float | Bytes
-//! `{mem_free}`                | Memory free                                                                   | Float | Bytes
-//! `{mem_free_percents}`       | Memory free                                                                   | Float | Percents
-//! `{mem_total_used}`          | Total memory used                                                             | Float | Bytes
-//! `{mem_total_used_percents}` | Total memory used                                                             | Float | Percents
-//! `{mem_used}`                | Memory used, excluding cached memory and buffers; similar to htop's green bar | Float | Bytes
-//! `{mem_used_percents}`       | Memory used, excluding cached memory and buffers; similar to htop's green bar | Float | Percents
-//! `{mem_avail}`               | Available memory, including cached memory and buffers                         | Float | Bytes
-//! `{mem_avail_percents}`      | Available memory, including cached memory and buffers                         | Float | Percents
-//! `{swap_total}`              | Swap total                                                                    | Float | Bytes
-//! `{swap_free}`               | Swap free                                                                     | Float | Bytes
-//! `{swap_free_percents}`      | Swap free                                                                     | Float | Percents
-//! `{swap_used}`               | Swap used                                                                     | Float | Bytes
-//! `{swap_used_percents}`      | Swap used                                                                     | Float | Percents
-//! `{buffers}`                 | Buffers, similar to htop's blue bar                                           | Float | Bytes
-//! `{buffers_percent}`         | Buffers, similar to htop's blue bar                                           | Float | Percents
-//! `{cached}`                  | Cached memory, similar to htop's yellow bar                                   | Float | Bytes
-//! `{cached_percent}`          | Cached memory, similar to htop's yellow bar                                   | Float | Percents
+//! Placeholder               | Value                                                                         | Type   | Unit
+//! --------------------------|-------------------------------------------------------------------------------|--------|-------
+//! `mem_total`               | Memory total                                                                  | Number | Bytes
+//! `mem_free`                | Memory free                                                                   | Number | Bytes
+//! `mem_free_percents`       | Memory free                                                                   | Number | Percents
+//! `mem_total_used`          | Total memory used                                                             | Number | Bytes
+//! `mem_total_used_percents` | Total memory used                                                             | Number | Percents
+//! `mem_used`                | Memory used, excluding cached memory and buffers; similar to htop's green bar | Number | Bytes
+//! `mem_used_percents`       | Memory used, excluding cached memory and buffers; similar to htop's green bar | Number | Percents
+//! `mem_avail`               | Available memory, including cached memory and buffers                         | Number | Bytes
+//! `mem_avail_percents`      | Available memory, including cached memory and buffers                         | Number | Percents
+//! `swap_total`              | Swap total                                                                    | Number | Bytes
+//! `swap_free`               | Swap free                                                                     | Number | Bytes
+//! `swap_free_percents`      | Swap free                                                                     | Number | Percents
+//! `swap_used`               | Swap used                                                                     | Number | Bytes
+//! `swap_used_percents`      | Swap used                                                                     | Number | Percents
+//! `buffers`                 | Buffers, similar to htop's blue bar                                           | Number | Bytes
+//! `buffers_percent`         | Buffers, similar to htop's blue bar                                           | Number | Percents
+//! `cached`                  | Cached memory, similar to htop's yellow bar                                   | Number | Bytes
+//! `cached_percent`          | Cached memory, similar to htop's yellow bar                                   | Number | Percents
 //!
 //! # Example
 //!
 //! ```toml
 //! [[block]]
 //! block = "memory"
-//! format_mem = "{mem_used_percents:1}"
+//! format_mem = "mem_used_percents.eng(1)"
 //! clickable = false
 //! interval = 30
 //! warning_mem = 70
 //! critical_mem = 90
 //! ```
+//!
+//! # Icons Used
+//! - `memory_mem`
+//! - `memory_swap`
 
 use std::path::Path;
 use std::str::FromStr;
@@ -60,11 +64,11 @@ use regex::Regex;
 use super::prelude::*;
 use crate::util::read_file;
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct MemoryConfig {
-    format_mem: FormatTemplate,
-    format_swap: FormatTemplate,
+    format_mem: FormatConfig,
+    format_swap: FormatConfig,
     display_type: Memtype,
     clickable: bool,
     interval: u64,
@@ -94,23 +98,30 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
     let mut events = events();
     tokio::spawn(async move {
         let block_config = MemoryConfig::deserialize(block_config).config_error()?;
-
-        let format = (
-            block_config
-                .format_mem
-                .or_default("{mem_free;M}/{mem_total;M}({mem_total_used_percents})")?,
-            block_config
-                .format_swap
-                .or_default("{swap_free;M}/{swap_total;M}({swap_used_percents})")?,
-        );
-
-        let mut text_mem = api.new_widget().with_icon("memory_mem")?;
-        let mut text_swap = api.new_widget().with_icon("memory_swap")?;
-
-        let mut memtype = block_config.display_type;
-        let clickable = block_config.clickable;
-
         let interval = Duration::from_secs(block_config.interval);
+
+        let format_mem = block_config.format_mem.init(
+            "$mem_free.eng(3,B,M)/$mem_total.eng(3,B,M)($mem_total_used_percents.eng(2))",
+            &api,
+        )?;
+        let format_swap = block_config.format_swap.init(
+            "$swap_free.eng(3,B,M)/$swap_total.eng(3,B,M)($swap_used_percents.eng(2))",
+            &api,
+        )?;
+
+        let clickable = block_config.clickable;
+        let mut memtype = block_config.display_type;
+        let mut format = match memtype {
+            Memtype::Memory => {
+                api.set_icon("memory_mem")?;
+                &format_mem
+            }
+            Memtype::Swap => {
+                api.set_icon("memory_swap")?;
+                &format_swap
+            }
+        };
+        api.set_format(format.clone());
 
         loop {
             let mem_state = Memstate::new().await?;
@@ -128,35 +139,28 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
             let mem_avail = mem_total - mem_used;
 
             let values = map!(
-                "mem_total" => Value::from_float(mem_total).bytes(),
-                "mem_free" => Value::from_float(mem_free).bytes(),
-                "mem_free_percents" => Value::from_float(mem_free / mem_total * 100.).percents(),
-                "mem_total_used" => Value::from_float(mem_total_used).bytes(),
-                "mem_total_used_percents" => Value::from_float(mem_total_used / mem_total * 100.).percents(),
-                "mem_used" => Value::from_float(mem_used).bytes(),
-                "mem_used_percents" => Value::from_float(mem_used / mem_total * 100.).percents(),
-                "mem_avail" => Value::from_float(mem_avail).bytes(),
-                "mem_avail_percents" => Value::from_float(mem_avail / mem_total * 100.).percents(),
-                "swap_total" => Value::from_float(swap_total).bytes(),
-                "swap_free" => Value::from_float(swap_free).bytes(),
-                "swap_free_percents" => Value::from_float(swap_free / swap_total * 100.).percents(),
-                "swap_used" => Value::from_float(swap_used).bytes(),
-                "swap_used_percents" => Value::from_float(swap_used / swap_total * 100.).percents(),
-                "buffers" => Value::from_float(buffers).bytes(),
-                "buffers_percent" => Value::from_float(buffers / mem_total * 100.).percents(),
-                "cached" => Value::from_float(cached).bytes(),
-                "cached_percent" => Value::from_float(cached / mem_total * 100.).percents(),
+                "mem_total" => Value::bytes(mem_total),
+                "mem_free" => Value::bytes(mem_free),
+                "mem_free_percents" => Value::percents(mem_free / mem_total * 100.),
+                "mem_total_used" => Value::bytes(mem_total_used),
+                "mem_total_used_percents" => Value::percents(mem_total_used / mem_total * 100.),
+                "mem_used" => Value::bytes(mem_used),
+                "mem_used_percents" => Value::percents(mem_used / mem_total * 100.),
+                "mem_avail" => Value::bytes(mem_avail),
+                "mem_avail_percents" => Value::percents(mem_avail / mem_total * 100.),
+                "swap_total" => Value::bytes(swap_total),
+                "swap_free" => Value::bytes(swap_free),
+                "swap_free_percents" => Value::percents(swap_free / swap_total * 100.),
+                "swap_used" => Value::bytes(swap_used),
+                "swap_used_percents" => Value::percents(swap_used / swap_total * 100.),
+                "buffers" => Value::bytes(buffers),
+                "buffers_percent" => Value::percents(buffers / mem_total * 100.),
+                "cached" => Value::bytes(cached),
+                "cached_percent" => Value::percents(cached / mem_total * 100.),
             );
+            api.set_values(values);
 
-            text_mem.set_text(format.0.render(&values)?);
-            text_swap.set_text(format.1.render(&values)?);
-
-            let text = match memtype {
-                Memtype::Memory => &mut text_mem,
-                Memtype::Swap => &mut text_swap,
-            };
-
-            text.set_state(match memtype {
+            api.set_state(match memtype {
                 Memtype::Memory => match mem_used / mem_total * 100. {
                     x if x > block_config.critical_mem => WidgetState::Critical,
                     x if x > block_config.warning_mem => WidgetState::Warning,
@@ -169,17 +173,27 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                 },
             });
 
-            api.send_widget(text.get_data()).await?;
+            api.render();
+            api.flush().await?;
 
             tokio::select! {
                 _ = tokio::time::sleep(interval) =>(),
                 event = events.recv() => {
-                    if let BlockEvent::I3Bar(click) = event.unwrap() {
+                    if let BlockEvent::Click(click) = event.unwrap() {
                         if click.button == MouseButton::Left && clickable {
-                            memtype = match memtype {
-                                Memtype::Swap => Memtype::Memory,
-                                Memtype::Memory => Memtype::Swap,
-                            };
+                            match memtype {
+                                Memtype::Swap => {
+                                    format = &format_mem;
+                                    memtype = Memtype::Memory;
+                                    api.set_icon("memory_mem")?;
+                                }
+                                Memtype::Memory => {
+                                    format = &format_swap;
+                                    memtype = Memtype::Swap;
+                                    api.set_icon("memory_swap")?;
+                                }
+                            }
+                            api.set_format(format.clone());
                         }
                     }
                 }
@@ -229,7 +243,7 @@ impl Memstate {
             zfs_arc_cache: 0,
         };
 
-        let mut line = String::new();
+        let mut line = StdString::new();
         while file
             .read_line(&mut line)
             .await

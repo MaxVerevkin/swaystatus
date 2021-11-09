@@ -1,25 +1,43 @@
-use futures::stream::StreamExt;
-
-use std::collections::HashMap;
-
-use swayipc_async::{Connection, Event, EventType};
+//! Sway's keyboard layout indicator
+//!
+//! # Configuration
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$layout"`
+//! `mappings` | Layouts' names can be mapped to custom names. See below for an example. | No | None
+//!
+//! Placeholder | Value          | Type   | Unit
+//! ------------|----------------|--------|-----
+//! `layout`    | Current layout | Text   | -
+//!
+//! # Example
+//!
+//! ```toml
+//! [[block]]
+//! [block.mappings]
+//! "English (Workman)" = "EN"
+//! "Russian" = "RU"
+//! ```
 
 use super::prelude::*;
+use futures::stream::StreamExt;
+use std::collections::HashMap;
+use swayipc_async::{Connection, Event, EventType};
 
-#[derive(serde_derive::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct SwayKbdConfig {
     #[serde(default)]
-    pub format: FormatTemplate,
+    pub format: FormatConfig,
     #[serde(default)]
-    pub mappings: Option<HashMap<String, String>>,
+    pub mappings: Option<HashMap<StdString, StdString>>,
 }
 
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config = SwayKbdConfig::deserialize(block_config).config_error()?;
-        let format = block_config.format.or_default("{layout}")?;
-        let mut text = api.new_widget();
+        api.set_format(block_config.format.init("$layout", &api)?);
 
         // New connection
         let mut connection = Connection::new()
@@ -45,15 +63,16 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
 
         loop {
             let layout_mapped = if let Some(ref mappings) = block_config.mappings {
-                mappings.get(&layout).unwrap_or(&layout).to_string()
+                mappings.get(&layout).unwrap_or(&layout).into()
             } else {
-                layout.clone()
+                (&layout).into()
             };
 
-            text.set_text(format.render(&map! {
-                "layout" => Value::from_string(layout_mapped),
-            })?);
-            api.send_widget(text.get_data()).await?;
+            api.set_values(map! {
+                "layout" => Value::text(layout_mapped),
+            });
+            api.render();
+            api.flush().await?;
 
             // Wait for new event
             loop {

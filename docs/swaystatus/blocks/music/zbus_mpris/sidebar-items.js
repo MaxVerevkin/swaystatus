@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["MediaPlayer2Proxy",""],["MediaPlayer2ProxyBlocking",""],["PlayerMetadata",""],["PlayerProxy",""],["PlayerProxyBlocking",""],["Seeked","A `Seeked` signal."],["SeekedArgs","`Seeked` signal arguments."],["SeekedStream","A `stream::Stream` implementation that yields [`Seeked`] signals."]]});

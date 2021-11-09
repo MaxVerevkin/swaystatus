@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["default_interface",""],["index_to_interface",""],["signal_percents",""]],"struct":[["NetDevice",""]]});
