@@ -70,6 +70,14 @@
 <span id="70">70</span>
 <span id="71">71</span>
 <span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
 
@@ -78,13 +86,21 @@
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Unit</span> {
+    <span class="doccomment">/// `B`</span>
     <span class="ident">Bytes</span>,
+    <span class="doccomment">/// `b`</span>
     <span class="ident">Bits</span>,
+    <span class="doccomment">/// `%`</span>
     <span class="ident">Percents</span>,
+    <span class="doccomment">/// `deg`</span>
     <span class="ident">Degrees</span>,
+    <span class="doccomment">/// `s`</span>
     <span class="ident">Seconds</span>,
+    <span class="doccomment">/// `W`</span>
     <span class="ident">Watts</span>,
+    <span class="doccomment">/// `Hz`</span>
     <span class="ident">Hertz</span>,
+    <span class="doccomment">/// ``</span>
     <span class="prelude-val">None</span>,
 }
 

@@ -100,6 +100,14 @@
 <span id="100">100</span>
 <span id="101">101</span>
 <span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::ops::AddAssign</span>;
 <span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
@@ -109,13 +117,21 @@
 <span class="doccomment">/// SI prefix</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Ord</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Prefix</span> {
+    <span class="doccomment">/// `n`</span>
     <span class="ident">Nano</span> <span class="op">=</span> <span class="op">-</span><span class="number">3</span>,
+    <span class="doccomment">/// `u`</span>
     <span class="ident">Micro</span> <span class="op">=</span> <span class="op">-</span><span class="number">2</span>,
+    <span class="doccomment">/// `m`</span>
     <span class="ident">Milli</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>,
+    <span class="doccomment">/// `1`</span>
     <span class="ident">One</span> <span class="op">=</span> <span class="number">0</span>,
+    <span class="doccomment">/// `K`</span>
     <span class="ident">Kilo</span> <span class="op">=</span> <span class="number">1</span>,
+    <span class="doccomment">/// `M`</span>
     <span class="ident">Mega</span> <span class="op">=</span> <span class="number">2</span>,
+    <span class="doccomment">/// `G`</span>
     <span class="ident">Giga</span> <span class="op">=</span> <span class="number">3</span>,
+    <span class="doccomment">/// `T`</span>
     <span class="ident">Tera</span> <span class="op">=</span> <span class="number">4</span>,
 }
 
