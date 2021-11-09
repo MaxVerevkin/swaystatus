@@ -26,7 +26,6 @@
 //! - `time`
 
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::time::Duration;
 
 use chrono::offset::{Local, Utc};

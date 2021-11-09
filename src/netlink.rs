@@ -6,7 +6,6 @@ use neli::{
     types::RtBuffer,
 };
 
-use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 
 use crate::errors::*;

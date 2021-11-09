@@ -7,10 +7,8 @@ use zbus_names::{OwnedBusName, OwnedInterfaceName};
 use zvariant::derive::Type;
 
 use std::collections::HashMap;
-use std::convert::TryFrom;
 
 use super::prelude::*;
-
 mod zbus_mpris;
 
 const PLAY_PAUSE_BTN: usize = 1;

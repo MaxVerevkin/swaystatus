@@ -49,7 +49,6 @@
 //! - `backlight_full` (when brightness above 94%)
 
 use std::cmp::max;
-use std::convert::TryInto;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 

@@ -20,7 +20,6 @@
 //! …consequently `zbus-xmlgen` did not generate code for the above interfaces.
 
 use std::collections::HashMap;
-use std::convert::{TryFrom, TryInto};
 use zbus::dbus_proxy;
 use zvariant::{derive::Type, OwnedValue};
 

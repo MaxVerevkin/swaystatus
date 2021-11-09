@@ -46,7 +46,6 @@
 #![allow(clippy::type_complexity)]
 
 use futures::{Stream, StreamExt};
-use std::convert::TryFrom;
 use std::pin::Pin;
 use zbus::fdo::ObjectManagerProxy;
 use zbus_names::InterfaceName;
