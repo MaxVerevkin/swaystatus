@@ -168,18 +168,6 @@
 <span id="168">168</span>
 <span id="169">169</span>
 <span id="170">170</span>
-<span id="171">171</span>
-<span id="172">172</span>
-<span id="173">173</span>
-<span id="174">174</span>
-<span id="175">175</span>
-<span id="176">176</span>
-<span id="177">177</span>
-<span id="178">178</span>
-<span id="179">179</span>
-<span id="180">180</span>
-<span id="181">181</span>
-<span id="182">182</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fs::File</span>;
 <span class="kw">use</span> <span class="ident">std::io::prelude</span>::<span class="kw-2">*</span>;
@@ -247,18 +235,6 @@
     }
 
     <span class="prelude-val">None</span>
-}
-
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">escape_pango_text</span>(<span class="ident">text</span>: <span class="ident">String</span>) -&gt; <span class="ident">String</span> {
-    <span class="ident">text</span>.<span class="ident">chars</span>()
-        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">x</span> {
-            <span class="string">&#39;&amp;&#39;</span> =&gt; <span class="string">&quot;&amp;amp;&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="string">&#39;&lt;&#39;</span> =&gt; <span class="string">&quot;&amp;lt;&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="string">&#39;&gt;&#39;</span> =&gt; <span class="string">&quot;&amp;gt;&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="string">&#39;\&#39;&#39;</span> =&gt; <span class="string">&quot;&amp;#39;&quot;</span>.<span class="ident">to_string</span>(),
-            <span class="kw">_</span> =&gt; <span class="ident">x</span>.<span class="ident">to_string</span>(),
-        })
-        .<span class="ident">collect</span>()
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">xdg_config_home</span>() -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span> {

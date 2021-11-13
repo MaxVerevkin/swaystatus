@@ -117,16 +117,8 @@
 <span id="117">117</span>
 <span id="118">118</span>
 <span id="119">119</span>
-<span id="120">120</span>
-<span id="121">121</span>
-<span id="122">122</span>
-<span id="123">123</span>
-<span id="124">124</span>
-<span id="125">125</span>
-<span id="126">126</span>
-<span id="127">127</span>
-<span id="128">128</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::themes::Color</span>;
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::escape::JsonStr</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::themes::Color</span>;
 
 <span class="doccomment">/// Represent block as described in &lt;https://i3wm.org/docs/i3bar-protocol.html&gt;</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
@@ -153,17 +145,7 @@
 <span class="macro">macro_rules!</span> <span class="ident">json_add_str</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">retval</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">obj</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">expr</span>) =&gt; {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">val</span>) <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">obj</span> {
-            <span class="macro-nonterminal">$</span><span class="macro-nonterminal">retval</span>.<span class="ident">push_str</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
-                <span class="string">&quot;\&quot;{}\&quot;:\&quot;{}\&quot;,&quot;</span>,
-                <span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>),
-                <span class="ident">val</span>.<span class="ident">chars</span>()
-                    .<span class="ident">map</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">c</span> {
-                        <span class="string">&#39;\\&#39;</span> =&gt; <span class="string">&quot;\\\\&quot;</span>.<span class="ident">to_string</span>(),
-                        <span class="string">&#39;&quot;&#39;</span> =&gt; <span class="string">&quot;\\\&quot;&quot;</span>.<span class="ident">to_string</span>(),
-                        <span class="ident">x</span> =&gt; <span class="ident">x</span>.<span class="ident">to_string</span>(),
-                    })
-                    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>(),
-            ));
+            <span class="macro-nonterminal">$</span><span class="macro-nonterminal">retval</span>.<span class="ident">push_str</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;\&quot;{}\&quot;:\&quot;{}\&quot;,&quot;</span>, <span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>), <span class="ident">JsonStr</span>(<span class="ident">val</span>),));
         }
     };
 }

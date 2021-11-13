@@ -193,8 +193,6 @@
 <span id="193">193</span>
 <span id="194">194</span>
 <span id="195">195</span>
-<span id="196">196</span>
-<span id="197">197</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">neli</span>::{
     <span class="ident">consts</span>::{<span class="ident">nl</span>::<span class="kw-2">*</span>, <span class="ident">rtnl</span>::<span class="kw-2">*</span>, <span class="ident">socket</span>::<span class="kw-2">*</span>},
     <span class="ident">nl</span>::{<span class="ident">NlPayload</span>, <span class="ident">Nlmsghdr</span>},
@@ -203,12 +201,10 @@
     <span class="ident">types::RtBuffer</span>,
 };
 
-<span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
 <span class="kw">use</span> <span class="ident">std::path</span>::{<span class="ident">Path</span>, <span class="ident">PathBuf</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::errors</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::util</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::util::escape_pango_text</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NetDevice</span> {
@@ -296,7 +292,7 @@
                     }
 
                     <span class="kw">let</span> <span class="ident">ssid</span> <span class="op">=</span> <span class="ident">String::from_utf8</span>(<span class="ident">ssid</span>).<span class="ident">error</span>(<span class="string">&quot;SSID is not valid UTF8&quot;</span>)<span class="question-mark">?</span>;
-                    <span class="kw">let</span> <span class="ident">ssid</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">escape_pango_text</span>(<span class="ident">ssid</span>));
+                    <span class="kw">let</span> <span class="ident">ssid</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">ssid</span>);
                     <span class="kw">let</span> <span class="ident">freq</span> <span class="op">=</span> <span class="ident">interface</span>
                         .<span class="ident">frequency</span>
                         .<span class="ident">map</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> <span class="ident">nl80211::parse_u32</span>(<span class="kw-2">&amp;</span><span class="ident">f</span>) <span class="kw">as</span> <span class="ident">f64</span> <span class="op">*</span> <span class="number">1e6</span>);
