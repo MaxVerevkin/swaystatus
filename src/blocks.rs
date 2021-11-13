@@ -68,6 +68,7 @@ define_blocks!(
     memory,
     music,
     net,
+    notify,
     pomodoro,
     sound,
     speedtest,
