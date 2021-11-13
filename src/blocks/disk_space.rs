@@ -20,7 +20,6 @@
 //! `used`       | Dused disk space                                                   | Number | Bytes
 //! `free`       | Free disk space                                                    | Number | Bytes
 //! `available`  | Available disk space (free disk space minus reserved system space) | Number | Bytes
-//! `icon`       | Disk drive icon                                                    | Text   | -
 //!
 //! # Example
 //!
@@ -83,9 +82,7 @@ impl Default for DiskSpaceConfig {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config = DiskSpaceConfig::deserialize(block_config).config_error()?;
-
-        let icon = api.get_icon("disk_drive")?;
-        let icon = icon.trim();
+        api.set_icon("disk_drive")?;
 
         let format = block_config.format.init("$available", &api)?;
         api.set_format(format);
@@ -126,7 +123,6 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 "used" => Value::bytes(used as f64),
                 "available" => Value::bytes(available as f64),
                 "free" => Value::bytes(free as f64),
-                "icon" => Value::text(icon.into()),
             ));
 
             // Send percentage to alert check if we don't want absolute alerts

@@ -5,6 +5,7 @@ mod click;
 mod config;
 mod de;
 mod errors;
+mod escape;
 mod formatting;
 mod icons;
 mod netlink;

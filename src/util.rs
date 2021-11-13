@@ -67,18 +67,6 @@ pub fn find_file(file: &str, subdir: Option<&str>, extension: Option<&str>) -> O
     None
 }
 
-pub fn escape_pango_text(text: String) -> String {
-    text.chars()
-        .map(|x| match x {
-            '&' => "&amp;".to_string(),
-            '<' => "&lt;".to_string(),
-            '>' => "&gt;".to_string(),
-            '\'' => "&#39;".to_string(),
-            _ => x.to_string(),
-        })
-        .collect()
-}
-
 pub fn xdg_config_home() -> Option<PathBuf> {
     // If XDG_CONFIG_HOME is not set, fall back to use HOME/.config
     env::var("XDG_CONFIG_HOME")

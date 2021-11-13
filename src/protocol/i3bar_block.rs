@@ -1,3 +1,4 @@
+use crate::escape::JsonStr;
 use crate::themes::Color;
 
 /// Represent block as described in <https://i3wm.org/docs/i3bar-protocol.html>
@@ -25,17 +26,7 @@ pub struct I3BarBlock {
 macro_rules! json_add_str {
     ($retval:ident, $obj:expr, $name:expr) => {
         if let Some(ref val) = $obj {
-            $retval.push_str(&format!(
-                "\"{}\":\"{}\",",
-                stringify!($name),
-                val.chars()
-                    .map(|c| match c {
-                        '\\' => "\\\\".to_string(),
-                        '"' => "\\\"".to_string(),
-                        x => x.to_string(),
-                    })
-                    .collect::<String>(),
-            ));
+            $retval.push_str(&format!("\"{}\":\"{}\",", stringify!($name), JsonStr(val),));
         }
     };
 }
