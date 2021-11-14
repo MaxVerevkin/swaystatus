@@ -13,7 +13,7 @@
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
 //! `mac` | MAC address of the Bluetooth device | Yes | N/A
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$name{ $percentage|}"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | <code>"$name{ $percentage&vert;}"</code>
 //! `hide_disconnected` | Whether to hide the block when disconnected | No | `false`
 //!
 //! Placeholder  | Value                                                                 | Type   | Unit

@@ -10,7 +10,7 @@
 //! `device` | The device in `/sys/class/power_supply/` to read from. When using UPower, this can also be `"DisplayDevice"`. | No | Any battery device
 //! `driver` | One of `"sysfs"` or `"upower"` | No | `"sysfs"`
 //! `interval` | Update interval, in seconds. Only relevant for `driver = "sysfs"`. | No | `10`
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$percentage|"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | <code>"$percentage&vert;"</code>
 //! `full_format` | Same as `format` but for when the battery is full | No | `""`
 //! `allow_missing` | Don't display errors when the battery cannot be found. Only works with the `sysfs` driver. | No | `false`
 //! `hide_missing` | Completely hide this block if the battery cannot be found. | No | `false`

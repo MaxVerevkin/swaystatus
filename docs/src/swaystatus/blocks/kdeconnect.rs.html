@@ -354,6 +354,8 @@
 <span id="354">354</span>
 <span id="355">355</span>
 <span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
 </pre><pre class="rust"><code><span class="doccomment">//! [KDEConnect](https://community.kde.org/KDEConnect) indicator</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Display info from the currently connected device in KDEConnect, updated asynchronously.</span>
@@ -366,7 +368,7 @@
 <span class="doccomment">//! Key | Values | Required | Default</span>
 <span class="doccomment">//! ----|--------|----------|--------</span>
 <span class="doccomment">//! `device_id` | Device ID as per the output of `kdeconnect --list-devices`. | No | Chooses the first found device, if any.</span>
-<span class="doccomment">//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `&quot;$name $bat_icon $bat_charge{ $notif_icon|}&quot;`</span>
+<span class="doccomment">//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `&quot;$name $bat_icon $bat_charge{ $notif_icon\|}&quot;`</span>
 <span class="doccomment">//! `bat_info` | Min battery level below which state is set to info. | No | `60`</span>
 <span class="doccomment">//! `bat_good` | Min battery level below which state is set to good. | No | `60`</span>
 <span class="doccomment">//! `bat_warning` | Min battery level below which state is set to warning. | No | `30`</span>
@@ -386,10 +388,12 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Do not show the name, do not set the &quot;good&quot; state.</span>
 <span class="doccomment">//!</span>
+<span class="doccomment">//! ```toml</span>
 <span class="doccomment">//! [[block]]</span>
 <span class="doccomment">//! block = &quot;kdeconnect&quot;</span>
 <span class="doccomment">//! format = &quot;$bat_icon $bat_charge{ $notif_icon|}&quot;</span>
 <span class="doccomment">//! bat_good = 101</span>
+<span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Icons Used</span>
 <span class="doccomment">//! - &quot;bat_charging&quot;,</span>

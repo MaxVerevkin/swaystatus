@@ -9,7 +9,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$title.rot-str(15)|"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | <code>"$title.rot-str(15)&vert;"</code>
 //! `autohide` | Whether to hide the block when no title is available | No | `true`
 //!
 //! Placeholder     | Value                                     | Type | Unit

@@ -4,7 +4,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$total.eng(1)|X"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | <code>"$total.eng(1)&vert;X"</code>
 //! `interval` | Update interval in seconds | No | `30`
 //! `token` | A GitHub personal access token with the "notifications" scope | Yes | -
 //! `hide` | Hide this block if the total count of notifications is zero | No | `true`
