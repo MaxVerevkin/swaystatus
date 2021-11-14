@@ -1,5 +1,9 @@
 # Material from NerdFont
 # https://www.nerdfonts.com/cheat-sheet
+#
+# Note: aviod using icons in the range 0xf500-0xfd46,
+# as they will cause the block to render backwards
+# until https://github.com/ryanoasis/nerd-fonts/issues/365 is fixed
 backlight_empty = "\ue38d" # nf-weather-moon_new
 backlight_full = "\ue39b" # nf-weather-moon_full
 backlight_1 = "\ue3d4" # nf-weather-moon_alt_waxing_gibbous_6
@@ -17,11 +21,16 @@ backlight_12 = "\ue3c9" # nf-weather-moon_alt_waxing_crescent_2
 backlight_13 = "\ue3c8" # nf-weather-moon_alt_waxing_crescent_1
 bat_charging = "\uf583" # nf-mdi-battery_charging
 bat_discharging = "\uf57d" # nf-mdi-battery_50
-bat_empty = "\uf58d" # nf-mdi-battery_outline
+bat_10 = "\uf579" # nf-mdi-battery_10
+bat_20 = "\uf57a"# nf-mdi-battery_20
+bat_30 = "\uf57b"# nf-mdi-battery_30
+bat_40 = "\uf57c"# nf-mdi-battery_40
+bat_50 = "\uf57d" # nf-mdi-battery_50
+bat_60 = "\uf57e" # nf-mdi-battery_60
+bat_70 = "\uf57f" # nf-mdi-battery_70
+bat_80 = "\uf580" # nf-mdi-battery_80
+bat_90 = "\uf581" # nf-mdi-battery_90
 bat_full = "\uf578" # nf-mdi-battery
-bat_half = "\uf57d" # nf-mdi-battery_50
-bat_quarter = "\uf57a"# nf-mdi-battery_20
-bat_three_quarters = "\uf57f" # nf-mdi-battery_70
 bell = "\uf599" # nf-mdi-bell
 bell-slash = "\uf59a" # nf-mdi-bell_off
 bluetooth = "\uf5ae" # nf-mdi-bluetooth
@@ -59,6 +68,10 @@ phone = "\uf8f1" # nf-mdi-phone
 phone_disconnected = "\ufb57" # nf-mdi-phone_minus
 ping = "\ufa1e" # nf-mdi-timer_sand
 pomodoro = "\ue001" # nf-pom-pomodoro_done
+pomodoro_break = "\uf0f4" # nf-fa-coffee
+pomodoro_paused = "\uf04c" # nf-fa-pause
+pomodoro_started = "\uf04b" # nf-fa-play
+pomodoro_stopped = "\uf04d" # nf-fa-stop
 resolution = "\uf792" # nf-mdi-fullscreen
 tasks = "\ufac6" # nf-mdi-playlist_check
 thermometer = "\ufa0e" # nf-mdi-thermometer
