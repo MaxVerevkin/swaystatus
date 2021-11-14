@@ -64,6 +64,7 @@ define_blocks!(
     disk_space,
     focused_window,
     github,
+    kdeconnect,
     load,
     memory,
     music,

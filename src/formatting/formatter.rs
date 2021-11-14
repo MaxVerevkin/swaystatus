@@ -151,6 +151,7 @@ impl Formatter for StrFormatter {
                     .collect_pango(&mut out);
                 Ok(out)
             }
+            Value::Icon(icon) => Ok(icon.clone()), // No escaping
             Value::Number { .. } => Err(Error::new_format(
                 "A number cannot be formatted with 'str' formatter",
             )),
@@ -194,6 +195,9 @@ impl Formatter for RotStrFormatter {
                 }
                 Ok(out)
             }
+            Value::Icon(_) => Err(Error::new_format(
+                "An icon cannot be formatted with 'rot-str' formatter",
+            )),
             Value::Number { .. } => Err(Error::new_format(
                 "A number cannot be formatted with 'rot-str' formatter",
             )),
@@ -249,6 +253,9 @@ impl Formatter for BarFormatter {
             }
             Value::Text(_) => Err(Error::new_format(
                 "Text cannot be formatted with 'bar' formatter",
+            )),
+            Value::Icon(_) => Err(Error::new_format(
+                "An icon cannot be formatted with 'bar' formatter",
             )),
             Value::Flag => Err(Error::new_format(
                 "A flag cannot be formatted with 'bar' formatter",
@@ -416,6 +423,9 @@ impl Formatter for EngFormatter {
             Value::Text(_) => Err(Error::new_format(
                 "Text cannot be formatted with 'eng' formatter",
             )),
+            Value::Icon(_) => Err(Error::new_format(
+                "An icon cannot be formatted with 'eng' formatter",
+            )),
             Value::Flag => Err(Error::new_format(
                 "A flag cannot be formatted with 'eng' formatter",
             )),
@@ -438,6 +448,9 @@ impl Formatter for FixFormatter {
             Value::Text(_) => Err(Error::new_format(
                 "Text cannot be formatted with 'fix' formatter",
             )),
+            Value::Icon(_) => Err(Error::new_format(
+                "An icon cannot be formatted with 'fix' formatter",
+            )),
             Value::Flag => Err(Error::new_format(
                 "A flag cannot be formatted with 'fix' formatter",
             )),
@@ -451,7 +464,7 @@ pub struct FlagFormatter;
 impl Formatter for FlagFormatter {
     fn format(&self, val: &Value) -> Result<String> {
         match val {
-            Value::Number { .. } | Value::Text(_) => unreachable!(),
+            Value::Number { .. } | Value::Text(_) | Value::Icon(_) => unreachable!(),
             Value::Flag => Ok(String::new()),
         }
     }

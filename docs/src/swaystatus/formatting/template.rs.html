@@ -241,6 +241,7 @@
 <span id="241">241</span>
 <span id="242">242</span>
 <span id="243">243</span>
+<span id="244">244</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">super</span>::formatter</span>::{
     <span class="ident">new_formatter</span>, <span class="ident">Formatter</span>, <span class="ident">DEFAULT_FLAG_FORMATTER</span>, <span class="ident">DEFAULT_NUMBER_FORMATTER</span>,
     <span class="ident">DEFAULT_STRING_FORMATTER</span>,
@@ -326,6 +327,7 @@
                             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">as_ref</span>())
                             .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">var</span> {
                                 <span class="ident">Value::Text</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;</span><span class="ident">DEFAULT_STRING_FORMATTER</span>,
+                                <span class="ident">Value::Icon</span>(<span class="kw">_</span>) =&gt; <span class="kw-2">&amp;</span><span class="ident">DEFAULT_STRING_FORMATTER</span>,
                                 <span class="ident">Value::Number</span> { .. } =&gt; <span class="kw-2">&amp;</span><span class="ident">DEFAULT_NUMBER_FORMATTER</span>,
                                 <span class="ident">Value::Flag</span> =&gt; <span class="kw-2">&amp;</span><span class="ident">DEFAULT_FLAG_FORMATTER</span>,
                             });

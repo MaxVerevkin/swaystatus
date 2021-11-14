@@ -4,6 +4,7 @@ use smartstring::alias::String;
 #[derive(Debug, Clone)]
 pub enum Value {
     Text(String),
+    Icon(String),
     Number { val: f64, unit: Unit, icon: String },
     Flag,
 }

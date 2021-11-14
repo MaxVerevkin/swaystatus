@@ -168,6 +168,17 @@
 <span id="168">168</span>
 <span id="169">169</span>
 <span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fs::File</span>;
 <span class="kw">use</span> <span class="ident">std::io::prelude</span>::<span class="kw-2">*</span>;
@@ -235,6 +246,23 @@
     }
 
     <span class="prelude-val">None</span>
+}
+
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">battery_level_icon</span>(<span class="ident">level</span>: <span class="ident">u8</span>, <span class="ident">charging</span>: <span class="ident">bool</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">match</span> (<span class="ident">level</span>, <span class="ident">charging</span>) {
+        <span class="comment">// TODO: use different charging icons</span>
+        (<span class="kw">_</span>, <span class="bool-val">true</span>) =&gt; <span class="string">&quot;bat_charging&quot;</span>,
+        (<span class="number">0</span>..<span class="op">=</span><span class="number">10</span>, <span class="kw">_</span>) =&gt; <span class="string">&quot;bat_10&quot;</span>,
+        (<span class="number">11</span>..<span class="op">=</span><span class="number">20</span>, <span class="kw">_</span>) =&gt; <span class="string">&quot;bat_20&quot;</span>,
+        (<span class="number">21</span>..<span class="op">=</span><span class="number">30</span>, <span class="kw">_</span>) =&gt; <span class="string">&quot;bat_30&quot;</span>,
+        (<span class="number">31</span>..<span class="op">=</span><span class="number">40</span>, <span class="kw">_</span>) =&gt; <span class="string">&quot;bat_40&quot;</span>,
+        (<span class="number">41</span>..<span class="op">=</span><span class="number">50</span>, <span class="kw">_</span>) =&gt; <span class="string">&quot;bat_50&quot;</span>,
+        (<span class="number">51</span>..<span class="op">=</span><span class="number">60</span>, <span class="kw">_</span>) =&gt; <span class="string">&quot;bat_60&quot;</span>,
+        (<span class="number">61</span>..<span class="op">=</span><span class="number">70</span>, <span class="kw">_</span>) =&gt; <span class="string">&quot;bat_70&quot;</span>,
+        (<span class="number">71</span>..<span class="op">=</span><span class="number">80</span>, <span class="kw">_</span>) =&gt; <span class="string">&quot;bat_80&quot;</span>,
+        (<span class="number">81</span>..<span class="op">=</span><span class="number">90</span>, <span class="kw">_</span>) =&gt; <span class="string">&quot;bat_90&quot;</span>,
+        <span class="kw">_</span> =&gt; <span class="string">&quot;bat_full&quot;</span>,
+    }
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">xdg_config_home</span>() -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span> {
@@ -318,24 +346,18 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::util::has_command</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="comment">// we assume sh is always available</span>
     <span class="kw">fn</span> <span class="ident">test_has_command_ok</span>() {
-        <span class="kw">let</span> <span class="ident">has_command</span> <span class="op">=</span> <span class="ident">tokio_test::block_on</span>(<span class="ident">has_command</span>(<span class="string">&quot;sh&quot;</span>));
-        <span class="macro">assert!</span>(<span class="ident">has_command</span>.<span class="ident">is_ok</span>());
-        <span class="kw">let</span> <span class="ident">has_command</span> <span class="op">=</span> <span class="ident">has_command</span>.<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="ident">has_command</span>);
+        <span class="comment">// we assume sh is always available</span>
+        <span class="macro">assert!</span>(<span class="ident">tokio_test::block_on</span>(<span class="ident">has_command</span>(<span class="string">&quot;sh&quot;</span>)).<span class="ident">unwrap</span>());
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="comment">// we assume thequickbrownfoxjumpsoverthelazydog command does not exist</span>
     <span class="kw">fn</span> <span class="ident">test_has_command_err</span>() {
-        <span class="kw">let</span> <span class="ident">has_command</span> <span class="op">=</span> <span class="ident">tokio_test::block_on</span>(<span class="ident">has_command</span>(<span class="string">&quot;thequickbrownfoxjumpsoverthelazydog&quot;</span>));
-        <span class="macro">assert!</span>(<span class="ident">has_command</span>.<span class="ident">is_ok</span>());
-        <span class="kw">let</span> <span class="ident">has_command</span> <span class="op">=</span> <span class="ident">has_command</span>.<span class="ident">unwrap</span>();
-        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">has_command</span>)
+        <span class="comment">// we assume thequickbrownfoxjumpsoverthelazydog command does not exist</span>
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">tokio_test::block_on</span>(<span class="ident">has_command</span>(<span class="string">&quot;thequickbrownfoxjumpsoverthelazydog&quot;</span>)).<span class="ident">unwrap</span>());
     }
 }
 </code></pre></div>

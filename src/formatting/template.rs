@@ -83,6 +83,7 @@ impl TokenList {
                             .map(|x| x.as_ref())
                             .unwrap_or_else(|| match var {
                                 Value::Text(_) => &DEFAULT_STRING_FORMATTER,
+                                Value::Icon(_) => &DEFAULT_STRING_FORMATTER,
                                 Value::Number { .. } => &DEFAULT_NUMBER_FORMATTER,
                                 Value::Flag => &DEFAULT_FLAG_FORMATTER,
                             });

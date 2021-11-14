@@ -49,11 +49,16 @@
 //! # Icons Used
 //! - `bat_charging`
 //! - `bat_not_available`
-//! - `bat_empty` (charge between 0 and 5%)
-//! - `bat_quarter` (charge between 6 and 25%)
-//! - `bat_half` (charge between 26 and 50%)
-//! - `bat_three_quarters` (charge between 51 and 75%)
-//! - `bat_full` (charge over 75%)
+//! - "bat_10",
+//! - "bat_20",
+//! - "bat_30",
+//! - "bat_40",
+//! - "bat_50",
+//! - "bat_60",
+//! - "bat_70",
+//! - "bat_80",
+//! - "bat_90",
+//! - "bat_full",
 
 use std::collections::HashMap;
 use std::convert::Infallible;
@@ -70,7 +75,7 @@ use zbus::MessageStream;
 
 use super::prelude::*;
 use crate::de::deserialize_duration;
-use crate::util::read_file;
+use crate::util::{battery_level_icon, read_file};
 
 mod zbus_upower;
 
@@ -78,17 +83,6 @@ mod zbus_upower;
 const POWER_SUPPLY_DEVICES_PATH: &str = "/sys/class/power_supply";
 
 /// Ordered list of icons used to display battery charge
-const BATTERY_CHARGE_ICONS: &[&str] = &[
-    "bat_empty",
-    "bat_quarter",
-    "bat_half",
-    "bat_three_quarters",
-    "bat_full",
-];
-
-// Specialized battery icons
-const BATTERY_EMPTY_ICON: &str = "bat_empty";
-const BATTERY_FULL_ICON: &str = "bat_full";
 const BATTERY_UNAVAILABLE_ICON: &str = "bat_not_available";
 
 #[derive(Deserialize, Debug)]
@@ -214,13 +208,15 @@ pub fn spawn(config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> Bloc
                     }
 
                     let (icon, state) = match (info.status, info.capacity) {
-                        (BatteryStatus::Empty, _) => (BATTERY_EMPTY_ICON, WidgetState::Critical),
-                        (BatteryStatus::Full, _) => (BATTERY_FULL_ICON, WidgetState::Idle),
-                        (status, capacity) => {
-                            let index = (capacity as usize * BATTERY_CHARGE_ICONS.len()) / 101;
-                            let icon = BATTERY_CHARGE_ICONS[index];
-
-                            let state = if status == BatteryStatus::Charging {
+                        (BatteryStatus::Empty, _) => {
+                            (battery_level_icon(0, false), WidgetState::Critical)
+                        }
+                        (BatteryStatus::Full, _) => {
+                            (battery_level_icon(100, false), WidgetState::Idle)
+                        }
+                        (status, capacity) => (
+                            battery_level_icon(capacity as u8, status == BatteryStatus::Charging),
+                            if status == BatteryStatus::Charging {
                                 WidgetState::Good
                             } else if capacity <= config.critical {
                                 WidgetState::Critical
@@ -232,10 +228,8 @@ pub fn spawn(config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> Bloc
                                 WidgetState::Good
                             } else {
                                 WidgetState::Idle
-                            };
-
-                            (icon, state)
-                        }
+                            },
+                        ),
                     };
 
                     api.set_icon(icon)?;

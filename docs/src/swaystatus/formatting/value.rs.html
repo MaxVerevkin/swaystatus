@@ -74,12 +74,14 @@
 <span id="74">74</span>
 <span id="75">75</span>
 <span id="76">76</span>
+<span id="77">77</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">super</span>::unit::Unit</span>;
 <span class="kw">use</span> <span class="ident">smartstring::alias::String</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Value</span> {
     <span class="ident">Text</span>(<span class="ident">String</span>),
+    <span class="ident">Icon</span>(<span class="ident">String</span>),
     <span class="ident">Number</span> { <span class="ident">val</span>: <span class="ident">f64</span>, <span class="ident">unit</span>: <span class="ident">Unit</span>, <span class="ident">icon</span>: <span class="ident">String</span> },
     <span class="ident">Flag</span>,
 }

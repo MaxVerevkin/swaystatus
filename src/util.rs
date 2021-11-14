@@ -67,6 +67,23 @@ pub fn find_file(file: &str, subdir: Option<&str>, extension: Option<&str>) -> O
     None
 }
 
+pub fn battery_level_icon(level: u8, charging: bool) -> &'static str {
+    match (level, charging) {
+        // TODO: use different charging icons
+        (_, true) => "bat_charging",
+        (0..=10, _) => "bat_10",
+        (11..=20, _) => "bat_20",
+        (21..=30, _) => "bat_30",
+        (31..=40, _) => "bat_40",
+        (41..=50, _) => "bat_50",
+        (51..=60, _) => "bat_60",
+        (61..=70, _) => "bat_70",
+        (71..=80, _) => "bat_80",
+        (81..=90, _) => "bat_90",
+        _ => "bat_full",
+    }
+}
+
 pub fn xdg_config_home() -> Option<PathBuf> {
     // If XDG_CONFIG_HOME is not set, fall back to use HOME/.config
     env::var("XDG_CONFIG_HOME")
@@ -148,23 +165,17 @@ pub fn format_vec_to_bar_graph(content: &[f64]) -> smartstring::alias::String {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::has_command;
+    use super::*;
 
     #[test]
-    // we assume sh is always available
     fn test_has_command_ok() {
-        let has_command = tokio_test::block_on(has_command("sh"));
-        assert!(has_command.is_ok());
-        let has_command = has_command.unwrap();
-        assert!(has_command);
+        // we assume sh is always available
+        assert!(tokio_test::block_on(has_command("sh")).unwrap());
     }
 
     #[test]
-    // we assume thequickbrownfoxjumpsoverthelazydog command does not exist
     fn test_has_command_err() {
-        let has_command = tokio_test::block_on(has_command("thequickbrownfoxjumpsoverthelazydog"));
-        assert!(has_command.is_ok());
-        let has_command = has_command.unwrap();
-        assert!(!has_command)
+        // we assume thequickbrownfoxjumpsoverthelazydog command does not exist
+        assert!(!tokio_test::block_on(has_command("thequickbrownfoxjumpsoverthelazydog")).unwrap());
     }
 }
