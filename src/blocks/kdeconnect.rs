@@ -194,21 +194,21 @@ impl<'a> Device<'a> {
         let notifications_path = format!("{}/notifications", device_path);
 
         let device_proxy = DeviceDbusProxy::builder(conn)
-            .cache_properties(false)
+            .cache_properties(zbus::CacheProperties::No)
             .path(device_path)
             .error("Failed to set device path")?
             .build()
             .await
             .error("Failed to create DeviceDbusProxy")?;
         let battery_proxy = BatteryDbusProxy::builder(conn)
-            .cache_properties(false)
+            .cache_properties(zbus::CacheProperties::No)
             .path(battery_path)
             .error("Failed to set battery path")?
             .build()
             .await
             .error("Failed to create BatteryDbusProxy")?;
         let notifications_proxy = NotificationsDbusProxy::builder(conn)
-            .cache_properties(false)
+            .cache_properties(zbus::CacheProperties::No)
             .path(notifications_path)
             .error("Failed to set battery path")?
             .build()

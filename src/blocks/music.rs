@@ -1,9 +1,9 @@
 use futures::StreamExt;
 
 use zbus::fdo::DBusProxy;
+use zbus::names::{OwnedBusName, OwnedInterfaceName};
 use zbus::zvariant::{Optional, OwnedValue};
 use zbus::MessageStream;
-use zbus_names::{OwnedBusName, OwnedInterfaceName};
 use zvariant::derive::Type;
 
 use std::collections::HashMap;

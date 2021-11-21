@@ -48,7 +48,7 @@
 use futures::{Stream, StreamExt};
 use std::pin::Pin;
 use zbus::fdo::ObjectManagerProxy;
-use zbus_names::InterfaceName;
+use zbus::names::InterfaceName;
 
 use super::prelude::*;
 
@@ -86,7 +86,7 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
         let mut connected_stream = device.device_proxy.receive_connected_changed().await;
 
         let (mut battery_stream, mut percentage): (
-            Pin<Box<dyn Stream<Item = Option<u8>> + Send + Sync>>,
+            Pin<Box<dyn Stream<Item = zbus::PropertyChanged<'_, u8>> + Send + Sync>>,
             Option<u8>,
         ) = if let Some(bp) = &device.battery_proxy {
             (
@@ -126,11 +126,11 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                         }
                     }
                 }
-                Some(Some(new_connected)) = connected_stream.next() => {
-                    connected = new_connected;
+                Some(pc) = connected_stream.next() => {
+                    connected = pc.get().await.unwrap();
                 }
-                Some(Some(new_precentage)) = battery_stream.next() => {
-                    percentage = Some(new_precentage);
+                Some(pc) = battery_stream.next() => {
+                    percentage = Some(pc.get().await.unwrap());
                 }
             }
         }

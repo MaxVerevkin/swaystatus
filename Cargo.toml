@@ -25,10 +25,8 @@ regex = "1.5"
 neli = "0.6"
 nl80211 = { git = "https://github.com/MaxVerevkin/nl80211" }
 
-# zbus 2.0.0-beta.7 doesn't work for bluetooth block
-zbus = {git = "https://gitlab.freedesktop.org/dbus/zbus/"}
-zbus_names = {git = "https://gitlab.freedesktop.org/dbus/zbus/"}
-zvariant = {git = "https://gitlab.freedesktop.org/dbus/zbus/"}
+zbus = { git = "https://gitlab.freedesktop.org/dbus/zbus/" }
+zvariant = { git = "https://gitlab.freedesktop.org/dbus/zbus/" }
 async-lock = "2.4"
 
 # TODO: remove
