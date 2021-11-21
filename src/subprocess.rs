@@ -12,8 +12,7 @@ pub fn spawn_shell(cmd: &str) -> io::Result<()> {
         .spawn()?;
     thread::Builder::new()
         .name("subprocess".into())
-        .spawn(move || child.wait())
-        .unwrap();
+        .spawn(move || child.wait())?;
     Ok(())
 }
 

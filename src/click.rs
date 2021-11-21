@@ -1,6 +1,8 @@
-use serde::de::{self, Deserialize, Deserializer, Visitor};
 use std::fmt;
 
+use serde::de::{self, Deserialize, Deserializer, Visitor};
+
+use crate::errors::{self, ResultExt};
 use crate::subprocess::{spawn_shell, spawn_shell_sync};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -22,20 +24,23 @@ pub struct ClickHandler(Vec<ClickConfigEntry>);
 
 impl ClickHandler {
     // Returns true if the block needs to be updated
-    pub async fn handle(&self, button: MouseButton) -> bool {
-        match self.0.iter().find(|e| e.button == button) {
+    pub async fn handle(&self, button: MouseButton) -> errors::Result<bool> {
+        Ok(match self.0.iter().find(|e| e.button == button) {
             Some(entry) => {
                 if let Some(cmd) = &entry.cmd {
                     if entry.sync {
-                        let _ = spawn_shell_sync(cmd).await;
+                        spawn_shell_sync(cmd).await
                     } else {
-                        let _ = spawn_shell(cmd);
+                        spawn_shell(cmd)
                     }
+                    .or_error(|| {
+                        format!("'{:?}' button handler: Failed to run '{}", button, cmd)
+                    })?;
                 }
                 entry.update
             }
             None => true,
-        }
+        })
     }
 }
 

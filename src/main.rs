@@ -29,7 +29,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::task::JoinError;
 
-use blocks::{block_name, BlockEvent, BlockType, CommonApi, CommonConfig};
+use blocks::{BlockEvent, BlockType, CommonApi, CommonConfig};
 use click::ClickHandler;
 use config::Config;
 use config::SharedConfig;
@@ -262,8 +262,7 @@ impl Swaystatus {
             block.event_sender = Some(sender);
             receiver
         });
-        let handle =
-            handle.and_then(move |r| async move { Ok(r.in_block(block_name(block_type))) });
+        let handle = handle.and_then(move |r| async move { Ok(r.in_block(block_type)) });
 
         self.spawned_blocks.push(Box::pin(handle));
         self.blocks.push(block);
@@ -319,7 +318,7 @@ impl Swaystatus {
                                     block.widget.set_text(
                                         format
                                             .render(&block.values)
-                                            .in_block(block_name(block.block_type))?
+                                            .in_block(block.block_type)?
                                     );
                                 }
                             }
@@ -348,7 +347,7 @@ impl Swaystatus {
                 // Handle clicks
                 Some(event) = events_receiver.recv() => {
                     let block = self.blocks.get(event.id).error("Events receiver: ID out of bounds")?;
-                    if block.click_handler.handle(event.button).await {
+                    if block.click_handler.handle(event.button).await.in_block(block.block_type)? {
                         if let Some(sender) = &block.event_sender {
                             sender.send(BlockEvent::Click(event)).await.error("Failed to send event to block")?;
                         }

@@ -17,12 +17,13 @@ serde_derive = "1.0"
 serde_json = "1.0"
 toml = "0.5"
 libc = "0.2"
-nl80211 = "0.0.2"
 inotify = "0.9"
 tokio-stream = "0.1"
 async-trait = "0.1"
 regex = "1.5"
 
+neli = "0.6"
+nl80211 = { git = "https://github.com/MaxVerevkin/nl80211" }
 
 # zbus 2.0.0-beta.7 doesn't work for bluetooth block
 zbus = {git = "https://gitlab.freedesktop.org/dbus/zbus/"}
@@ -74,9 +75,6 @@ features = ["unstable-locales"]
 version = "0.5"
 features = ["serde"]
 
-[dependencies.neli]
-version = "0.5"
-#features = ["async"] # TODO: how to use it?
 
 [dependencies.signal-hook-tokio]
 version = "0.3"

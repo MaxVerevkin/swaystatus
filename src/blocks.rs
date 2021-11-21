@@ -66,6 +66,7 @@ define_blocks!(
     github,
     kdeconnect,
     load,
+    menu,
     memory,
     music,
     net,

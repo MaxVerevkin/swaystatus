@@ -1,6 +1,8 @@
 use std::fmt;
 use std::sync::Arc;
 
+use crate::blocks::{block_name, BlockType};
+
 pub use std::error::Error as StdError;
 pub use std::result::Result as StdResult;
 
@@ -13,7 +15,7 @@ pub struct Error {
     pub kind: ErrorKind,
     pub message: Option<String>,
     pub cause: Option<Arc<dyn StdError + Send + Sync + 'static>>,
-    pub block: Option<&'static str>,
+    pub block: Option<BlockType>,
 }
 
 /// A set of errors that can occur during the runtime of swaystatus
@@ -45,11 +47,11 @@ impl Error {
 }
 
 pub trait InBlock {
-    fn in_block(self, block: &'static str) -> Self;
+    fn in_block(self, block: BlockType) -> Self;
 }
 
 impl<T> InBlock for Result<T> {
-    fn in_block(self, block: &'static str) -> Self {
+    fn in_block(self, block: BlockType) -> Self {
         self.map_err(|mut e| {
             e.block = Some(block);
             e
@@ -146,7 +148,7 @@ impl fmt::Display for Error {
                     ErrorKind::Other => f.write_str("Error")?,
                 }
 
-                write!(f, " in {}", block)?;
+                write!(f, " in {}", block_name(block))?;
 
                 if let Some(message) = &self.message {
                     write!(f, ": {}", message)?;

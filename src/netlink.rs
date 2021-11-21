@@ -37,14 +37,9 @@ impl NetDevice {
         let uevent_path = path.join("uevent");
         let uevent_content = util::read_file(&uevent_path).await;
 
-        let wg = match &uevent_content {
-            Ok(s) => s.contains("wireguard"),
-            Err(_e) => false,
-        };
-        let ppp = match &uevent_content {
-            Ok(s) => s.contains("ppp"),
-            Err(_e) => false,
-        };
+        let (wg, ppp) = uevent_content
+            .map(|c| (c.contains("wireguard"), c.contains("ppp")))
+            .unwrap_or((false, false));
 
         let icon = if wireless {
             "net_wireless"
@@ -80,30 +75,27 @@ impl NetDevice {
     }
 
     /// Queries the wireless SSID of this device, if it is connected to one.
-    pub fn wifi_info(&self) -> Result<(Option<String>, Option<f64>, Option<i64>)> {
-        let interfaces = nl80211::Socket::connect()
-            .error("nl80211: failed to connect to the socket")?
+    pub fn wifi_info(&self) -> Result<(Option<String>, Option<f64>, Option<f64>)> {
+        let mut socket = nl80211::Socket::connect().error("Failed to open nl80211 socket")?;
+        let interfaces = socket
             .get_interfaces_info()
-            .error("nl80211: failed to get interfaces' information")?;
-
+            .error("Failed to get nl80211 interfaces")?;
         for interface in interfaces {
-            if let Ok(ap) = interface.get_station_info() {
-                // SSID is `None` when not connected
-                if let (Some(ssid), Some(device)) = (interface.ssid, interface.name) {
-                    let device = String::from_utf8_lossy(&device);
-                    let device = device.trim_matches(char::from(0));
-                    if device != self.interface {
-                        continue;
+            if let Some(index) = &interface.index {
+                if let Ok(ap) = socket.get_station_info(&index) {
+                    // SSID is `None` when not connected
+                    if let (Some(ssid), Some(device)) = (interface.ssid, interface.name) {
+                        let device = String::from_utf8_lossy(&device);
+                        let device = device.trim_matches(char::from(0));
+                        if device != self.interface {
+                            continue;
+                        }
+
+                        let ssid = Some(String::from_utf8(ssid).error("SSID is not valid UTF8")?);
+                        let freq = interface.frequency.map(|f| f as f64 * 1e6);
+                        let signal = ap.signal.map(|s| signal_percents(s as f64));
+                        return Ok((ssid, freq, signal));
                     }
-
-                    let ssid = String::from_utf8(ssid).error("SSID is not valid UTF8")?;
-                    let ssid = Some(ssid);
-                    let freq = interface
-                        .frequency
-                        .map(|f| nl80211::parse_u32(&f) as f64 * 1e6);
-                    let signal = ap.signal.map(|s| signal_percents(nl80211::parse_i8(&s)));
-
-                    return Ok((ssid, freq, signal));
                 }
             }
         }
@@ -181,15 +173,11 @@ pub fn default_interface() -> Option<String> {
     None
 }
 
-fn signal_percents(raw: i8) -> i64 {
-    let raw = raw as f64;
-
-    let perfect = -20.;
-    let worst = -85.;
-    let d = perfect - worst;
-
-    // https://github.com/torvalds/linux/blob/9ff9b0d392ea08090cd1780fb196f36dbb586529/drivers/net/wireless/intel/ipw2x00/ipw2200.c#L4322-L4334
-    let percents = 100. - (perfect - raw) * (15. * d + 62. * (perfect - raw)) / (d * d);
-
-    (percents as i64).clamp(0, 100)
+/// <https://github.com/torvalds/linux/blob/9ff9b0d392ea08090cd1780fb196f36dbb586529/drivers/net/wireless/intel/ipw2x00/ipw2200.c#L4322-L4334>
+fn signal_percents(raw: f64) -> f64 {
+    const MAX_LEVEL: f64 = -20.;
+    const MIN_LEVEL: f64 = -85.;
+    const DIFF: f64 = MAX_LEVEL - MIN_LEVEL;
+    (100. - (MAX_LEVEL - raw) * (15. * DIFF + 62. * (MAX_LEVEL - raw)) / (DIFF * DIFF))
+        .clamp(0., 100.)
 }

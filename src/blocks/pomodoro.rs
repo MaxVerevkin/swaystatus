@@ -77,7 +77,6 @@ struct Block {
 impl Block {
     async fn set_text(&mut self, text: String) -> Result<()> {
         self.api.set_text((text, None));
-        self.api.render();
         self.api.flush().await
     }
 
