@@ -80,7 +80,7 @@ define_blocks!(
     time,
     toggle,
     uptime,
-    // Weather weather,
+    weather,
 );
 
 pub type EventsRxGetter<'a> = &'a mut dyn FnMut() -> mpsc::Receiver<BlockEvent>;

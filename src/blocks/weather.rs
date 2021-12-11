@@ -65,10 +65,13 @@ impl WeatherService {
             units,
         } = self;
 
-        let api_key = api_key.as_ref().error(format!(
-            "missing key 'service.api_key' and environment variable {}",
-            OPEN_WEATHER_MAP_API_KEY_ENV.to_string()
-        ))?;
+        let api_key = api_key.as_ref().error::<String>(
+            format!(
+                "missing key 'service.api_key' and environment variable {}",
+                OPEN_WEATHER_MAP_API_KEY_ENV
+            )
+            .into(),
+        )?;
 
         let city = find_ip_location().await?;
         let location_query = {
@@ -176,19 +179,19 @@ fn australian_apparent_temp(
 }
 
 // Convert wind direction in azimuth degrees to abbreviation names
-fn convert_wind_direction(direction_opt: Option<f64>) -> String {
+fn convert_wind_direction(direction_opt: Option<f64>) -> &'static str {
     match direction_opt {
         Some(direction) => match direction.round() as i64 {
-            24..=68 => "NE".to_string(),
-            69..=113 => "E".to_string(),
-            114..=158 => "SE".to_string(),
-            159..=203 => "S".to_string(),
-            204..=248 => "SW".to_string(),
-            249..=293 => "W".to_string(),
-            294..=338 => "NW".to_string(),
-            _ => "N".to_string(),
+            24..=68 => "NE",
+            69..=113 => "E",
+            114..=158 => "SE",
+            159..=203 => "S",
+            204..=248 => "SW",
+            249..=293 => "W",
+            294..=338 => "NW",
+            _ => "N",
         },
-        None => "-".to_string(),
+        None => "-",
     }
 }
 
@@ -216,7 +219,7 @@ impl Default for WeatherConfig {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config = WeatherConfig::deserialize(block_config).config_error()?;
-        let format = block_config.format.or_default("{weather} {temp}\u{00b0}")?;
+        api.set_format(block_config.format.init("{weather} {temp}\u{00b0}", &api)?);
 
         loop {
             let data = block_config.service.get(block_config.autolocate).await?;
@@ -235,13 +238,13 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 };
 
             let keys = map! {
-                "weather" => Value::text(data.weather[0].main.to_string()),
+                "weather" => Value::text(data.weather[0].main.clone()),
                 "temp" => Value::number(data.main.temp),
                 "humidity" => Value::number(data.main.humidity),
                 "apparent" => Value::number(apparent_temp),
                 "wind" => Value::number(kmh_wind_speed),
                 "wind_kmh" => Value::number(kmh_wind_speed),
-                "direction" => Value::text(convert_wind_direction(data.wind.deg)),
+                "direction" => Value::text(convert_wind_direction(data.wind.deg).into()),
                 "location" => Value::text(data.name),
             };
 
@@ -254,12 +257,10 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -
                 _ => "weather_default",
             };
 
-            let widget = api
-                .new_widget()
-                .with_text(format.render(&keys)?)
-                .with_icon(icon)?
-                .get_data();
-            api.send_widget(widget).await?;
+            api.set_icon(icon)?;
+            api.set_values(keys);
+            api.render();
+            api.flush().await?;
 
             tokio::time::sleep(block_config.interval).await;
         }
