@@ -82,7 +82,7 @@ impl NetDevice {
             .error("Failed to get nl80211 interfaces")?;
         for interface in interfaces {
             if let Some(index) = &interface.index {
-                if let Ok(ap) = socket.get_station_info(&index) {
+                if let Ok(ap) = socket.get_station_info(index) {
                     // SSID is `None` when not connected
                     if let (Some(ssid), Some(device)) = (interface.ssid, interface.name) {
                         let device = String::from_utf8_lossy(&device);
