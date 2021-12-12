@@ -219,7 +219,7 @@ impl Default for WeatherConfig {
 pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
     tokio::spawn(async move {
         let block_config = WeatherConfig::deserialize(block_config).config_error()?;
-        api.set_format(block_config.format.init("{weather} {temp}\u{00b0}", &api)?);
+        api.set_format(block_config.format.init("$weather $temp\u{00b0}", &api)?);
 
         loop {
             let data = block_config.service.get(block_config.autolocate).await?;
