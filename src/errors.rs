@@ -106,6 +106,7 @@ impl<T, E: StdError + Send + Sync + 'static> ResultExt<T> for StdResult<T, E> {
 
 pub trait OptionExt<T> {
     fn error<M: Into<String>>(self, message: M) -> Result<T>;
+    fn or_error<M: Into<String>, F: FnOnce() -> M>(self, f: F) -> Result<T>;
     fn config_error(self) -> Result<T>;
     fn format_error<M: Into<String>>(self, message: M) -> Result<T>;
 }
@@ -115,6 +116,15 @@ impl<T> OptionExt<T> for Option<T> {
         self.ok_or_else(|| Error {
             kind: ErrorKind::Other,
             message: Some(message.into()),
+            cause: None,
+            block: None,
+        })
+    }
+
+    fn or_error<M: Into<String>, F: FnOnce() -> M>(self, f: F) -> Result<T> {
+        self.ok_or_else(|| Error {
+            kind: ErrorKind::Other,
+            message: Some(f().into()),
             cause: None,
             block: None,
         })

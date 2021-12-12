@@ -157,7 +157,7 @@ pub struct Block {
     widget: Widget,
     buttons: Vec<Widget>,
 
-    values: HashMap<String, Value>,
+    values: Option<HashMap<String, Value>>,
     format: Option<Arc<Format>>,
 }
 
@@ -176,7 +176,9 @@ pub enum RequestCmd {
     SetIcon(String),
     SetState(WidgetState),
     SetText((String, Option<String>)),
+
     SetValues(HashMap<String, Value>),
+    UnsetValues,
     SetFormat(Arc<Format>),
 
     AddButton(usize, String),
@@ -253,7 +255,7 @@ impl Swaystatus {
             widget: Widget::new(api.id, api.shared_config.clone()),
             buttons: Vec::new(),
 
-            values: HashMap::new(),
+            values: None,
             format: None,
         };
 
@@ -299,7 +301,8 @@ impl Swaystatus {
                                     b.set_state(state);
                                 }
                             }
-                            RequestCmd::SetValues(values) => block.values = values,
+                            RequestCmd::SetValues(values) => block.values = Some(values),
+                            RequestCmd::UnsetValues => block.values = None,
                             RequestCmd::SetFormat(format) => block.format = Some(format),
                             RequestCmd::AddButton(instance, icon) => block.buttons.push(
                                 Widget::new(request.block_id, block.widget.shared_config.clone())
@@ -314,10 +317,10 @@ impl Swaystatus {
                                 }
                             }
                             RequestCmd::Render => {
-                                if let Some(format) = &block.format {
+                                if let (Some(format), Some(values)) = (&block.format, &block.values) {
                                     block.widget.set_text(
                                         format
-                                            .render(&block.values)
+                                            .render(values)
                                             .in_block(block.block_type)?
                                     );
                                 }

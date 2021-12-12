@@ -141,6 +141,10 @@ impl CommonApi {
         self.cmd_buf.push(RequestCmd::SetValues(values));
     }
 
+    pub fn unset_values(&mut self) {
+        self.cmd_buf.push(RequestCmd::UnsetValues);
+    }
+
     pub fn set_format(&mut self, format: Arc<Format>) {
         self.cmd_buf.push(RequestCmd::SetFormat(format));
     }

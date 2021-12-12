@@ -1,5 +1,3 @@
-// TODO: revisit
-
 use super::prelude::*;
 use crate::de::deserialize_duration;
 use std::time::Duration;
@@ -11,7 +9,124 @@ const OPEN_WEATHER_MAP_API_KEY_ENV: &str = "OPENWEATHERMAP_API_KEY";
 const OPEN_WEATHER_MAP_CITY_ID_ENV: &str = "OPENWEATHERMAP_CITY_ID";
 const OPEN_WEATHER_MAP_PLACE_ENV: &str = "OPENWEATHERMAP_PLACE";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
+struct WeatherConfig {
+    #[serde(
+        default = "WeatherConfig::default_interval",
+        deserialize_with = "deserialize_duration"
+    )]
+    interval: Duration,
+    #[serde(default)]
+    format: FormatConfig,
+    service: WeatherService,
+    #[serde(default)]
+    autolocate: bool,
+}
+
+impl WeatherConfig {
+    fn default_interval() -> Duration {
+        Duration::from_secs(600)
+    }
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(tag = "name", rename_all = "lowercase")]
+enum WeatherService {
+    OpenWeatherMap {
+        #[serde(default = "WeatherService::getenv_openweathermap_api_key")]
+        api_key: Option<String>,
+        #[serde(default = "WeatherService::getenv_openweathermap_city_id")]
+        city_id: Option<String>,
+        #[serde(default = "WeatherService::getenv_openweathermap_place")]
+        place: Option<String>,
+        coordinates: Option<(String, String)>,
+        #[serde(default)]
+        units: UnitSystem,
+        #[serde(default = "WeatherService::default_lang")]
+        lang: String,
+    },
+}
+
+impl WeatherService {
+    fn getenv_openweathermap_api_key() -> Option<String> {
+        std::env::var(OPEN_WEATHER_MAP_API_KEY_ENV)
+            .map(Into::into)
+            .ok()
+    }
+    fn getenv_openweathermap_city_id() -> Option<String> {
+        std::env::var(OPEN_WEATHER_MAP_CITY_ID_ENV)
+            .map(Into::into)
+            .ok()
+    }
+    fn getenv_openweathermap_place() -> Option<String> {
+        std::env::var(OPEN_WEATHER_MAP_PLACE_ENV)
+            .map(Into::into)
+            .ok()
+    }
+    fn default_lang() -> String {
+        "en".into()
+    }
+}
+
+pub fn spawn(config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
+    tokio::spawn(async move {
+        let config = WeatherConfig::deserialize(config).config_error()?;
+        api.set_format(config.format.init("$weather $temp", &api)?);
+
+        loop {
+            if let Ok(data) = config.service.get(config.autolocate).await {
+                let apparent_temp = australian_apparent_temp(
+                    data.main.temp,
+                    data.main.humidity,
+                    data.wind.speed,
+                    config.service.units(),
+                );
+
+                let kmh_wind_speed = data.wind.speed
+                    * 3.6
+                    * match config.service.units() {
+                        UnitSystem::Metric => 1.0,
+                        UnitSystem::Imperial => 0.447,
+                    };
+
+                let keys = map! {
+                    "location" => Value::text(data.name),
+                    "temp" => Value::degrees(data.main.temp),
+                    "apparent" => Value::degrees(apparent_temp),
+                    "humidity" => Value::percents(data.main.humidity),
+                    "weather" => Value::text(data.weather[0].main.clone()),
+                    "weather_verbose" => Value::text(data.weather[0].description.clone()),
+                    "wind" => Value::number(data.wind.speed),
+                    "wind_kmh" => Value::number(kmh_wind_speed),
+                    "direction" => Value::text(convert_wind_direction(data.wind.deg).into()),
+                };
+
+                let icon = match data.weather[0].main.as_str() {
+                    "Clear" => "weather_sun",
+                    "Rain" | "Drizzle" => "weather_rain",
+                    "Clouds" | "Fog" | "Mist" => "weather_clouds",
+                    "Thunderstorm" => "weather_thunder",
+                    "Snow" => "weather_snow",
+                    _ => "weather_default",
+                };
+
+                api.set_icon(icon)?;
+                api.set_values(keys);
+                api.render();
+            } else {
+                api.unset_values();
+                api.set_text(("X".into(), None));
+            }
+
+            api.flush().await?;
+
+            tokio::time::sleep(config.interval).await;
+        }
+    })
+}
+
+#[derive(Deserialize, Debug)]
 struct ApiResponse {
     weather: Vec<ApiWeather>,
     main: ApiMain,
@@ -19,61 +134,54 @@ struct ApiResponse {
     name: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct ApiWind {
     speed: f64,
     deg: Option<f64>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct ApiMain {
     temp: f64,
     humidity: f64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct ApiWeather {
     main: String,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "name", rename_all = "lowercase")]
-enum WeatherService {
-    OpenWeatherMap {
-        api_key: Option<String>,
-        city_id: Option<String>,
-        place: Option<String>,
-        coordinates: Option<(String, String)>,
-        #[serde(default)]
-        units: OpenWeatherMapUnits,
-    },
+    description: String,
 }
 
 impl WeatherService {
-    fn units(&self) -> OpenWeatherMapUnits {
+    fn units(&self) -> UnitSystem {
         let Self::OpenWeatherMap { units, .. } = self;
         *units
     }
 
-    // FIXME use `autolocate`
-    async fn get(&self, _autolocate: bool) -> Result<ApiResponse> {
+    async fn get(&self, autolocate: bool) -> Result<ApiResponse> {
         let Self::OpenWeatherMap {
             api_key,
             city_id,
             place,
             coordinates,
             units,
+            lang,
         } = self;
 
-        let api_key = api_key.as_ref().error::<String>(
+        let api_key = api_key.as_ref().or_error::<String, _>(|| {
             format!(
                 "missing key 'service.api_key' and environment variable {}",
                 OPEN_WEATHER_MAP_API_KEY_ENV
             )
-            .into(),
-        )?;
+            .into()
+        })?;
 
-        let city = find_ip_location().await?;
+        let city = if autolocate {
+            find_ip_location().await.unwrap_or(None)
+        } else {
+            None
+        };
+
         let location_query = {
             city.map(|x| format!("q={}", x))
                 .or_else(|| city_id.as_ref().map(|x| format!("id={}", x)))
@@ -88,63 +196,59 @@ impl WeatherService {
 
         // Refer to https://openweathermap.org/current
         let url = &format!(
-            "{}?{}&appid={}&units={}",
+            "{}?{}&appid={}&units={}&lang={}",
             OPEN_WEATHER_MAP_URL,
             location_query,
             api_key,
             match *units {
-                OpenWeatherMapUnits::Metric => "metric",
-                OpenWeatherMapUnits::Imperial => "imperial",
+                UnitSystem::Metric => "metric",
+                UnitSystem::Imperial => "imperial",
             },
+            lang,
         );
 
-        reqwest::get(url)
+        dbg!(reqwest::get(url)
             .await
-            .error("failed during request for current location")?
+            .error("Failed during request for current location")?
             .json()
             .await
-            .error("failed while parsing location API result")
-    }
-}
-
-impl Default for WeatherService {
-    fn default() -> Self {
-        Self::OpenWeatherMap {
-            api_key: Some(OPEN_WEATHER_MAP_API_KEY_ENV.into()),
-            city_id: Some(OPEN_WEATHER_MAP_CITY_ID_ENV.into()),
-            place: Some(OPEN_WEATHER_MAP_PLACE_ENV.into()),
-            coordinates: None,
-            units: OpenWeatherMapUnits::Metric,
-        }
+            .error("Failed while parsing location API result"))
     }
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-enum OpenWeatherMapUnits {
+enum UnitSystem {
     Metric,
     Imperial,
 }
 
-impl Default for OpenWeatherMapUnits {
+impl Default for UnitSystem {
     fn default() -> Self {
         Self::Metric
     }
 }
 
+// TODO: might be good to allow for different geolocation services to be used, similar to how we have `service` for the weather API
 async fn find_ip_location() -> Result<Option<String>> {
     #[derive(Deserialize)]
     struct ApiResponse {
         city: Option<String>,
     }
-
-    let res: ApiResponse = dbg!(reqwest::get(IP_API_URL).await)
-        .error("failed during request for current location")?
-        .json()
+    static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+    let client = reqwest::Client::builder()
+        .user_agent(APP_USER_AGENT)
+        .build()
+        .unwrap();
+    client
+        .get(IP_API_URL)
+        .send()
         .await
-        .error("failed while parsing location API result")?;
-
-    Ok(dbg!(res.city))
+        .error("Failed during request for current location")?
+        .json::<ApiResponse>()
+        .await
+        .error("Failed while parsing location API result")
+        .map(|x| x.city)
 }
 
 // Compute the Australian Apparent Temperature (AT),
@@ -154,27 +258,27 @@ fn australian_apparent_temp(
     raw_temp: f64,
     raw_humidity: f64,
     raw_wind_speed: f64,
-    units: OpenWeatherMapUnits,
+    units: UnitSystem,
 ) -> f64 {
     let temp_celsius = match units {
-        OpenWeatherMapUnits::Metric => raw_temp,
-        OpenWeatherMapUnits::Imperial => (raw_temp - 32.0) * 0.556,
+        UnitSystem::Metric => raw_temp,
+        UnitSystem::Imperial => (raw_temp - 32.0) * 0.556,
     };
 
     let exponent = 17.27 * temp_celsius / (237.7 + temp_celsius);
     let water_vapor_pressure = raw_humidity * 0.06105 * exponent.exp();
 
     let metric_wind_speed = match units {
-        OpenWeatherMapUnits::Metric => raw_wind_speed,
-        OpenWeatherMapUnits::Imperial => raw_wind_speed * 0.447,
+        UnitSystem::Metric => raw_wind_speed,
+        UnitSystem::Imperial => raw_wind_speed * 0.447,
     };
 
     let metric_apparent_temp =
         temp_celsius + 0.33 * water_vapor_pressure - 0.7 * metric_wind_speed - 4.0;
 
     match units {
-        OpenWeatherMapUnits::Metric => metric_apparent_temp,
-        OpenWeatherMapUnits::Imperial => 1.8 * metric_apparent_temp + 32.,
+        UnitSystem::Metric => metric_apparent_temp,
+        UnitSystem::Imperial => 1.8 * metric_apparent_temp + 32.,
     }
 }
 
@@ -193,76 +297,4 @@ fn convert_wind_direction(direction_opt: Option<f64>) -> &'static str {
         },
         None => "-",
     }
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(deny_unknown_fields, default)]
-struct WeatherConfig {
-    #[serde(deserialize_with = "deserialize_duration")]
-    interval: Duration,
-    format: FormatConfig,
-    service: WeatherService,
-    autolocate: bool,
-}
-
-impl Default for WeatherConfig {
-    fn default() -> Self {
-        Self {
-            interval: Duration::from_secs(600),
-            format: Default::default(),
-            service: WeatherService::default(),
-            autolocate: false,
-        }
-    }
-}
-
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
-    tokio::spawn(async move {
-        let block_config = WeatherConfig::deserialize(block_config).config_error()?;
-        api.set_format(block_config.format.init("$weather $temp\u{00b0}", &api)?);
-
-        loop {
-            let data = block_config.service.get(block_config.autolocate).await?;
-
-            let apparent_temp = australian_apparent_temp(
-                data.main.temp,
-                data.main.humidity,
-                data.wind.speed,
-                block_config.service.units(),
-            );
-
-            let kmh_wind_speed = (3600. / 1000.)
-                * match block_config.service.units() {
-                    OpenWeatherMapUnits::Metric => data.wind.speed,
-                    OpenWeatherMapUnits::Imperial => 0.447 * data.wind.speed,
-                };
-
-            let keys = map! {
-                "weather" => Value::text(data.weather[0].main.clone()),
-                "temp" => Value::number(data.main.temp),
-                "humidity" => Value::number(data.main.humidity),
-                "apparent" => Value::number(apparent_temp),
-                "wind" => Value::number(kmh_wind_speed),
-                "wind_kmh" => Value::number(kmh_wind_speed),
-                "direction" => Value::text(convert_wind_direction(data.wind.deg).into()),
-                "location" => Value::text(data.name),
-            };
-
-            let icon = match data.weather[0].main.as_str() {
-                "Clear" => "weather_sun",
-                "Rain" | "Drizzle" => "weather_rain",
-                "Clouds" | "Fog" | "Mist" => "weather_clouds",
-                "Thunderstorm" => "weather_thunder",
-                "Snow" => "weather_snow",
-                _ => "weather_default",
-            };
-
-            api.set_icon(icon)?;
-            api.set_values(keys);
-            api.render();
-            api.flush().await?;
-
-            tokio::time::sleep(block_config.interval).await;
-        }
-    })
 }
