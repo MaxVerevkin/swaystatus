@@ -327,7 +327,10 @@ impl PowerSupplyDevice {
         match read_file(&self.device_path.join(prop)).await {
             Ok(raw) => raw.parse().map(Some).or_error(error),
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(err) => Err(err).or_error(error),
+            Err(err) => {
+                dbg!(err.kind());
+                Err(dbg!(err)).or_error(error)
+            }
         }
     }
 
