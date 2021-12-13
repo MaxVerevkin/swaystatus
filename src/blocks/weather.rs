@@ -207,12 +207,12 @@ impl WeatherService {
             lang,
         );
 
-        dbg!(reqwest::get(url)
+        reqwest::get(url)
             .await
             .error("Failed during request for current location")?
             .json()
             .await
-            .error("Failed while parsing location API result"))
+            .error("Failed while parsing location API result")
     }
 }
 

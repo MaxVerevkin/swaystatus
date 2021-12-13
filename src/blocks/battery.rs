@@ -318,24 +318,18 @@ impl PowerSupplyDevice {
         }
     }
 
-    async fn read_prop<T>(&self, prop: &str) -> Result<Option<T>>
+    async fn read_prop<T>(&self, prop: &str) -> Option<T>
     where
         T: FromStr + Send + Sync,
-        T::Err: StdError + Send + Sync + 'static,
     {
-        let error = || format!("Failed to read '{}'", prop);
-        match read_file(&self.device_path.join(prop)).await {
-            Ok(raw) => raw.parse().map(Some).or_error(error),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(err) => {
-                dbg!(err.kind());
-                Err(dbg!(err)).or_error(error)
-            }
-        }
+        read_file(&self.device_path.join(prop))
+            .await
+            .ok()
+            .and_then(|x| x.parse().ok())
     }
 
-    async fn present(&self) -> Result<bool> {
-        self.read_prop::<u8>("present").await.map(|p| p == Some(1))
+    async fn present(&self) -> bool {
+        self.read_prop::<u8>("present").await == Some(1)
     }
 }
 
@@ -343,7 +337,7 @@ impl PowerSupplyDevice {
 impl BatteryDevice for PowerSupplyDevice {
     async fn get_info(&self) -> Result<Option<BatteryInfo>> {
         // Check if the battery is available
-        if !self.present().await? {
+        if !self.present().await {
             return Ok(None);
         }
 
@@ -360,7 +354,7 @@ impl BatteryDevice for PowerSupplyDevice {
             voltage_now,
             time_to_empty,
             time_to_full,
-        ) = tokio::try_join!(
+        ) = tokio::join!(
             self.read_prop::<BatteryStatus>("status"),
             self.read_prop::<f64>("capacity"),
             self.read_prop::<f64>("charge_now"),    // uAh
@@ -372,7 +366,7 @@ impl BatteryDevice for PowerSupplyDevice {
             self.read_prop::<f64>("voltage_now"),   // uV
             self.read_prop::<f64>("time_to_empty"), // seconds
             self.read_prop::<f64>("time_to_full"),  // seconds
-        )?;
+        );
 
         let charge_now = charge_now.map(|c| c * 1e-6); // uAh -> Ah
         let charge_full = charge_full.map(|c| c * 1e-6); // uAh -> Ah
