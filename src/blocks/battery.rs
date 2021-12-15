@@ -21,10 +21,10 @@
 //! `critical` | Minimum battery level, where state is set to critical | No | `15`
 //! `full_threshold` | Percentage at which the battery is considered full (`full_format` shown) | No | `100`
 //!
-//! Placeholder    | Value                                                                 | Type              | Unit
-//! ---------------|-----------------------------------------------------------------------|-------------------|-----
+//! Placeholder  | Value                                                                   | Type              | Unit
+//! -------------|-------------------------------------------------------------------------|-------------------|-----
 //! `percentage` | Battery level, in percent                                               | String or Integer | Percents
-//! `time`       | Time remaining until (dis)charge is complete                            | String            | -
+//! `time`       | Time remaining until (dis)charge is complete. Presented only if battery's status is (dis)charging. | String | -
 //! `power`      | Power consumption by the battery or from the power supply when charging | String or Float   | Watts
 //!
 //! # Examples
