@@ -53,43 +53,41 @@ impl Default for SpeedtestConfig {
     }
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
-    tokio::spawn(async move {
-        let block_config = SpeedtestConfig::deserialize(block_config).config_error()?;
-        api.set_format(
-            block_config
-                .format
-                .init("$ping$speed_down$speed_up", &api)?,
-        );
+pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let block_config = SpeedtestConfig::deserialize(block_config).config_error()?;
+    api.set_format(
+        block_config
+            .format
+            .init("$ping$speed_down$speed_up", &api)?,
+    );
 
-        let icon_ping = api.get_icon("ping")?;
-        let icon_down = api.get_icon("net_down")?;
-        let icon_up = api.get_icon("net_up")?;
+    let icon_ping = api.get_icon("ping")?;
+    let icon_down = api.get_icon("net_down")?;
+    let icon_up = api.get_icon("net_up")?;
 
-        let mut command = Command::new("speedtest-cli");
-        command.arg("--json");
+    let mut command = Command::new("speedtest-cli");
+    command.arg("--json");
 
-        loop {
-            let output = command
-                .output()
-                .await
-                .error("failed to run 'speedtest-cli'")?
-                .stdout;
-            let output =
-                std::str::from_utf8(&output).error("'speedtest-cli' produced non-UTF8 outupt")?;
-            let output: SpeedtestCliOutput =
-                serde_json::from_str(output).error("'speedtest-cli' produced wrong JSON")?;
+    loop {
+        let output = command
+            .output()
+            .await
+            .error("failed to run 'speedtest-cli'")?
+            .stdout;
+        let output =
+            std::str::from_utf8(&output).error("'speedtest-cli' produced non-UTF8 outupt")?;
+        let output: SpeedtestCliOutput =
+            serde_json::from_str(output).error("'speedtest-cli' produced wrong JSON")?;
 
-            api.set_values(map! {
-                "ping" => Value::seconds(output.ping * 1e-3).icon(icon_ping.clone()),
-                "speed_down" => Value::bits(output.download).icon(icon_down.clone()),
-                "speed_up" => Value::bits(output.upload).icon(icon_up.clone()),
-            });
-            api.render();
-            api.flush().await?;
-            tokio::time::sleep(block_config.interval).await;
-        }
-    })
+        api.set_values(map! {
+            "ping" => Value::seconds(output.ping * 1e-3).icon(icon_ping.clone()),
+            "speed_down" => Value::bits(output.download).icon(icon_down.clone()),
+            "speed_up" => Value::bits(output.upload).icon(icon_up.clone()),
+        });
+        api.render();
+        api.flush().await?;
+        tokio::time::sleep(block_config.interval).await;
+    }
 }
 
 #[derive(serde_derive::Deserialize, Debug, Clone, Copy)]

@@ -131,127 +131,120 @@ enum BatteryDriver {
     Upower,
 }
 
-pub fn spawn(config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
-    tokio::spawn(async move {
-        let config = BatteryConfig::deserialize(config).config_error()?;
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let config = BatteryConfig::deserialize(config).config_error()?;
+    let format = config.format.init("$percentage", &api)?;
+    let format_full = config.full_format.init("", &api)?;
 
-        let format = config.format.init("$percentage", &api)?;
-        let format_full = config.full_format.init("", &api)?;
-
-        // Get _any_ battery device if not set in the config
-        let device = match config.device {
-            Some(d) => d,
-            None => {
-                let mut sysfs_dir = read_dir("/sys/class/power_supply")
+    // Get _any_ battery device if not set in the config
+    let device = match config.device {
+        Some(d) => d,
+        None => {
+            let mut sysfs_dir = read_dir("/sys/class/power_supply")
+                .await
+                .error("failed to read /sys/class/power_supply direcory")?;
+            let mut device = None;
+            while let Some(dir) = sysfs_dir
+                .next_entry()
+                .await
+                .error("failed to read /sys/class/power_supply direcory")?
+            {
+                if read_to_string(dir.path().join("type"))
                     .await
-                    .error("failed to read /sys/class/power_supply direcory")?;
-                let mut device = None;
-                while let Some(dir) = sysfs_dir
-                    .next_entry()
-                    .await
-                    .error("failed to read /sys/class/power_supply direcory")?
+                    .map(|t| t.trim() == "Battery")
+                    .unwrap_or(false)
                 {
-                    if read_to_string(dir.path().join("type"))
-                        .await
-                        .map(|t| t.trim() == "Battery")
-                        .unwrap_or(false)
-                    {
-                        device = Some(dir.file_name().to_str().unwrap().to_string());
-                        break;
-                    }
+                    device = Some(dir.file_name().to_str().unwrap().to_string());
+                    break;
                 }
-                device.error("failed to determine default battery - please set your battery device in the configuration file")?
             }
-        };
+            device.error("failed to determine default battery - please set your battery device in the configuration file")?
+        }
+    };
 
-        let dbus_conn;
-        let mut device: Box<dyn BatteryDevice + Send + Sync> = match config.driver {
-            BatteryDriver::Sysfs => {
-                Box::new(PowerSupplyDevice::from_device(&device, config.interval))
-            }
-            BatteryDriver::Upower => {
-                dbus_conn = api.system_dbus_connection().await?;
-                Box::new(UPowerDevice::from_device(&device, &dbus_conn).await?)
-            }
-        };
+    let dbus_conn;
+    let mut device: Box<dyn BatteryDevice + Send + Sync> = match config.driver {
+        BatteryDriver::Sysfs => Box::new(PowerSupplyDevice::from_device(&device, config.interval)),
+        BatteryDriver::Upower => {
+            dbus_conn = api.system_dbus_connection().await?;
+            Box::new(UPowerDevice::from_device(&device, &dbus_conn).await?)
+        }
+    };
 
-        loop {
-            match device.get_info().await? {
-                Some(mut info) => {
-                    api.show();
+    loop {
+        match device.get_info().await? {
+            Some(mut info) => {
+                api.show();
 
-                    let mut values = map!("percentage" => Value::percents(info.capacity));
-                    info.power
-                        .map(|p| values.insert("power".into(), Value::watts(p)));
-                    info.time_remaining.map(|t| {
-                        values.insert(
-                            "time".into(),
-                            Value::text(
-                                format!("{}:{:02}", (t / 3600.) as i32, (t % 3600. / 60.) as i32)
-                                    .into(),
-                            ),
-                        )
-                    });
-                    api.set_values(values);
-
-                    if info.capacity >= config.full_threshold {
-                        info.status = BatteryStatus::Full;
-                    }
-
-                    if matches!(
-                        info.status,
-                        BatteryStatus::Full | BatteryStatus::NotCharging
-                    ) {
-                        api.set_format(format_full.clone());
-                    } else {
-                        api.set_format(format.clone());
-                    }
-
-                    let (icon, state) = match (info.status, info.capacity) {
-                        (BatteryStatus::Empty, _) => {
-                            (battery_level_icon(0, false), WidgetState::Critical)
-                        }
-                        (BatteryStatus::Full, _) => {
-                            (battery_level_icon(100, false), WidgetState::Idle)
-                        }
-                        (status, capacity) => (
-                            battery_level_icon(capacity as u8, status == BatteryStatus::Charging),
-                            if status == BatteryStatus::Charging {
-                                WidgetState::Good
-                            } else if capacity <= config.critical {
-                                WidgetState::Critical
-                            } else if capacity <= config.warning {
-                                WidgetState::Warning
-                            } else if capacity <= config.info {
-                                WidgetState::Info
-                            } else if capacity > config.good {
-                                WidgetState::Good
-                            } else {
-                                WidgetState::Idle
-                            },
+                let mut values = map!("percentage" => Value::percents(info.capacity));
+                info.power
+                    .map(|p| values.insert("power".into(), Value::watts(p)));
+                info.time_remaining.map(|t| {
+                    values.insert(
+                        "time".into(),
+                        Value::text(
+                            format!("{}:{:02}", (t / 3600.) as i32, (t % 3600. / 60.) as i32)
+                                .into(),
                         ),
-                    };
+                    )
+                });
+                api.set_values(values);
 
-                    api.set_icon(icon)?;
-                    api.set_state(state);
-                    api.render();
+                if info.capacity >= config.full_threshold {
+                    info.status = BatteryStatus::Full;
                 }
-                None if config.hide_missing => {
-                    api.hide();
-                }
-                None if config.allow_missing => {
-                    api.show();
-                    api.set_icon(BATTERY_UNAVAILABLE_ICON)?;
-                    api.set_values(HashMap::new());
+
+                if matches!(
+                    info.status,
+                    BatteryStatus::Full | BatteryStatus::NotCharging
+                ) {
+                    api.set_format(format_full.clone());
+                } else {
                     api.set_format(format.clone());
                 }
-                None => return Err(Error::new("Missing battery")),
-            }
 
-            api.flush().await?;
-            device.wait_for_change().await?
+                let (icon, state) = match (info.status, info.capacity) {
+                    (BatteryStatus::Empty, _) => {
+                        (battery_level_icon(0, false), WidgetState::Critical)
+                    }
+                    (BatteryStatus::Full, _) => (battery_level_icon(100, false), WidgetState::Idle),
+                    (status, capacity) => (
+                        battery_level_icon(capacity as u8, status == BatteryStatus::Charging),
+                        if status == BatteryStatus::Charging {
+                            WidgetState::Good
+                        } else if capacity <= config.critical {
+                            WidgetState::Critical
+                        } else if capacity <= config.warning {
+                            WidgetState::Warning
+                        } else if capacity <= config.info {
+                            WidgetState::Info
+                        } else if capacity > config.good {
+                            WidgetState::Good
+                        } else {
+                            WidgetState::Idle
+                        },
+                    ),
+                };
+
+                api.set_icon(icon)?;
+                api.set_state(state);
+                api.render();
+            }
+            None if config.hide_missing => {
+                api.hide();
+            }
+            None if config.allow_missing => {
+                api.show();
+                api.set_icon(BATTERY_UNAVAILABLE_ICON)?;
+                api.set_values(HashMap::new());
+                api.set_format(format.clone());
+            }
+            None => return Err(Error::new("Missing battery")),
         }
-    })
+
+        api.flush().await?;
+        device.wait_for_change().await?
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -19,7 +19,6 @@ use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_v
 use futures::stream::futures_unordered::FuturesUnordered;
 use futures::stream::StreamExt;
 use futures::Future;
-use futures::TryFutureExt;
 use protocol::i3bar_event::I3BarEvent;
 use smallvec::SmallVec;
 use smartstring::alias::String;
@@ -27,7 +26,6 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tokio::task::JoinError;
 
 use blocks::{BlockEvent, BlockType, CommonApi, CommonConfig};
 use click::ClickHandler;
@@ -144,8 +142,6 @@ async fn run(config: Option<&str>, noinit: bool, never_pause: bool) -> Result<()
         .await
 }
 
-type BlockFuture = dyn Future<Output = std::result::Result<Result<()>, JoinError>>;
-
 pub struct Block {
     block_type: BlockType,
 
@@ -161,17 +157,19 @@ pub struct Block {
     format: Option<Arc<Format>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Request {
     pub block_id: usize,
     pub cmds: SmallVec<[RequestCmd; 4]>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RequestCmd {
     Hide,
     Collapse,
     Show,
+
+    GetEvents(tokio::sync::oneshot::Sender<blocks::EventsRx>),
 
     SetIcon(String),
     SetState(WidgetState),
@@ -191,7 +189,8 @@ pub struct Swaystatus {
     pub shared_config: SharedConfig,
 
     pub blocks: Vec<Block>,
-    pub spawned_blocks: FuturesUnordered<Pin<Box<BlockFuture>>>,
+    // TODO: find a way to avoid this `Box<dyn Future>`
+    pub spawned_blocks: FuturesUnordered<Pin<Box<dyn Future<Output = Result<()>>>>>,
 
     pub request_sender: mpsc::Sender<Request>,
     pub request_receiver: mpsc::Receiver<Request>,
@@ -244,7 +243,7 @@ impl Swaystatus {
             system_dbus_connection: Arc::clone(&self.system_dbus_connection),
         };
 
-        let mut block = Block {
+        let block = Block {
             block_type,
 
             event_sender: None,
@@ -259,13 +258,7 @@ impl Swaystatus {
             format: None,
         };
 
-        let handle = blocks::block_spawner(block_type)(block_config, api, &mut || {
-            let (sender, receiver) = mpsc::channel(64);
-            block.event_sender = Some(sender);
-            receiver
-        });
-        let handle = handle.and_then(move |r| async move { Ok(r.in_block(block_type)) });
-
+        let handle = block_type.run(block_config, api);
         self.spawned_blocks.push(Box::pin(handle));
         self.blocks.push(block);
         Ok(())
@@ -280,7 +273,7 @@ impl Swaystatus {
             tokio::select! {
                 // Handle blocks' errors
                 Some(block_result) = self.spawned_blocks.next() => {
-                    block_result.error("Error handler: Failed to read block exit status")??;
+                    block_result?;
                 },
                 // Recieve messages from blocks
                 Some(request) = self.request_receiver.recv() => {
@@ -292,6 +285,11 @@ impl Swaystatus {
                             RequestCmd::Show => {
                                 block.hidden = false;
                                 block.collapsed = false;
+                            }
+                            RequestCmd::GetEvents(tx) => {
+                                let (sender, receiver) = mpsc::channel(64);
+                                block.event_sender = Some(sender);
+                                tx.send(receiver).ok().or_error(|| format!("Failed to send events receiver to block {:?}", block.block_type))?;
                             }
                             RequestCmd::SetIcon(icon) => block.widget.icon = icon,
                             RequestCmd::SetText(text) => block.widget.set_text(text),

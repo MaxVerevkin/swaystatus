@@ -102,89 +102,87 @@ impl Default for CustomConfig {
     }
 }
 
-pub fn spawn(config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
-    let mut events = events();
-    tokio::spawn(async move {
-        let config = CustomConfig::deserialize(config).config_error()?;
-        let CustomConfig {
-            command,
-            cycle,
-            interval,
-            json,
-            hide_when_empty,
-            shell,
-            one_shot,
-            signal,
-        } = config;
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let mut events = api.get_events().await?;
+    let config = CustomConfig::deserialize(config).config_error()?;
+    let CustomConfig {
+        command,
+        cycle,
+        interval,
+        json,
+        hide_when_empty,
+        shell,
+        one_shot,
+        signal,
+    } = config;
 
-        let interval = Duration::from_secs(interval);
+    let interval = Duration::from_secs(interval);
 
-        // Choose the shell in this priority:
-        // 1) `shell` config option
-        // 2) `SHELL` environment varialble
-        // 3) `"sh"`
-        let shell = shell
-            .or_else(|| env::var("SHELL").ok())
-            .unwrap_or_else(|| "sh".to_string());
+    // Choose the shell in this priority:
+    // 1) `shell` config option
+    // 2) `SHELL` environment varialble
+    // 3) `"sh"`
+    let shell = shell
+        .or_else(|| env::var("SHELL").ok())
+        .unwrap_or_else(|| "sh".to_string());
 
-        let mut cycle = cycle
-            .or_else(|| command.clone().map(|cmd| vec![cmd]))
-            .error("either 'command' or 'cycle' must be specified")?
-            .into_iter()
-            .cycle();
+    let mut cycle = cycle
+        .or_else(|| command.clone().map(|cmd| vec![cmd]))
+        .error("either 'command' or 'cycle' must be specified")?
+        .into_iter()
+        .cycle();
+
+    loop {
+        // Run command
+        let output = Command::new(&shell)
+            .args(&["-c", &cycle.next().unwrap()])
+            .output()
+            .await
+            .error("failed to run command")?;
+        let stdout = std::str::from_utf8(&output.stdout)
+            .error("the output of command is invalid UTF-8")?
+            .trim();
+
+        // {"icon": "ICON", "state": "STATE", "text": "YOURTEXT", "short_text": "YOUR SHORT TEXT"}
+        if stdout.is_empty() && hide_when_empty {
+            api.hide();
+        } else if json {
+            let vals: HashMap<String, String> =
+                serde_json::from_str(stdout).error("invalid JSON")?;
+
+            api.show();
+            api.set_icon(vals.get("icon").map(|s| s.as_str()).unwrap_or(""))?;
+            api.set_state(match vals.get("state").map(|s| s.as_str()).unwrap_or("") {
+                "Info" => WidgetState::Info,
+                "Good" => WidgetState::Good,
+                "Warning" => WidgetState::Warning,
+                "Critical" => WidgetState::Critical,
+                _ => WidgetState::Idle,
+            });
+            let text = vals.get("text").cloned().unwrap_or_default();
+            let short_text = vals.get("short_text").cloned();
+            api.set_text((text, short_text));
+        } else {
+            api.show();
+            api.set_text((stdout.into(), None));
+        };
+        api.flush().await?;
 
         loop {
-            // Run command
-            let output = Command::new(&shell)
-                .args(&["-c", &cycle.next().unwrap()])
-                .output()
-                .await
-                .error("failed to run command")?;
-            let stdout = std::str::from_utf8(&output.stdout)
-                .error("the output of command is invalid UTF-8")?
-                .trim();
-
-            // {"icon": "ICON", "state": "STATE", "text": "YOURTEXT", "short_text": "YOUR SHORT TEXT"}
-            if stdout.is_empty() && hide_when_empty {
-                api.hide();
-            } else if json {
-                let vals: HashMap<String, String> =
-                    serde_json::from_str(stdout).error("invalid JSON")?;
-
-                api.show();
-                api.set_icon(vals.get("icon").map(|s| s.as_str()).unwrap_or(""))?;
-                api.set_state(match vals.get("state").map(|s| s.as_str()).unwrap_or("") {
-                    "Info" => WidgetState::Info,
-                    "Good" => WidgetState::Good,
-                    "Warning" => WidgetState::Warning,
-                    "Critical" => WidgetState::Critical,
-                    _ => WidgetState::Idle,
-                });
-                let text = vals.get("text").cloned().unwrap_or_default();
-                let short_text = vals.get("short_text").cloned();
-                api.set_text((text, short_text));
-            } else {
-                api.show();
-                api.set_text((stdout.into(), None));
-            };
-            api.flush().await?;
-
-            loop {
-                tokio::select! {
-                    _ = tokio::time::sleep(interval) => {
-                        if !one_shot {
-                            break;
-                        }
-                    },
-                    Some(event) = events.recv() => {
-                        match (event, signal) {
-                            (BlockEvent::Signal(Signal::Custom(s)), Some(signal)) if s == signal => break,
-                            (BlockEvent::Click(_), _) => break,
-                            _ => (),
-                        }
-                    },
-                }
+            tokio::select! {
+                _ = tokio::time::sleep(interval) => {
+                    if !one_shot {
+                        break;
+                    }
+                },
+                Some(event) = events.recv() => {
+                    match (event, signal) {
+                        (BlockEvent::Signal(Signal::Custom(s)), Some(signal)) if s == signal => break,
+                        (BlockEvent::Click(_), _) => break,
+                        _ => (),
+                    }
+                },
             }
         }
-    })
+    }
 }

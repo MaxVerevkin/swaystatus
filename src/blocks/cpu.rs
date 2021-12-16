@@ -63,94 +63,92 @@ impl Default for CpuConfig {
     }
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
-    let mut events = events();
-    tokio::spawn(async move {
-        let block_config = CpuConfig::deserialize(block_config).config_error()?;
-        let interval = Duration::from_secs(block_config.interval);
-        let mut format = block_config.format.init("$utilization", &api)?;
-        let mut format_alt = match block_config.format_alt {
-            Some(f) => Some(f.init("", &api)?),
-            None => None,
-        };
-        api.set_format(format.clone());
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let mut events = api.get_events().await?;
+    let config = CpuConfig::deserialize(config).config_error()?;
+    let interval = Duration::from_secs(config.interval);
+    let mut format = config.format.init("$utilization", &api)?;
+    let mut format_alt = match config.format_alt {
+        Some(f) => Some(f.init("", &api)?),
+        None => None,
+    };
+    api.set_format(format.clone());
 
-        api.set_icon("cpu")?;
-        let boost_icon_on = api.get_icon("cpu_boost_on")?;
-        let boost_icon_off = api.get_icon("cpu_boost_off")?;
+    api.set_icon("cpu")?;
+    let boost_icon_on = api.get_icon("cpu_boost_on")?;
+    let boost_icon_off = api.get_icon("cpu_boost_off")?;
 
-        // Store previous /proc/stat state
-        let mut cputime = read_proc_stat().await?;
-        let cores = cputime.1.len();
+    // Store previous /proc/stat state
+    let mut cputime = read_proc_stat().await?;
+    let cores = cputime.1.len();
 
-        loop {
-            let freqs = read_frequencies().await?;
-            let freq_avg = freqs.iter().sum::<f64>() / (freqs.len() as f64);
+    loop {
+        let freqs = read_frequencies().await?;
+        let freq_avg = freqs.iter().sum::<f64>() / (freqs.len() as f64);
 
-            // Compute utilizations
-            let new_cputime = read_proc_stat().await?;
-            let utilization_avg = new_cputime.0.utilization(cputime.0);
-            let mut utilizations = Vec::new();
-            if new_cputime.1.len() != cores {
-                return Err(Error::new("new cputime length is incorrect"));
-            }
-            for i in 0..cores {
-                utilizations.push(new_cputime.1[i].utilization(cputime.1[i]));
-            }
-            cputime = new_cputime;
+        // Compute utilizations
+        let new_cputime = read_proc_stat().await?;
+        let utilization_avg = new_cputime.0.utilization(cputime.0);
+        let mut utilizations = Vec::new();
+        if new_cputime.1.len() != cores {
+            return Err(Error::new("new cputime length is incorrect"));
+        }
+        for i in 0..cores {
+            utilizations.push(new_cputime.1[i].utilization(cputime.1[i]));
+        }
+        cputime = new_cputime;
 
-            // Create barchart indicating per-core utilization
-            let mut barchart = String::new();
-            const BOXCHARS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-            for utilization in &utilizations {
-                barchart.push(BOXCHARS[(7.5 * utilization) as usize]);
-            }
+        // Create barchart indicating per-core utilization
+        let mut barchart = String::new();
+        const BOXCHARS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+        for utilization in &utilizations {
+            barchart.push(BOXCHARS[(7.5 * utilization) as usize]);
+        }
 
-            // Read boot state on intel CPUs
-            let boost = boost_status().await.map(|status| match status {
-                true => boost_icon_on.clone(),
-                false => boost_icon_off.clone(),
-            });
+        // Read boot state on intel CPUs
+        let boost = boost_status().await.map(|status| match status {
+            true => boost_icon_on.clone(),
+            false => boost_icon_off.clone(),
+        });
 
-            let mut values = map!(
-                "barchart" => Value::text(barchart),
-                "frequency" => Value::hertz(freq_avg),
-                "utilization" => Value::percents(utilization_avg * 100.),
+        let mut values = map!(
+            "barchart" => Value::text(barchart),
+            "frequency" => Value::hertz(freq_avg),
+            "utilization" => Value::percents(utilization_avg * 100.),
+        );
+        boost.map(|b| values.insert("boost".into(), Value::text(b)));
+        for (i, freq) in freqs.iter().enumerate() {
+            values.insert(format!("frequency{}", i + 1).into(), Value::hertz(*freq));
+        }
+        for (i, utilization) in utilizations.iter().enumerate() {
+            values.insert(
+                format!("utilization{}", i + 1).into(),
+                Value::percents(utilization * 100.),
             );
-            boost.map(|b| values.insert("boost".into(), Value::text(b)));
-            for (i, freq) in freqs.iter().enumerate() {
-                values.insert(format!("frequency{}", i + 1).into(), Value::hertz(*freq));
-            }
-            for (i, utilization) in utilizations.iter().enumerate() {
-                values.insert(
-                    format!("utilization{}", i + 1).into(),
-                    Value::percents(utilization * 100.),
-                );
-            }
+        }
 
-            api.set_values(values);
-            api.set_state(match utilization_avg {
-                x if x > 0.9 => WidgetState::Critical,
-                x if x > 0.6 => WidgetState::Warning,
-                x if x > 0.3 => WidgetState::Info,
-                _ => WidgetState::Idle,
-            });
-            api.render();
-            api.flush().await?;
+        api.set_values(values);
+        api.set_state(match utilization_avg {
+            x if x > 0.9 => WidgetState::Critical,
+            x if x > 0.6 => WidgetState::Warning,
+            x if x > 0.3 => WidgetState::Info,
+            _ => WidgetState::Idle,
+        });
+        api.render();
+        api.flush().await?;
 
-            tokio::select! {
-                _ = tokio::time::sleep(interval) => (),
-                Some(BlockEvent::Click(click)) = events.recv() => {
-                    if click.button == MouseButton::Left {
-                        if let Some(ref mut format_alt) = format_alt {
-                            std::mem::swap(format_alt, &mut format);
-                            api.set_format(format.clone());
-                        }
+        tokio::select! {
+            _ = tokio::time::sleep(interval) => (),
+            Some(BlockEvent::Click(click)) = events.recv() => {
+                if click.button == MouseButton::Left {
+                    if let Some(ref mut format_alt) = format_alt {
+                        std::mem::swap(format_alt, &mut format);
+                        api.set_format(format.clone());
                     }
                 }
             }
         }
-    })
+    }
 }
 
 // Read frequencies (read in MHz, store in Hz)

@@ -84,18 +84,13 @@ impl Block {
     }
 }
 
-pub fn spawn(block_config: toml::Value, api: CommonApi, _: EventsRxGetter) -> BlockHandle {
-    tokio::spawn(async move {
-        let path = CustomDBusConfig::deserialize(block_config)
-            .config_error()?
-            .path;
-
-        let dbus_conn = api.dbus_connection().await?;
-        dbus_conn
-            .object_server_mut()
-            .await
-            .at(path, Block { api })
-            .error("Failed to setup DBus server")?;
-        Ok(())
-    })
+pub async fn run(config: toml::Value, api: CommonApi) -> Result<()> {
+    let path = CustomDBusConfig::deserialize(config).config_error()?.path;
+    let dbus_conn = api.dbus_connection().await?;
+    dbus_conn
+        .object_server_mut()
+        .await
+        .at(path, Block { api })
+        .error("Failed to setup DBus server")?;
+    Ok(())
 }

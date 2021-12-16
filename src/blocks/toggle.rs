@@ -55,71 +55,47 @@ pub struct ToggleConfig {
     interval: Option<u64>,
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
-    let mut events = events();
-    tokio::spawn(async move {
-        let block_config = ToggleConfig::deserialize(block_config).config_error()?;
-        let interval = block_config.interval.map(Duration::from_secs);
+pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let mut events = api.get_events().await?;
+    let block_config = ToggleConfig::deserialize(block_config).config_error()?;
+    let interval = block_config.interval.map(Duration::from_secs);
 
-        if let Some(text) = block_config.text {
-            api.set_text((text, None));
-        }
+    if let Some(text) = block_config.text {
+        api.set_text((text, None));
+    }
 
-        // Choose the shell in this priority:
-        // 1) `SHELL` environment varialble
-        // 2) `"sh"`
-        let shell = env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
+    // Choose the shell in this priority:
+    // 1) `SHELL` environment varialble
+    // 2) `"sh"`
+    let shell = env::var("SHELL").unwrap_or_else(|_| "sh".to_string());
 
+    loop {
+        // Check state
+        let output = Command::new(&shell)
+            .args(&["-c", &block_config.command_state])
+            .output()
+            .await
+            .error("Failed to run command_state")?;
+        let is_toggled = !std::str::from_utf8(&output.stdout)
+            .error("The output of command_state is invalid UTF-8")?
+            .trim()
+            .is_empty();
+
+        // Update widget
+        api.set_icon(if is_toggled {
+            "toggle_on"
+        } else {
+            "toggle_off"
+        })?;
+        api.flush().await?;
+
+        // TODO: try not to duplicate code
         loop {
-            // Check state
-            let output = Command::new(&shell)
-                .args(&["-c", &block_config.command_state])
-                .output()
-                .await
-                .error("Failed to run command_state")?;
-            let is_toggled = !std::str::from_utf8(&output.stdout)
-                .error("The output of command_state is invalid UTF-8")?
-                .trim()
-                .is_empty();
-
-            // Update widget
-            api.set_icon(if is_toggled {
-                "toggle_on"
-            } else {
-                "toggle_off"
-            })?;
-            api.flush().await?;
-
-            // TODO: try not to duplicate code
-            loop {
-                match interval {
-                    Some(interval) => {
-                        tokio::select! {
-                            _ = tokio::time::sleep(interval) => break,
-                            Some(BlockEvent::Click(click)) = events.recv() => {
-                                if click.button == MouseButton::Left {
-                                    let cmd = if is_toggled {
-                                        &block_config.command_off
-                                    } else {
-                                        &block_config.command_on
-                                    };
-                                    let output = Command::new(&shell)
-                                        .args(&["-c", cmd])
-                                        .output()
-                                        .await
-                                        .error("Failed to run command")?;
-                                    if output.status.success() {
-                                        api.set_state(WidgetState::Idle);
-                                        break;
-                                    } else {
-                                        api.set_state(WidgetState::Critical);
-                                    }
-                                }
-                            },
-                        }
-                    }
-                    None => {
-                        if let Some(BlockEvent::Click(click)) = events.recv().await {
+            match interval {
+                Some(interval) => {
+                    tokio::select! {
+                        _ = tokio::time::sleep(interval) => break,
+                        Some(BlockEvent::Click(click)) = events.recv() => {
                             if click.button == MouseButton::Left {
                                 let cmd = if is_toggled {
                                     &block_config.command_off
@@ -138,10 +114,32 @@ pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGett
                                     api.set_state(WidgetState::Critical);
                                 }
                             }
+                        },
+                    }
+                }
+                None => {
+                    if let Some(BlockEvent::Click(click)) = events.recv().await {
+                        if click.button == MouseButton::Left {
+                            let cmd = if is_toggled {
+                                &block_config.command_off
+                            } else {
+                                &block_config.command_on
+                            };
+                            let output = Command::new(&shell)
+                                .args(&["-c", cmd])
+                                .output()
+                                .await
+                                .error("Failed to run command")?;
+                            if output.status.success() {
+                                api.set_state(WidgetState::Idle);
+                                break;
+                            } else {
+                                api.set_state(WidgetState::Critical);
+                            }
                         }
                     }
                 }
             }
         }
-    })
+    }
 }

@@ -54,38 +54,36 @@ impl Default for TimeConfig {
     }
 }
 
-pub fn spawn(config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
-    tokio::spawn(async move {
-        let config = TimeConfig::deserialize(config).config_error()?;
-        api.set_icon("time")?;
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let config = TimeConfig::deserialize(config).config_error()?;
+    api.set_icon("time")?;
 
-        let mut interval = tokio::time::interval(Duration::from_secs(config.interval));
+    let mut interval = tokio::time::interval(Duration::from_secs(config.interval));
 
-        // `FormatTemplate` doesn't do much stuff here - we just want to get the original "full" and
-        // "short" formats, so we "render" it without providing any placeholders.
-        let (format, format_short) = config
-            .format
-            .init("%a %d/%m %R", &api)?
-            .render(&HashMap::new())?;
-        let format = format.as_str();
-        let format_short = format_short.as_deref();
+    // `FormatTemplate` doesn't do much stuff here - we just want to get the original "full" and
+    // "short" formats, so we "render" it without providing any placeholders.
+    let (format, format_short) = config
+        .format
+        .init("%a %d/%m %R", &api)?
+        .render(&HashMap::new())?;
+    let format = format.as_str();
+    let format_short = format_short.as_deref();
 
-        let timezone = config.timezone;
-        let locale = match config.locale.as_deref() {
-            Some(locale) => Some(locale.try_into().ok().error("invalid locale")?),
-            None => None,
-        };
+    let timezone = config.timezone;
+    let locale = match config.locale.as_deref() {
+        Some(locale) => Some(locale.try_into().ok().error("invalid locale")?),
+        None => None,
+    };
 
-        loop {
-            let full_time = get_time(format, timezone, locale);
-            let short_time = format_short.map(|f| get_time(f, timezone, locale));
+    loop {
+        let full_time = get_time(format, timezone, locale);
+        let short_time = format_short.map(|f| get_time(f, timezone, locale));
 
-            api.set_text((full_time, short_time));
-            api.flush().await?;
+        api.set_text((full_time, short_time));
+        api.flush().await?;
 
-            interval.tick().await;
-        }
-    })
+        interval.tick().await;
+    }
 }
 
 fn get_time(format: &str, timezone: Option<Tz>, locale: Option<Locale>) -> String {

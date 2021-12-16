@@ -217,30 +217,28 @@ impl Block {
     }
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
-    let events = events();
-    tokio::spawn(async move {
-        let block_config = PomodoroConfig::deserialize(block_config).config_error()?;
-        api.set_icon("pomodoro")?;
-        let mut block = Block {
-            api,
-            block_config,
-            events_receiver: events,
-        };
+pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let events = api.get_events().await?;
+    let block_config = PomodoroConfig::deserialize(block_config).config_error()?;
+    api.set_icon("pomodoro")?;
+    let mut block = Block {
+        api,
+        block_config,
+        events_receiver: events,
+    };
 
-        loop {
-            // Send collaped block
-            block.api.set_state(WidgetState::Idle);
-            block.set_text(String::new()).await?;
+    loop {
+        // Send collaped block
+        block.api.set_state(WidgetState::Idle);
+        block.set_text(String::new()).await?;
 
-            // Wait for left click
-            block.wait_for_click(MouseButton::Left).await;
+        // Wait for left click
+        block.wait_for_click(MouseButton::Left).await;
 
-            // Read params
-            let (task_len, break_len, pomodoros) = block.read_params().await?;
+        // Read params
+        let (task_len, break_len, pomodoros) = block.read_params().await?;
 
-            // Run!
-            block.run_pomodoro(task_len, break_len, pomodoros).await?;
-        }
-    })
+        // Run!
+        block.run_pomodoro(task_len, break_len, pomodoros).await?;
+    }
 }

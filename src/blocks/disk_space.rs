@@ -79,88 +79,86 @@ impl Default for DiskSpaceConfig {
     }
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
-    tokio::spawn(async move {
-        let block_config = DiskSpaceConfig::deserialize(block_config).config_error()?;
-        api.set_icon("disk_drive")?;
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let config = DiskSpaceConfig::deserialize(config).config_error()?;
+    api.set_icon("disk_drive")?;
 
-        let format = block_config.format.init("$available", &api)?;
-        api.set_format(format);
+    let format = config.format.init("$available", &api)?;
+    api.set_format(format);
 
-        let unit = match block_config.alert_unit.as_deref() {
-            Some("TB") => Some(Prefix::Tera),
-            Some("GB") => Some(Prefix::Giga),
-            Some("MB") => Some(Prefix::Mega),
-            Some("KB") => Some(Prefix::Kilo),
-            Some("B") => Some(Prefix::One),
-            Some(x) => return Err(Error::new(format!("Unknown unit: '{}'", x))),
-            None => None,
+    let unit = match config.alert_unit.as_deref() {
+        Some("TB") => Some(Prefix::Tera),
+        Some("GB") => Some(Prefix::Giga),
+        Some("MB") => Some(Prefix::Mega),
+        Some("KB") => Some(Prefix::Kilo),
+        Some("B") => Some(Prefix::One),
+        Some(x) => return Err(Error::new(format!("Unknown unit: '{}'", x))),
+        None => None,
+    };
+
+    let path = Path::new(config.path.as_str());
+    let mut interval = tokio::time::interval(config.interval);
+
+    loop {
+        let statvfs = statvfs(path).error("failed to retrieve statvfs")?;
+
+        let total = (statvfs.blocks() as u64) * (statvfs.fragment_size() as u64);
+        let used = ((statvfs.blocks() as u64) - (statvfs.blocks_free() as u64))
+            * (statvfs.fragment_size() as u64);
+        let available = (statvfs.blocks_available() as u64) * (statvfs.block_size() as u64);
+        let free = (statvfs.blocks_free() as u64) * (statvfs.block_size() as u64);
+
+        let result = match config.info_type {
+            InfoType::Available => available,
+            InfoType::Free => free,
+            InfoType::Used => used,
+        } as f64;
+
+        let percentage = result / (total as f64) * 100.;
+        api.set_values(map!(
+            "path" => Value::text(config.path.clone()),
+            "percentage" => Value::percents(percentage),
+            "total" => Value::bytes(total as f64),
+            "used" => Value::bytes(used as f64),
+            "available" => Value::bytes(available as f64),
+            "free" => Value::bytes(free as f64),
+        ));
+
+        // Send percentage to alert check if we don't want absolute alerts
+        let alert_val = match unit {
+            Some(Prefix::Tera) => result * 1e12,
+            Some(Prefix::Giga) => result * 1e9,
+            Some(Prefix::Mega) => result * 1e6,
+            Some(Prefix::Kilo) => result * 1e3,
+            Some(_) => result,
+            None => percentage,
         };
 
-        let path = Path::new(block_config.path.as_str());
-        let mut interval = tokio::time::interval(block_config.interval);
-
-        loop {
-            let statvfs = statvfs(path).error("failed to retrieve statvfs")?;
-
-            let total = (statvfs.blocks() as u64) * (statvfs.fragment_size() as u64);
-            let used = ((statvfs.blocks() as u64) - (statvfs.blocks_free() as u64))
-                * (statvfs.fragment_size() as u64);
-            let available = (statvfs.blocks_available() as u64) * (statvfs.block_size() as u64);
-            let free = (statvfs.blocks_free() as u64) * (statvfs.block_size() as u64);
-
-            let result = match block_config.info_type {
-                InfoType::Available => available,
-                InfoType::Free => free,
-                InfoType::Used => used,
-            } as f64;
-
-            let percentage = result / (total as f64) * 100.;
-            api.set_values(map!(
-                "path" => Value::text(block_config.path.clone()),
-                "percentage" => Value::percents(percentage),
-                "total" => Value::bytes(total as f64),
-                "used" => Value::bytes(used as f64),
-                "available" => Value::bytes(available as f64),
-                "free" => Value::bytes(free as f64),
-            ));
-
-            // Send percentage to alert check if we don't want absolute alerts
-            let alert_val = match unit {
-                Some(Prefix::Tera) => result * 1e12,
-                Some(Prefix::Giga) => result * 1e9,
-                Some(Prefix::Mega) => result * 1e6,
-                Some(Prefix::Kilo) => result * 1e3,
-                Some(_) => result,
-                None => percentage,
-            };
-
-            // Compute state
-            api.set_state(match block_config.info_type {
-                InfoType::Used => {
-                    if alert_val > block_config.alert {
-                        WidgetState::Critical
-                    } else if alert_val <= block_config.alert && alert_val > block_config.warning {
-                        WidgetState::Warning
-                    } else {
-                        WidgetState::Idle
-                    }
+        // Compute state
+        api.set_state(match config.info_type {
+            InfoType::Used => {
+                if alert_val > config.alert {
+                    WidgetState::Critical
+                } else if alert_val <= config.alert && alert_val > config.warning {
+                    WidgetState::Warning
+                } else {
+                    WidgetState::Idle
                 }
-                InfoType::Free | InfoType::Available => {
-                    if 0. <= alert_val && alert_val < block_config.alert {
-                        WidgetState::Critical
-                    } else if block_config.alert <= alert_val && alert_val < block_config.warning {
-                        WidgetState::Warning
-                    } else {
-                        WidgetState::Idle
-                    }
+            }
+            InfoType::Free | InfoType::Available => {
+                if 0. <= alert_val && alert_val < config.alert {
+                    WidgetState::Critical
+                } else if config.alert <= alert_val && alert_val < config.warning {
+                    WidgetState::Warning
+                } else {
+                    WidgetState::Idle
                 }
-            });
+            }
+        });
 
-            api.render();
-            api.flush().await?;
+        api.render();
+        api.flush().await?;
 
-            interval.tick().await;
-        }
-    })
+        interval.tick().await;
+    }
 }

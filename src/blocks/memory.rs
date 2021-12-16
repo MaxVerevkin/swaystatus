@@ -94,112 +94,109 @@ impl Default for MemoryConfig {
     }
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
-    let mut events = events();
-    tokio::spawn(async move {
-        let block_config = MemoryConfig::deserialize(block_config).config_error()?;
-        let interval = Duration::from_secs(block_config.interval);
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let mut events = api.get_events().await?;
+    let config = MemoryConfig::deserialize(config).config_error()?;
+    let interval = Duration::from_secs(config.interval);
 
-        let format_mem = block_config.format_mem.init(
-            "$mem_free.eng(3,B,M)/$mem_total.eng(3,B,M)($mem_total_used_percents.eng(2))",
-            &api,
-        )?;
-        let format_swap = block_config.format_swap.init(
-            "$swap_free.eng(3,B,M)/$swap_total.eng(3,B,M)($swap_used_percents.eng(2))",
-            &api,
-        )?;
+    let format_mem = config.format_mem.init(
+        "$mem_free.eng(3,B,M)/$mem_total.eng(3,B,M)($mem_total_used_percents.eng(2))",
+        &api,
+    )?;
+    let format_swap = config.format_swap.init(
+        "$swap_free.eng(3,B,M)/$swap_total.eng(3,B,M)($swap_used_percents.eng(2))",
+        &api,
+    )?;
 
-        let clickable = block_config.clickable;
-        let mut memtype = block_config.display_type;
-        let mut format = match memtype {
-            Memtype::Memory => {
-                api.set_icon("memory_mem")?;
-                &format_mem
-            }
-            Memtype::Swap => {
-                api.set_icon("memory_swap")?;
-                &format_swap
-            }
-        };
-        api.set_format(format.clone());
+    let clickable = config.clickable;
+    let mut memtype = config.display_type;
+    let mut format = match memtype {
+        Memtype::Memory => {
+            api.set_icon("memory_mem")?;
+            &format_mem
+        }
+        Memtype::Swap => {
+            api.set_icon("memory_swap")?;
+            &format_swap
+        }
+    };
+    api.set_format(format.clone());
 
-        loop {
-            let mem_state = Memstate::new().await?;
-            let mem_total = mem_state.mem_total as f64 * 1024.;
-            let mem_free = mem_state.mem_free as f64 * 1024.;
-            let swap_total = mem_state.swap_total as f64 * 1024.;
-            let swap_free = mem_state.swap_free as f64 * 1024.;
-            let swap_used = swap_total - swap_free;
-            let mem_total_used = mem_total - mem_free;
-            let buffers = mem_state.buffers as f64 * 1024.;
-            let cached = (mem_state.cached + mem_state.s_reclaimable - mem_state.shmem) as f64
-                * 1024.
-                + mem_state.zfs_arc_cache as f64;
-            let mem_used = mem_total_used - (buffers + cached);
-            let mem_avail = mem_total - mem_used;
+    loop {
+        let mem_state = Memstate::new().await?;
+        let mem_total = mem_state.mem_total as f64 * 1024.;
+        let mem_free = mem_state.mem_free as f64 * 1024.;
+        let swap_total = mem_state.swap_total as f64 * 1024.;
+        let swap_free = mem_state.swap_free as f64 * 1024.;
+        let swap_used = swap_total - swap_free;
+        let mem_total_used = mem_total - mem_free;
+        let buffers = mem_state.buffers as f64 * 1024.;
+        let cached = (mem_state.cached + mem_state.s_reclaimable - mem_state.shmem) as f64 * 1024.
+            + mem_state.zfs_arc_cache as f64;
+        let mem_used = mem_total_used - (buffers + cached);
+        let mem_avail = mem_total - mem_used;
 
-            let values = map!(
-                "mem_total" => Value::bytes(mem_total),
-                "mem_free" => Value::bytes(mem_free),
-                "mem_free_percents" => Value::percents(mem_free / mem_total * 100.),
-                "mem_total_used" => Value::bytes(mem_total_used),
-                "mem_total_used_percents" => Value::percents(mem_total_used / mem_total * 100.),
-                "mem_used" => Value::bytes(mem_used),
-                "mem_used_percents" => Value::percents(mem_used / mem_total * 100.),
-                "mem_avail" => Value::bytes(mem_avail),
-                "mem_avail_percents" => Value::percents(mem_avail / mem_total * 100.),
-                "swap_total" => Value::bytes(swap_total),
-                "swap_free" => Value::bytes(swap_free),
-                "swap_free_percents" => Value::percents(swap_free / swap_total * 100.),
-                "swap_used" => Value::bytes(swap_used),
-                "swap_used_percents" => Value::percents(swap_used / swap_total * 100.),
-                "buffers" => Value::bytes(buffers),
-                "buffers_percent" => Value::percents(buffers / mem_total * 100.),
-                "cached" => Value::bytes(cached),
-                "cached_percent" => Value::percents(cached / mem_total * 100.),
-            );
-            api.set_values(values);
+        let values = map!(
+            "mem_total" => Value::bytes(mem_total),
+            "mem_free" => Value::bytes(mem_free),
+            "mem_free_percents" => Value::percents(mem_free / mem_total * 100.),
+            "mem_total_used" => Value::bytes(mem_total_used),
+            "mem_total_used_percents" => Value::percents(mem_total_used / mem_total * 100.),
+            "mem_used" => Value::bytes(mem_used),
+            "mem_used_percents" => Value::percents(mem_used / mem_total * 100.),
+            "mem_avail" => Value::bytes(mem_avail),
+            "mem_avail_percents" => Value::percents(mem_avail / mem_total * 100.),
+            "swap_total" => Value::bytes(swap_total),
+            "swap_free" => Value::bytes(swap_free),
+            "swap_free_percents" => Value::percents(swap_free / swap_total * 100.),
+            "swap_used" => Value::bytes(swap_used),
+            "swap_used_percents" => Value::percents(swap_used / swap_total * 100.),
+            "buffers" => Value::bytes(buffers),
+            "buffers_percent" => Value::percents(buffers / mem_total * 100.),
+            "cached" => Value::bytes(cached),
+            "cached_percent" => Value::percents(cached / mem_total * 100.),
+        );
+        api.set_values(values);
 
-            api.set_state(match memtype {
-                Memtype::Memory => match mem_used / mem_total * 100. {
-                    x if x > block_config.critical_mem => WidgetState::Critical,
-                    x if x > block_config.warning_mem => WidgetState::Warning,
-                    _ => WidgetState::Idle,
-                },
-                Memtype::Swap => match swap_used / swap_total * 100. {
-                    x if x > block_config.critical_swap => WidgetState::Critical,
-                    x if x > block_config.warning_swap => WidgetState::Warning,
-                    _ => WidgetState::Idle,
-                },
-            });
+        api.set_state(match memtype {
+            Memtype::Memory => match mem_used / mem_total * 100. {
+                x if x > config.critical_mem => WidgetState::Critical,
+                x if x > config.warning_mem => WidgetState::Warning,
+                _ => WidgetState::Idle,
+            },
+            Memtype::Swap => match swap_used / swap_total * 100. {
+                x if x > config.critical_swap => WidgetState::Critical,
+                x if x > config.warning_swap => WidgetState::Warning,
+                _ => WidgetState::Idle,
+            },
+        });
 
-            api.render();
-            api.flush().await?;
+        api.render();
+        api.flush().await?;
 
-            tokio::select! {
-                _ = tokio::time::sleep(interval) =>(),
-                event = events.recv() => {
-                    if let BlockEvent::Click(click) = event.unwrap() {
-                        if click.button == MouseButton::Left && clickable {
-                            match memtype {
-                                Memtype::Swap => {
-                                    format = &format_mem;
-                                    memtype = Memtype::Memory;
-                                    api.set_icon("memory_mem")?;
-                                }
-                                Memtype::Memory => {
-                                    format = &format_swap;
-                                    memtype = Memtype::Swap;
-                                    api.set_icon("memory_swap")?;
-                                }
+        tokio::select! {
+            _ = tokio::time::sleep(interval) =>(),
+            event = events.recv() => {
+                if let BlockEvent::Click(click) = event.unwrap() {
+                    if click.button == MouseButton::Left && clickable {
+                        match memtype {
+                            Memtype::Swap => {
+                                format = &format_mem;
+                                memtype = Memtype::Memory;
+                                api.set_icon("memory_mem")?;
                             }
-                            api.set_format(format.clone());
+                            Memtype::Memory => {
+                                format = &format_swap;
+                                memtype = Memtype::Swap;
+                                api.set_icon("memory_swap")?;
+                            }
                         }
+                        api.set_format(format.clone());
                     }
                 }
             }
         }
-    })
+    }
 }
 
 #[derive(serde_derive::Deserialize, Clone, Copy, Debug)]

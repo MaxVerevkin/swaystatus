@@ -62,79 +62,77 @@ struct BluetoothConfig {
     hide_disconnected: bool,
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
-    let mut events = events();
-    tokio::spawn(async move {
-        let block_config = BluetoothConfig::deserialize(block_config).config_error()?;
-        api.set_format(block_config.format.init("$name{ $percentage|}", &api)?);
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let mut events = api.get_events().await?;
+    let config = BluetoothConfig::deserialize(config).config_error()?;
+    api.set_format(config.format.init("$name{ $percentage|}", &api)?);
 
-        let dbus_conn = api.system_dbus_connection().await?;
-        let device = Device::from_mac(&dbus_conn, &block_config.mac).await?;
-        api.set_icon(device.icon)?;
+    let dbus_conn = api.system_dbus_connection().await?;
+    let device = Device::from_mac(&dbus_conn, &config.mac).await?;
+    api.set_icon(device.icon)?;
 
-        let name = device
-            .device_proxy
-            .name()
-            .await
-            .unwrap_or_else(|_| "N/A".to_string());
-        let mut connected = device
-            .device_proxy
-            .connected()
-            .await
-            .error("Failed to get device state")?;
+    let name = device
+        .device_proxy
+        .name()
+        .await
+        .unwrap_or_else(|_| "N/A".to_string());
+    let mut connected = device
+        .device_proxy
+        .connected()
+        .await
+        .error("Failed to get device state")?;
 
-        let mut connected_stream = device.device_proxy.receive_connected_changed().await;
+    let mut connected_stream = device.device_proxy.receive_connected_changed().await;
 
-        let (mut battery_stream, mut percentage): (
-            Pin<Box<dyn Stream<Item = zbus::PropertyChanged<'_, u8>> + Send + Sync>>,
-            Option<u8>,
-        ) = if let Some(bp) = &device.battery_proxy {
-            (
-                Box::pin(bp.receive_percentage_changed().await),
-                Some(bp.percentage().await.error("Failed to get percentage")?),
-            )
-        } else {
-            (Box::pin(futures::stream::empty()), None)
-        };
+    let (mut battery_stream, mut percentage): (
+        Pin<Box<dyn Stream<Item = zbus::PropertyChanged<'_, u8>> + Send + Sync>>,
+        Option<u8>,
+    ) = if let Some(bp) = &device.battery_proxy {
+        (
+            Box::pin(bp.receive_percentage_changed().await),
+            Some(bp.percentage().await.error("Failed to get percentage")?),
+        )
+    } else {
+        (Box::pin(futures::stream::empty()), None)
+    };
 
-        loop {
-            if connected || !block_config.hide_disconnected {
-                api.set_state(if connected {
-                    WidgetState::Good
-                } else {
-                    WidgetState::Idle
-                });
-                let mut values = map! {
-                    "name" => Value::text((&name).into()),
-                };
-                percentage.map(|p| values.insert("percentage".into(), Value::percents(p)));
-                api.set_values(values);
-                api.show();
-                api.render();
+    loop {
+        if connected || !config.hide_disconnected {
+            api.set_state(if connected {
+                WidgetState::Good
             } else {
-                api.hide();
-            }
-            api.flush().await?;
+                WidgetState::Idle
+            });
+            let mut values = map! {
+                "name" => Value::text((&name).into()),
+            };
+            percentage.map(|p| values.insert("percentage".into(), Value::percents(p)));
+            api.set_values(values);
+            api.show();
+            api.render();
+        } else {
+            api.hide();
+        }
+        api.flush().await?;
 
-            tokio::select! {
-                Some(BlockEvent::Click(click)) = events.recv() => {
-                    if click.button == MouseButton::Right {
-                        if connected {
-                            let _ = device.device_proxy.disconnect().await;
-                        } else {
-                            let _ = device.device_proxy.connect().await;
-                        }
+        tokio::select! {
+            Some(BlockEvent::Click(click)) = events.recv() => {
+                if click.button == MouseButton::Right {
+                    if connected {
+                        let _ = device.device_proxy.disconnect().await;
+                    } else {
+                        let _ = device.device_proxy.connect().await;
                     }
                 }
-                Some(pc) = connected_stream.next() => {
-                    connected = pc.get().await.unwrap();
-                }
-                Some(pc) = battery_stream.next() => {
-                    percentage = Some(pc.get().await.unwrap());
-                }
+            }
+            Some(pc) = connected_stream.next() => {
+                connected = pc.get().await.unwrap();
+            }
+            Some(pc) = battery_stream.next() => {
+                percentage = Some(pc.get().await.unwrap());
             }
         }
-    })
+    }
 }
 
 #[zbus::dbus_proxy(interface = "org.bluez.Device1", default_service = "org.bluez")]

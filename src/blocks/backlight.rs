@@ -227,65 +227,61 @@ impl<'a> BacklightDevice<'a> {
     }
 }
 
-pub fn spawn(config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
-    let mut events = events();
-    tokio::spawn(async move {
-        let config = BacklightConfig::deserialize(config).config_error()?;
-        let dbus_conn = api.system_dbus_connection().await?;
-        api.set_format(config.format.init("$brightness", &api)?);
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let mut events = api.get_events().await?;
+    let config = BacklightConfig::deserialize(config).config_error()?;
+    let dbus_conn = api.system_dbus_connection().await?;
+    api.set_format(config.format.init("$brightness", &api)?);
 
-        let device = match &config.device {
-            None => BacklightDevice::default(config.root_scaling, &dbus_conn).await?,
-            Some(path) => {
-                BacklightDevice::from_device(path, config.root_scaling, &dbus_conn).await?
-            }
-        };
+    let device = match &config.device {
+        None => BacklightDevice::default(config.root_scaling, &dbus_conn).await?,
+        Some(path) => BacklightDevice::from_device(path, config.root_scaling, &dbus_conn).await?,
+    };
 
-        // Watch for brightness changes
-        let mut notify = Inotify::init().error("Failed to start inotify")?;
-        let mut buffer = [0; 1024];
+    // Watch for brightness changes
+    let mut notify = Inotify::init().error("Failed to start inotify")?;
+    let mut buffer = [0; 1024];
 
-        notify
-            .add_watch(&device.brightness_file, WatchMask::MODIFY)
-            .error("Failed to watch brightness file")?;
+    notify
+        .add_watch(&device.brightness_file, WatchMask::MODIFY)
+        .error("Failed to watch brightness file")?;
 
-        let mut file_changes = notify
-            .event_stream(&mut buffer)
-            .error("Failed to create event stream")?;
+    let mut file_changes = notify
+        .event_stream(&mut buffer)
+        .error("Failed to create event stream")?;
 
-        loop {
-            let brightness = device.brightness().await?;
-            let mut icon_index = (usize::from(brightness) * BACKLIGHT_ICONS.len()) / 101;
-            if config.invert_icons {
-                icon_index = BACKLIGHT_ICONS.len() - icon_index;
-            }
+    loop {
+        let brightness = device.brightness().await?;
+        let mut icon_index = (usize::from(brightness) * BACKLIGHT_ICONS.len()) / 101;
+        if config.invert_icons {
+            icon_index = BACKLIGHT_ICONS.len() - icon_index;
+        }
 
-            api.set_icon(BACKLIGHT_ICONS[icon_index])?;
-            api.set_values(map! {
-                "brightness" => Value::percents(brightness as i64),
-            });
-            api.render();
-            api.flush().await?;
+        api.set_icon(BACKLIGHT_ICONS[icon_index])?;
+        api.set_values(map! {
+            "brightness" => Value::percents(brightness as i64),
+        });
+        api.render();
+        api.flush().await?;
 
-            tokio::select! {
-                _ = file_changes.next() => (),
-                Some(BlockEvent::Click(event)) = events.recv() => {
-                    let brightness = device.brightness().await?;
-                    match event.button {
-                        MouseButton::WheelUp => {
-                            device
-                                .set_brightness(brightness + config.step_width)
-                                .await?;
-                        }
-                        MouseButton::WheelDown => {
-                            device
-                                .set_brightness(brightness.saturating_sub(config.step_width))
-                                .await?;
-                        }
-                        _ => (),
+        tokio::select! {
+            _ = file_changes.next() => (),
+            Some(BlockEvent::Click(event)) = events.recv() => {
+                let brightness = device.brightness().await?;
+                match event.button {
+                    MouseButton::WheelUp => {
+                        device
+                            .set_brightness(brightness + config.step_width)
+                            .await?;
                     }
+                    MouseButton::WheelDown => {
+                        device
+                            .set_brightness(brightness.saturating_sub(config.step_width))
+                            .await?;
+                    }
+                    _ => (),
                 }
             }
         }
-    })
+    }
 }

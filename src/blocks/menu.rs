@@ -72,29 +72,27 @@ impl Block {
     }
 }
 
-pub fn spawn(config: toml::Value, api: CommonApi, events: EventsRxGetter) -> BlockHandle {
-    let events = events();
-    tokio::spawn(async move {
-        let config = Config::deserialize(config).config_error()?;
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let events = api.get_events().await?;
+    let config = Config::deserialize(config).config_error()?;
 
-        let mut block = Block {
-            api,
-            text: config.text,
-            items: config.items,
-            events_receiver: events,
-        };
+    let mut block = Block {
+        api,
+        text: config.text,
+        items: config.items,
+        events_receiver: events,
+    };
 
-        loop {
-            block.reset().await?;
-            block.wait_for_click(MouseButton::Left).await;
-            if let Some(res) = block.run_menu().await? {
-                if let Some(msg) = res.confirm_msg {
-                    if !block.confirm(msg.clone()).await? {
-                        continue;
-                    }
+    loop {
+        block.reset().await?;
+        block.wait_for_click(MouseButton::Left).await;
+        if let Some(res) = block.run_menu().await? {
+            if let Some(msg) = res.confirm_msg {
+                if !block.confirm(msg.clone()).await? {
+                    continue;
                 }
-                spawn_shell(&res.cmd).or_error(|| format!("Failed to run '{}'", res.cmd))?;
             }
+            spawn_shell(&res.cmd).or_error(|| format!("Failed to run '{}'", res.cmd))?;
         }
-    })
+    }
 }

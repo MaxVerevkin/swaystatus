@@ -72,96 +72,94 @@ impl Default for NetConfig {
     }
 }
 
-pub fn spawn(config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
-    let mut events = events();
-    tokio::spawn(async move {
-        let config = NetConfig::deserialize(config).config_error()?;
-        let mut format = config
-            .format
-            .init("$speed_down.eng(3,B,K)$speed_up.eng(3,B,K)", &api)?;
-        let mut format_alt = match config.format_alt {
-            Some(f) => Some(f.init("", &api)?),
-            None => None,
-        };
-        api.set_format(format.clone());
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let mut events = api.get_events().await?;
+    let config = NetConfig::deserialize(config).config_error()?;
+    let mut format = config
+        .format
+        .init("$speed_down.eng(3,B,K)$speed_up.eng(3,B,K)", &api)?;
+    let mut format_alt = match config.format_alt {
+        Some(f) => Some(f.init("", &api)?),
+        None => None,
+    };
+    api.set_format(format.clone());
 
-        let interval = Duration::from_secs(config.interval);
+    let interval = Duration::from_secs(config.interval);
 
-        // Stats
-        let mut stats = None;
-        let mut timer = Instant::now();
-        let mut tx_hist = [0f64; 8];
-        let mut rx_hist = [0f64; 8];
+    // Stats
+    let mut stats = None;
+    let mut timer = Instant::now();
+    let mut tx_hist = [0f64; 8];
+    let mut rx_hist = [0f64; 8];
 
-        loop {
-            let mut speed_down: f64 = 0.0;
-            let mut speed_up: f64 = 0.0;
+    loop {
+        let mut speed_down: f64 = 0.0;
+        let mut speed_up: f64 = 0.0;
 
-            // Get interface name
-            let device = NetDevice::from_interface(
-                config
-                    .device
-                    .clone()
-                    .map(Into::into)
-                    .or_else(default_interface)
-                    .unwrap_or_else(|| "lo".into()),
-            )
-            .await;
+        // Get interface name
+        let device = NetDevice::from_interface(
+            config
+                .device
+                .clone()
+                .map(Into::into)
+                .or_else(default_interface)
+                .unwrap_or_else(|| "lo".into()),
+        )
+        .await;
 
-            // Calculate speed
-            match (stats, device.read_stats().await) {
-                // No previous stats available
-                (None, new_stats) => stats = new_stats,
-                // No new stats available
-                (Some(_), None) => stats = None,
-                // All stats available
-                (Some(old_stats), Some(new_stats)) => {
-                    let rx_bytes = new_stats.0.saturating_sub(old_stats.0);
-                    let tx_bytes = new_stats.1.saturating_sub(old_stats.1);
-                    let elapsed = timer.elapsed().as_secs_f64();
-                    timer = Instant::now();
-                    speed_down = rx_bytes as f64 / elapsed;
-                    speed_up = tx_bytes as f64 / elapsed;
-                    stats = Some(new_stats);
-                }
+        // Calculate speed
+        match (stats, device.read_stats().await) {
+            // No previous stats available
+            (None, new_stats) => stats = new_stats,
+            // No new stats available
+            (Some(_), None) => stats = None,
+            // All stats available
+            (Some(old_stats), Some(new_stats)) => {
+                let rx_bytes = new_stats.0.saturating_sub(old_stats.0);
+                let tx_bytes = new_stats.1.saturating_sub(old_stats.1);
+                let elapsed = timer.elapsed().as_secs_f64();
+                timer = Instant::now();
+                speed_down = rx_bytes as f64 / elapsed;
+                speed_up = tx_bytes as f64 / elapsed;
+                stats = Some(new_stats);
             }
-            push_to_hist(&mut rx_hist, speed_down);
-            push_to_hist(&mut tx_hist, speed_up);
+        }
+        push_to_hist(&mut rx_hist, speed_down);
+        push_to_hist(&mut tx_hist, speed_up);
 
-            let wifi = device.wifi_info()?;
+        let wifi = device.wifi_info()?;
 
-            let mut values = map! {
-                "speed_down" => Value::bytes(speed_down).icon(api.get_icon("net_down")?),
-                "speed_up" => Value::bytes(speed_up).icon(api.get_icon("net_up")?),
-                "graph_down" => Value::text(util::format_vec_to_bar_graph(&rx_hist)),
-                "graph_up" => Value::text(util::format_vec_to_bar_graph(&tx_hist)),
-                "device" => Value::text(device.interface.into()),
-            };
-            wifi.0
-                .map(|s| values.insert("ssid".into(), Value::text(s.into())));
-            wifi.1
-                .map(|f| values.insert("frequency".into(), Value::hertz(f)));
-            wifi.2
-                .map(|s| values.insert("signal".into(), Value::percents(s)));
+        let mut values = map! {
+            "speed_down" => Value::bytes(speed_down).icon(api.get_icon("net_down")?),
+            "speed_up" => Value::bytes(speed_up).icon(api.get_icon("net_up")?),
+            "graph_down" => Value::text(util::format_vec_to_bar_graph(&rx_hist)),
+            "graph_up" => Value::text(util::format_vec_to_bar_graph(&tx_hist)),
+            "device" => Value::text(device.interface.into()),
+        };
+        wifi.0
+            .map(|s| values.insert("ssid".into(), Value::text(s.into())));
+        wifi.1
+            .map(|f| values.insert("frequency".into(), Value::hertz(f)));
+        wifi.2
+            .map(|s| values.insert("signal".into(), Value::percents(s)));
 
-            api.set_values(values);
-            api.set_icon(device.icon)?;
-            api.render();
-            api.flush().await?;
+        api.set_values(values);
+        api.set_icon(device.icon)?;
+        api.render();
+        api.flush().await?;
 
-            tokio::select! {
-                _ = tokio::time::sleep(interval) =>(),
-                Some(BlockEvent::Click(click)) = events.recv() => {
-                    if click.button == MouseButton::Left {
-                        if let Some(ref mut format_alt) = format_alt {
-                            std::mem::swap(format_alt, &mut format);
-                            api.set_format(format.clone());
-                        }
+        tokio::select! {
+            _ = tokio::time::sleep(interval) =>(),
+            Some(BlockEvent::Click(click)) = events.recv() => {
+                if click.button == MouseButton::Left {
+                    if let Some(ref mut format_alt) = format_alt {
+                        std::mem::swap(format_alt, &mut format);
+                        api.set_format(format.clone());
                     }
                 }
             }
         }
-    })
+    }
 }
 
 fn push_to_hist<T>(hist: &mut [T], elem: T) {

@@ -86,95 +86,93 @@ impl Default for Config {
     }
 }
 
-pub fn spawn(config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
-    tokio::spawn(async move {
-        let config = Config::deserialize(config).config_error()?;
-        let dbus_conn = api.dbus_connection().await?;
-        api.set_format(config.format.init("", &api)?);
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let config = Config::deserialize(config).config_error()?;
+    let dbus_conn = api.dbus_connection().await?;
+    api.set_format(config.format.init("", &api)?);
 
-        let battery_state = (
-            config.bat_good,
-            config.bat_info,
-            config.bat_warning,
-            config.bat_critical,
-        ) != (0, 0, 0, 0);
+    let battery_state = (
+        config.bat_good,
+        config.bat_info,
+        config.bat_warning,
+        config.bat_critical,
+    ) != (0, 0, 0, 0);
 
-        let id = match config.device_id {
-            Some(id) => id,
-            None => any_device_id(&dbus_conn).await?,
-        };
+    let id = match config.device_id {
+        Some(id) => id,
+        None => any_device_id(&dbus_conn).await?,
+    };
 
-        let (tx, mut rx) = mpsc::channel(8);
-        let device = Device::new(&dbus_conn, tx, &id).await?;
+    let (tx, mut rx) = mpsc::channel(8);
+    let device = Device::new(&dbus_conn, tx, &id).await?;
 
-        loop {
-            let connected = device.connected().await?;
+    loop {
+        let connected = device.connected().await?;
 
-            if connected || !config.hide_disconnected {
-                let mut state = WidgetState::Idle;
+        if connected || !config.hide_disconnected {
+            let mut state = WidgetState::Idle;
 
-                let mut values = map! {
-                    "name" => Value::text(device.name().await?),
-                };
-                if connected {
-                    api.set_icon("phone")?;
-                    values.insert("connected".into(), Value::Flag);
+            let mut values = map! {
+                "name" => Value::text(device.name().await?),
+            };
+            if connected {
+                api.set_icon("phone")?;
+                values.insert("connected".into(), Value::Flag);
 
-                    let (level, charging) = device.battery().await?;
-                    values.insert("bat_charge".into(), Value::percents(level));
-                    values.insert(
-                        "bat_icon".into(),
-                        Value::Icon(
-                            api.get_icon(battery_level_icon(level, charging))?
-                                .trim()
-                                .into(),
-                        ),
-                    );
-                    if battery_state {
-                        state = if charging {
-                            WidgetState::Good
-                        } else if level <= config.bat_critical {
-                            WidgetState::Critical
-                        } else if level <= config.bat_info {
-                            WidgetState::Info
-                        } else if level > config.bat_good {
-                            WidgetState::Good
-                        } else {
-                            WidgetState::Idle
-                        };
-                    }
-
-                    let notif_count = device.notifications().await?;
-                    if notif_count > 0 {
-                        values.insert("notif_count".into(), Value::number(notif_count));
-                        values.insert(
-                            "notif_icon".into(),
-                            Value::Icon(api.get_icon("notification")?.trim().into()),
-                        );
-                    }
-                    if !battery_state {
-                        state = if notif_count == 0 {
-                            WidgetState::Idle
-                        } else {
-                            WidgetState::Info
-                        };
-                    }
-                } else {
-                    api.set_icon("phone_disconnected")?;
+                let (level, charging) = device.battery().await?;
+                values.insert("bat_charge".into(), Value::percents(level));
+                values.insert(
+                    "bat_icon".into(),
+                    Value::Icon(
+                        api.get_icon(battery_level_icon(level, charging))?
+                            .trim()
+                            .into(),
+                    ),
+                );
+                if battery_state {
+                    state = if charging {
+                        WidgetState::Good
+                    } else if level <= config.bat_critical {
+                        WidgetState::Critical
+                    } else if level <= config.bat_info {
+                        WidgetState::Info
+                    } else if level > config.bat_good {
+                        WidgetState::Good
+                    } else {
+                        WidgetState::Idle
+                    };
                 }
 
-                api.show();
-                api.set_values(values);
-                api.set_state(state);
-                api.render();
+                let notif_count = device.notifications().await?;
+                if notif_count > 0 {
+                    values.insert("notif_count".into(), Value::number(notif_count));
+                    values.insert(
+                        "notif_icon".into(),
+                        Value::Icon(api.get_icon("notification")?.trim().into()),
+                    );
+                }
+                if !battery_state {
+                    state = if notif_count == 0 {
+                        WidgetState::Idle
+                    } else {
+                        WidgetState::Info
+                    };
+                }
             } else {
-                api.hide();
+                api.set_icon("phone_disconnected")?;
             }
 
-            api.flush().await?;
-            rx.recv().await.error("tx dropped")?;
+            api.show();
+            api.set_values(values);
+            api.set_state(state);
+            api.render();
+        } else {
+            api.hide();
         }
-    })
+
+        api.flush().await?;
+        rx.recv().await.error("tx dropped")?;
+    }
 }
 
 struct Device<'a> {

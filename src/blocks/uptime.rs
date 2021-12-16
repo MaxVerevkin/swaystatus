@@ -39,44 +39,42 @@ impl Default for UptimeConfig {
     }
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
-    tokio::spawn(async move {
-        let block_config = UptimeConfig::deserialize(block_config).config_error()?;
-        let mut interval = tokio::time::interval(Duration::from_secs(block_config.interval));
-        api.set_icon("uptime")?;
+pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let block_config = UptimeConfig::deserialize(block_config).config_error()?;
+    let mut interval = tokio::time::interval(Duration::from_secs(block_config.interval));
+    api.set_icon("uptime")?;
 
-        loop {
-            let uptime = read_to_string("/proc/uptime")
-                .await
-                .error("Failed to read /proc/uptime")?;
-            let mut seconds: u64 = uptime
-                .split('.')
-                .next()
-                .and_then(|u| u.parse().ok())
-                .error("/proc/uptime has invalid content")?;
+    loop {
+        let uptime = read_to_string("/proc/uptime")
+            .await
+            .error("Failed to read /proc/uptime")?;
+        let mut seconds: u64 = uptime
+            .split('.')
+            .next()
+            .and_then(|u| u.parse().ok())
+            .error("/proc/uptime has invalid content")?;
 
-            let weeks = seconds / 604_800;
-            seconds %= 604_800;
-            let days = seconds / 86_400;
-            seconds %= 86_400;
-            let hours = seconds / 3_600;
-            seconds %= 3_600;
-            let minutes = seconds / 60;
-            seconds %= 60;
+        let weeks = seconds / 604_800;
+        seconds %= 604_800;
+        let days = seconds / 86_400;
+        seconds %= 86_400;
+        let hours = seconds / 3_600;
+        seconds %= 3_600;
+        let minutes = seconds / 60;
+        seconds %= 60;
 
-            let text = if weeks > 0 {
-                format!("{}w {}d", weeks, days)
-            } else if days > 0 {
-                format!("{}d {}h", days, hours)
-            } else if hours > 0 {
-                format!("{}h {}m", hours, minutes)
-            } else {
-                format!("{}m {}s", minutes, seconds)
-            };
+        let text = if weeks > 0 {
+            format!("{}w {}d", weeks, days)
+        } else if days > 0 {
+            format!("{}d {}h", days, hours)
+        } else if hours > 0 {
+            format!("{}h {}m", hours, minutes)
+        } else {
+            format!("{}m {}s", minutes, seconds)
+        };
 
-            api.set_text((text.into(), None));
-            api.flush().await?;
-            interval.tick().await;
-        }
-    })
+        api.set_text((text.into(), None));
+        api.flush().await?;
+        interval.tick().await;
+    }
 }

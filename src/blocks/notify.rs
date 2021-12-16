@@ -63,48 +63,46 @@ impl Default for DriverType {
     }
 }
 
-pub fn spawn(config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
-    let mut events = events();
-    tokio::spawn(async move {
-        let config = NotifyConfig::deserialize(config).config_error()?;
-        api.set_format(config.format.init("", &api)?);
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let mut events = api.get_events().await?;
+    let config = NotifyConfig::deserialize(config).config_error()?;
+    api.set_format(config.format.init("", &api)?);
 
-        let dbus_conn = api.dbus_connection().await?;
-        let mut driver: Box<dyn Driver + Send + Sync> = match config.driver {
-            DriverType::Dunst => Box::new(MakoDriver::new(&dbus_conn).await?),
-        };
+    let dbus_conn = api.dbus_connection().await?;
+    let mut driver: Box<dyn Driver + Send + Sync> = match config.driver {
+        DriverType::Dunst => Box::new(MakoDriver::new(&dbus_conn).await?),
+    };
+
+    loop {
+        let is_paused = driver.is_paused().await?;
+
+        api.set_icon(if is_paused { ICON_OFF } else { ICON_ON })?;
+
+        let mut values = HashMap::new();
+        if is_paused {
+            values.insert("paused".into(), Value::Flag);
+        }
+        api.set_values(values);
+
+        api.render();
+        api.flush().await?;
 
         loop {
-            let is_paused = driver.is_paused().await?;
-
-            api.set_icon(if is_paused { ICON_OFF } else { ICON_ON })?;
-
-            let mut values = HashMap::new();
-            if is_paused {
-                values.insert("paused".into(), Value::Flag);
-            }
-            api.set_values(values);
-
-            api.render();
-            api.flush().await?;
-
-            loop {
-                tokio::select! {
-                    x = driver.wait_for_change() => {
-                        x?;
-                        break;
-                    }
-                    event = events.recv() => {
-                        if let BlockEvent::Click(click) = event.unwrap() {
-                            if click.button == MouseButton::Left {
-                                driver.set_paused(!is_paused).await?;
-                            }
+            tokio::select! {
+                x = driver.wait_for_change() => {
+                    x?;
+                    break;
+                }
+                event = events.recv() => {
+                    if let BlockEvent::Click(click) = event.unwrap() {
+                        if click.button == MouseButton::Left {
+                            driver.set_paused(!is_paused).await?;
                         }
                     }
                 }
             }
         }
-    })
+    }
 }
 
 #[async_trait]

@@ -48,82 +48,80 @@ impl Default for FocusedWindowConfig {
     }
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
-    tokio::spawn(async move {
-        let block_config = FocusedWindowConfig::deserialize(block_config).config_error()?;
-        api.set_format(block_config.format.init("$title.rot-str(15)|", &api)?);
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let config = FocusedWindowConfig::deserialize(config).config_error()?;
+    api.set_format(config.format.init("$title.rot-str(15)|", &api)?);
 
-        let mut title: Option<String> = None;
-        let mut marks = Vec::new();
+    let mut title: Option<String> = None;
+    let mut marks = Vec::new();
 
-        let conn = Connection::new()
+    let conn = Connection::new()
+        .await
+        .error("failed to open connection with swayipc")?;
+
+    let mut events = conn
+        .subscribe(&[EventType::Window, EventType::Workspace])
+        .await
+        .error("could not subscribe to window events")?;
+
+    // Main loop
+    loop {
+        let event = events
+            .next()
             .await
-            .error("failed to open connection with swayipc")?;
+            .error("swayipc channel closed")?
+            .error("bad event")?;
 
-        let mut events = conn
-            .subscribe(&[EventType::Window, EventType::Workspace])
-            .await
-            .error("could not subscribe to window events")?;
-
-        // Main loop
-        loop {
-            let event = events
-                .next()
-                .await
-                .error("swayipc channel closed")?
-                .error("bad event")?;
-
-            let updated = match event {
-                Event::Window(e) => match e.change {
-                    WindowChange::Mark => {
-                        marks = e.container.marks;
-                        true
-                    }
-                    WindowChange::Focus => {
+        let updated = match event {
+            Event::Window(e) => match e.change {
+                WindowChange::Mark => {
+                    marks = e.container.marks;
+                    true
+                }
+                WindowChange::Focus => {
+                    title = e.container.name.as_ref().map(|t| t.into());
+                    marks = e.container.marks;
+                    true
+                }
+                WindowChange::Title => {
+                    if e.container.focused {
                         title = e.container.name.as_ref().map(|t| t.into());
-                        marks = e.container.marks;
                         true
+                    } else {
+                        false
                     }
-                    WindowChange::Title => {
-                        if e.container.focused {
-                            title = e.container.name.as_ref().map(|t| t.into());
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                    WindowChange::Close => {
-                        title = None;
-                        marks.clear();
-                        true
-                    }
-                    _ => false,
-                },
-                Event::Workspace(e) if e.change == WorkspaceChange::Init => {
+                }
+                WindowChange::Close => {
                     title = None;
                     marks.clear();
                     true
                 }
                 _ => false,
-            };
-
-            if updated {
-                if title.is_some() || !block_config.autohide {
-                    let mut values = map! {
-                        "marks" => Value::text(marks.iter().map(|m| format!("[{}]",m)).collect()),
-                        "visible_marks" => Value::text(marks.iter().filter(|m| !m.starts_with('_')).map(|m| format!("[{}]",m)).collect()),
-                    };
-                    title
-                        .clone()
-                        .map(|t| values.insert("title".into(), Value::text(t)));
-                    api.set_values(values);
-                    api.show();
-                    api.render();
-                } else {
-                    api.hide();
-                }
-                api.flush().await?;
+            },
+            Event::Workspace(e) if e.change == WorkspaceChange::Init => {
+                title = None;
+                marks.clear();
+                true
             }
+            _ => false,
+        };
+
+        if updated {
+            if title.is_some() || !config.autohide {
+                let mut values = map! {
+                    "marks" => Value::text(marks.iter().map(|m| format!("[{}]",m)).collect()),
+                    "visible_marks" => Value::text(marks.iter().filter(|m| !m.starts_with('_')).map(|m| format!("[{}]",m)).collect()),
+                };
+                title
+                    .clone()
+                    .map(|t| values.insert("title".into(), Value::text(t)));
+                api.set_values(values);
+                api.show();
+                api.render();
+            } else {
+                api.hide();
+            }
+            api.flush().await?;
         }
-    })
+    }
 }

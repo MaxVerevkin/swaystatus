@@ -32,24 +32,26 @@ macro_rules! define_blocks {
             )*
         }
 
+        impl BlockType {
+            pub async fn run(self, config: toml::Value, api: CommonApi) -> Result<()> {
+                match self {
+                    $(
+                        Self::$block => {
+                            $block::run(config, api).await.in_block(self)
+                        }
+                    )*
+                }
+            }
+        }
+
         const BLOCK_NAMES: &[&str] = &[
             $(stringify!($block),)*
-        ];
-
-        const BLOCK_SPAWNERS: &[&BlockSpawnerFn] = &[
-            $(&$block::spawn as &BlockSpawnerFn,)*
         ];
 
         /// Matches the block's type to block's name
         #[inline(always)]
         pub fn block_name(block: BlockType) -> &'static str {
             BLOCK_NAMES[block as usize]
-        }
-
-        /// Matches the block's type to block's spawner function
-        #[inline(always)]
-        pub fn block_spawner(block: BlockType) -> &'static BlockSpawnerFn {
-            BLOCK_SPAWNERS[block as usize]
         }
     };
 }
@@ -83,11 +85,7 @@ define_blocks!(
     weather,
 );
 
-pub type EventsRxGetter<'a> = &'a mut dyn FnMut() -> mpsc::Receiver<BlockEvent>;
-
-pub type BlockSpawnerFn = dyn Fn(toml::Value, CommonApi, EventsRxGetter) -> BlockHandle;
-
-pub type BlockHandle = tokio::task::JoinHandle<std::result::Result<(), crate::errors::Error>>;
+pub type EventsRx = mpsc::Receiver<BlockEvent>;
 
 #[derive(Debug, Clone, Copy)]
 pub enum BlockEvent {
@@ -117,6 +115,13 @@ impl CommonApi {
 
     pub fn show(&mut self) {
         self.cmd_buf.push(RequestCmd::Show);
+    }
+
+    pub async fn get_events(&mut self) -> Result<EventsRx> {
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        self.cmd_buf.push(RequestCmd::GetEvents(sender));
+        self.flush().await?;
+        receiver.await.ok().error("Failed to get events receiver")
     }
 
     pub fn set_icon(&mut self, icon: &str) -> Result<()> {

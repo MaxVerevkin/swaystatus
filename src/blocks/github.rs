@@ -55,37 +55,35 @@ fn default_hide() -> bool {
     true
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
-    tokio::spawn(async move {
-        let block_config = GithubConfig::deserialize(block_config).config_error()?;
-        let interval = Duration::from_secs(block_config.interval);
-        api.set_format(block_config.format.init("$total.eng(1)|X", &api)?);
-        api.set_icon("github")?;
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let config = GithubConfig::deserialize(config).config_error()?;
+    let interval = Duration::from_secs(config.interval);
+    api.set_format(config.format.init("$total.eng(1)|X", &api)?);
+    api.set_icon("github")?;
 
-        // Http client
-        let client = reqwest::Client::new();
-        let request = client
-            .get("https://api.github.com/notifications")
-            .header("Authorization", &format!("token {}", block_config.token))
-            .header(header::USER_AGENT, "swaystatus");
+    // Http client
+    let client = reqwest::Client::new();
+    let request = client
+        .get("https://api.github.com/notifications")
+        .header("Authorization", &format!("token {}", config.token))
+        .header(header::USER_AGENT, "swaystatus");
 
-        loop {
-            let total = get_total(&request).await;
+    loop {
+        let total = get_total(&request).await;
 
-            if total != Some(0) || !block_config.hide {
-                let mut values = HashMap::new();
-                total.map(|t| values.insert("total".into(), Value::number(t)));
-                api.set_values(values);
-                api.show();
-                api.render();
-            } else {
-                api.hide();
-            }
-            api.flush().await?;
-
-            tokio::time::sleep(interval).await;
+        if total != Some(0) || !config.hide {
+            let mut values = HashMap::new();
+            total.map(|t| values.insert("total".into(), Value::number(t)));
+            api.set_values(values);
+            api.show();
+            api.render();
+        } else {
+            api.hide();
         }
-    })
+        api.flush().await?;
+
+        tokio::time::sleep(interval).await;
+    }
 }
 
 async fn get_total(request: &reqwest::RequestBuilder) -> Option<usize> {

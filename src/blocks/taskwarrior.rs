@@ -76,57 +76,55 @@ impl Default for TaskwarriorConfig {
     }
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
-    let mut events = events();
-    tokio::spawn(async move {
-        let block_config = TaskwarriorConfig::deserialize(block_config).config_error()?;
-        api.set_format(block_config.format.init("$count.eng(1)", &api)?);
-        api.set_icon("tasks")?;
+pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let mut events = api.get_events().await?;
+    let block_config = TaskwarriorConfig::deserialize(block_config).config_error()?;
+    api.set_format(block_config.format.init("$count.eng(1)", &api)?);
+    api.set_icon("tasks")?;
 
-        let mut filters = block_config.filters.iter().cycle();
-        let mut filter = filters.next().error("failed to get next filter")?;
+    let mut filters = block_config.filters.iter().cycle();
+    let mut filter = filters.next().error("failed to get next filter")?;
 
-        loop {
-            let number_of_tasks = get_number_of_tasks(&filter.filter).await?;
+    loop {
+        let number_of_tasks = get_number_of_tasks(&filter.filter).await?;
 
-            if number_of_tasks != 0 || !block_config.hide_when_zero {
-                let mut values = map!(
-                    "count" => Value::number(number_of_tasks),
-                    "filter_name" => Value::text(filter.name.clone()),
-                );
-                if number_of_tasks == 0 {
-                    values.insert("done".into(), Value::Flag);
-                } else if number_of_tasks == 1 {
-                    values.insert("single".into(), Value::Flag);
-                }
-                api.set_values(values);
-
-                api.set_state(if number_of_tasks >= block_config.critical_threshold {
-                    WidgetState::Critical
-                } else if number_of_tasks >= block_config.warning_threshold {
-                    WidgetState::Warning
-                } else {
-                    WidgetState::Idle
-                });
-
-                api.show();
-                api.render();
-            } else {
-                api.hide();
+        if number_of_tasks != 0 || !block_config.hide_when_zero {
+            let mut values = map!(
+                "count" => Value::number(number_of_tasks),
+                "filter_name" => Value::text(filter.name.clone()),
+            );
+            if number_of_tasks == 0 {
+                values.insert("done".into(), Value::Flag);
+            } else if number_of_tasks == 1 {
+                values.insert("single".into(), Value::Flag);
             }
+            api.set_values(values);
 
-            api.flush().await?;
+            api.set_state(if number_of_tasks >= block_config.critical_threshold {
+                WidgetState::Critical
+            } else if number_of_tasks >= block_config.warning_threshold {
+                WidgetState::Warning
+            } else {
+                WidgetState::Idle
+            });
 
-            tokio::select! {
-                _ = tokio::time::sleep(block_config.interval) =>(),
-                Some(BlockEvent::Click(click)) = events.recv() => {
-                    if click.button == MouseButton::Right {
-                        filter = filters.next().error("failed to get next filter")?;
-                    }
+            api.show();
+            api.render();
+        } else {
+            api.hide();
+        }
+
+        api.flush().await?;
+
+        tokio::select! {
+            _ = tokio::time::sleep(block_config.interval) =>(),
+            Some(BlockEvent::Click(click)) = events.recv() => {
+                if click.button == MouseButton::Right {
+                    filter = filters.next().error("failed to get next filter")?;
                 }
             }
         }
-    })
+    }
 }
 
 async fn get_number_of_tasks(filter: &str) -> Result<u32> {

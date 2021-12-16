@@ -210,18 +210,13 @@ impl Formatter for RotStrFormatter {
     fn init(&self, api: &CommonApi) {
         let tx = api.request_sender.clone();
         let mut interval = tokio::time::interval(Duration::from_secs_f64(self.interval));
-
-        let mut cmds = SmallVec::new();
-        cmds.push(RequestCmd::Render);
-
-        let request = Request {
-            block_id: api.id,
-            cmds,
-        };
+        let block_id = api.id;
 
         tokio::spawn(async move {
             loop {
-                tx.send(request.clone()).await.unwrap();
+                let mut cmds = SmallVec::new();
+                cmds.push(RequestCmd::Render);
+                tx.send(Request { block_id, cmds }).await.unwrap();
                 interval.tick().await;
             }
         });

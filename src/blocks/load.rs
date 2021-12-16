@@ -59,58 +59,56 @@ impl Default for LoadConfig {
     }
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, _: EventsRxGetter) -> BlockHandle {
-    tokio::spawn(async move {
-        let block_config = LoadConfig::deserialize(block_config).config_error()?;
-        let mut interval = tokio::time::interval(block_config.interval);
-        api.set_format(block_config.format.init("$1m", &api)?);
-        api.set_icon("cogs")?;
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let config = LoadConfig::deserialize(config).config_error()?;
+    let mut interval = tokio::time::interval(config.interval);
+    api.set_format(config.format.init("$1m", &api)?);
+    api.set_icon("cogs")?;
 
-        // borrowed from https://docs.rs/cpuinfo/0.1.1/src/cpuinfo/count/logical.rs.html#4-6
-        let logical_cores = util::read_file(Path::new("/proc/cpuinfo"))
+    // borrowed from https://docs.rs/cpuinfo/0.1.1/src/cpuinfo/count/logical.rs.html#4-6
+    let logical_cores = util::read_file(Path::new("/proc/cpuinfo"))
+        .await
+        .error("Your system doesn't support /proc/cpuinfo")?
+        .lines()
+        .filter(|l| l.starts_with("processor"))
+        .count() as f64;
+
+    let loadavg_path = Path::new("/proc/loadavg");
+    loop {
+        let loadavg = util::read_file(loadavg_path)
             .await
-            .error("Your system doesn't support /proc/cpuinfo")?
-            .lines()
-            .filter(|l| l.starts_with("processor"))
-            .count() as f64;
+            .error("Your system does not support reading the load average from /proc/loadavg")?;
+        let mut values = loadavg.split(' ');
+        let m1: f64 = values
+            .next()
+            .map(|x| x.parse().ok())
+            .flatten()
+            .error("bad /proc/loadavg file")?;
+        let m5: f64 = values
+            .next()
+            .map(|x| x.parse().ok())
+            .flatten()
+            .error("bad /proc/loadavg file")?;
+        let m15: f64 = values
+            .next()
+            .map(|x| x.parse().ok())
+            .flatten()
+            .error("bad /proc/loadavg file")?;
 
-        let loadavg_path = Path::new("/proc/loadavg");
-        loop {
-            let loadavg = util::read_file(loadavg_path).await.error(
-                "Your system does not support reading the load average from /proc/loadavg",
-            )?;
-            let mut values = loadavg.split(' ');
-            let m1: f64 = values
-                .next()
-                .map(|x| x.parse().ok())
-                .flatten()
-                .error("bad /proc/loadavg file")?;
-            let m5: f64 = values
-                .next()
-                .map(|x| x.parse().ok())
-                .flatten()
-                .error("bad /proc/loadavg file")?;
-            let m15: f64 = values
-                .next()
-                .map(|x| x.parse().ok())
-                .flatten()
-                .error("bad /proc/loadavg file")?;
+        api.set_state(match m1 / logical_cores {
+            x if x > config.critical => WidgetState::Critical,
+            x if x > config.warning => WidgetState::Warning,
+            x if x > config.info => WidgetState::Info,
+            _ => WidgetState::Idle,
+        });
+        api.set_values(map! {
+            "1m" => Value::number(m1),
+            "5m" => Value::number(m5),
+            "15m" => Value::number(m15),
+        });
 
-            api.set_state(match m1 / logical_cores {
-                x if x > block_config.critical => WidgetState::Critical,
-                x if x > block_config.warning => WidgetState::Warning,
-                x if x > block_config.info => WidgetState::Info,
-                _ => WidgetState::Idle,
-            });
-            api.set_values(map! {
-                "1m" => Value::number(m1),
-                "5m" => Value::number(m5),
-                "15m" => Value::number(m15),
-            });
-
-            api.render();
-            api.flush().await?;
-            interval.tick().await;
-        }
-    })
+        api.render();
+        api.flush().await?;
+        interval.tick().await;
+    }
 }

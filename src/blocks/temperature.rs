@@ -78,53 +78,51 @@ impl Default for TemperatureConfig {
     }
 }
 
-pub fn spawn(block_config: toml::Value, mut api: CommonApi, events: EventsRxGetter) -> BlockHandle {
-    let mut events = events();
-    tokio::spawn(async move {
-        let block_config = TemperatureConfig::deserialize(block_config).config_error()?;
-        let mut collapsed = block_config.collapsed;
-        api.set_format(block_config.format.init("$average avg, $max max", &api)?);
-        api.set_icon("thermometer")?;
+pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let mut events = api.get_events().await?;
+    let block_config = TemperatureConfig::deserialize(block_config).config_error()?;
+    let mut collapsed = block_config.collapsed;
+    api.set_format(block_config.format.init("$average avg, $max max", &api)?);
+    api.set_icon("thermometer")?;
 
-        loop {
-            // Get chip info
-            let temp = ChipInfo::new(&block_config.chip).await?.temp;
-            let min_temp = temp.iter().min().cloned().unwrap_or(0);
-            let max_temp = temp.iter().max().cloned().unwrap_or(0);
-            let avg_temp = (temp.iter().sum::<i32>() as f64) / (temp.len() as f64);
+    loop {
+        // Get chip info
+        let temp = ChipInfo::new(&block_config.chip).await?.temp;
+        let min_temp = temp.iter().min().cloned().unwrap_or(0);
+        let max_temp = temp.iter().max().cloned().unwrap_or(0);
+        let avg_temp = (temp.iter().sum::<i32>() as f64) / (temp.len() as f64);
 
-            api.set_state(match max_temp {
-                x if x <= block_config.good => WidgetState::Good,
-                x if x <= block_config.idle => WidgetState::Idle,
-                x if x <= block_config.info => WidgetState::Info,
-                x if x <= block_config.warning => WidgetState::Warning,
-                _ => WidgetState::Critical,
+        api.set_state(match max_temp {
+            x if x <= block_config.good => WidgetState::Good,
+            x if x <= block_config.idle => WidgetState::Idle,
+            x if x <= block_config.info => WidgetState::Info,
+            x if x <= block_config.warning => WidgetState::Warning,
+            _ => WidgetState::Critical,
+        });
+
+        if collapsed {
+            api.collapse();
+        } else {
+            api.set_values(map! {
+                "average" => Value::degrees(avg_temp),
+                "min" => Value::degrees(min_temp),
+                "max" => Value::degrees(max_temp),
             });
+            api.show();
+            api.render();
+        }
 
-            if collapsed {
-                api.collapse();
-            } else {
-                api.set_values(map! {
-                    "average" => Value::degrees(avg_temp),
-                    "min" => Value::degrees(min_temp),
-                    "max" => Value::degrees(max_temp),
-                });
-                api.show();
-                api.render();
-            }
+        api.flush().await?;
 
-            api.flush().await?;
-
-            tokio::select! {
-                _ = tokio::time::sleep(block_config.interval) => (),
-                Some(BlockEvent::Click(click)) = events.recv() => {
-                    if click.button == MouseButton::Left {
-                        collapsed = !collapsed;
-                    }
+        tokio::select! {
+            _ = tokio::time::sleep(block_config.interval) => (),
+            Some(BlockEvent::Click(click)) = events.recv() => {
+                if click.button == MouseButton::Left {
+                    collapsed = !collapsed;
                 }
             }
         }
-    })
+    }
 }
 
 #[derive(Debug, Clone)]
