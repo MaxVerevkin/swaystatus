@@ -19,6 +19,7 @@ use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_v
 use futures::stream::futures_unordered::FuturesUnordered;
 use futures::stream::StreamExt;
 use futures::Future;
+use protocol::i3bar_block::I3BarBlock;
 use protocol::i3bar_event::I3BarEvent;
 use smallvec::SmallVec;
 use smartstring::alias::String;
@@ -144,6 +145,7 @@ async fn run(config: Option<&str>, noinit: bool, never_pause: bool) -> Result<()
 
 pub struct Block {
     block_type: BlockType,
+    id: usize,
 
     event_sender: Option<mpsc::Sender<BlockEvent>>,
     click_handler: ClickHandler,
@@ -192,6 +194,8 @@ pub struct Swaystatus {
     // TODO: find a way to avoid this `Box<dyn Future>`
     pub spawned_blocks: FuturesUnordered<Pin<Box<dyn Future<Output = Result<()>>>>>,
 
+    pub blocks_render_cache: Vec<Vec<I3BarBlock>>,
+
     pub request_sender: mpsc::Sender<Request>,
     pub request_receiver: mpsc::Receiver<Request>,
 
@@ -207,6 +211,8 @@ impl Swaystatus {
 
             blocks: Vec::new(),
             spawned_blocks: FuturesUnordered::new(),
+
+            blocks_render_cache: Vec::new(),
 
             request_sender,
             request_receiver,
@@ -245,6 +251,7 @@ impl Swaystatus {
 
         let block = Block {
             block_type,
+            id: api.id,
 
             event_sender: None,
             click_handler: common_config.click,
@@ -261,6 +268,7 @@ impl Swaystatus {
         let handle = block_type.run(block_config, api);
         self.spawned_blocks.push(Box::pin(handle));
         self.blocks.push(block);
+        self.blocks_render_cache.push(Vec::new());
         Ok(())
     }
 
@@ -326,24 +334,21 @@ impl Swaystatus {
                         }
                     }
 
-                    // TODO: cache
-                    let mut vec = Vec::new();
-                    for b in &mut self.blocks {
-                        if !b.hidden {
-                            let mut v = Vec::new();
-                            if b.collapsed {
-                                b.widget.set_text((String::new(), None));
-                                v.push(b.widget.get_data());
-                            } else {
-                                v.push(b.widget.get_data());
-                                for button in &b.buttons {
-                                    v.push(button.get_data());
-                                }
+                    let data = &mut self.blocks_render_cache[block.id];
+                    data.clear();
+                    if !block.hidden {
+                        if block.collapsed {
+                            block.widget.set_text((String::new(), None));
+                            data.push(block.widget.get_data());
+                        } else {
+                            data.push(block.widget.get_data());
+                            for button in &block.buttons {
+                                data.push(button.get_data());
                             }
-                            vec.push(v);
                         }
                     }
-                    protocol::print_blocks(&vec, &self.shared_config)?;
+
+                    protocol::print_blocks(&self.blocks_render_cache, &self.shared_config)?;
                 }
                 // Handle clicks
                 Some(event) = events_receiver.recv() => {

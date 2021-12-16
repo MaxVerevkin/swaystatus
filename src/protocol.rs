@@ -33,19 +33,15 @@ pub fn print_blocks(blocks: &[Vec<I3BarBlock>], config: &SharedConfig) -> Result
             continue;
         }
 
-        let mut rendered_widgets: Vec<I3BarBlock> = widgets
-            .iter()
-            .map(|data| {
-                let mut data = data.clone();
-                if alt {
-                    // Apply tint for all widgets of every second block
-                    // TODO: Allow for other non-additive tints
-                    data.background = data.background + config.theme.alternating_tint_bg;
-                    data.color = data.color + config.theme.alternating_tint_fg;
-                }
-                data
-            })
-            .collect();
+        let mut rendered_widgets = widgets.clone();
+        if alt {
+            for data in &mut rendered_widgets {
+                // Apply tint for all widgets of every second block
+                // TODO: Allow for other non-additive tints
+                data.background = data.background + config.theme.alternating_tint_bg;
+                data.color = data.color + config.theme.alternating_tint_fg;
+            }
+        }
 
         alt = !alt;
 
@@ -56,11 +52,11 @@ pub fn print_blocks(blocks: &[Vec<I3BarBlock>], config: &SharedConfig) -> Result
         }
 
         // Serialize and concatenate widgets
-        let block_str = rendered_widgets
-            .iter()
-            .map(|w| w.render())
-            .collect::<Vec<String>>()
-            .join(",");
+        let mut block_str = rendered_widgets[0].render();
+        for x in rendered_widgets.iter().skip(1) {
+            block_str.push(',');
+            block_str.push_str(&x.render());
+        }
 
         if config.theme.separator.is_none() {
             // Skip separator block for native theme
