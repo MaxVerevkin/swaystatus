@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["FILTER",""]],"enum":[["DeviceKind",""]],"fn":[["spawn",""]],"struct":[["AlsaSoundDevice",""],["SoundConfig",""]]});
+initSidebarItems({"constant":[["FILTER",""]],"enum":[["DeviceKind",""]],"fn":[["run",""]],"struct":[["AlsaSoundDevice",""],["SoundConfig",""]]});

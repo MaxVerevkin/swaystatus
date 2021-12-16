@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["spawn",""]],"struct":[["ChipInfo",""],["TemperatureConfig",""]]});
+initSidebarItems({"fn":[["run",""]],"struct":[["ChipInfo",""],["TemperatureConfig",""]]});

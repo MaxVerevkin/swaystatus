@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["spawn",""]],"struct":[["SwayKbdConfig",""]]});
+initSidebarItems({"fn":[["run",""]],"struct":[["SwayKbdConfig",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["spawn",""]],"struct":[["ToggleConfig",""]]});
+initSidebarItems({"fn":[["run",""]],"struct":[["ToggleConfig",""]]});

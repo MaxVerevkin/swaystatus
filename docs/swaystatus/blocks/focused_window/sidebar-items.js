@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["spawn",""]],"struct":[["FocusedWindowConfig",""]]});
+initSidebarItems({"fn":[["run",""]],"struct":[["FocusedWindowConfig",""]]});

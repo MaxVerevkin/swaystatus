@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["get_time",""],["spawn",""]],"struct":[["TimeConfig",""]]});
+initSidebarItems({"fn":[["get_time",""],["run",""]],"struct":[["TimeConfig",""]]});

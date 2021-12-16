@@ -144,8 +144,6 @@
 <span id="143">143</span>
 <span id="144">144</span>
 <span id="145">145</span>
-<span id="146">146</span>
-<span id="147">147</span>
 </pre><pre class="rust"><code><span class="doccomment">//! A Toggle block</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! You can add commands to be executed to disable the toggle (`command_off`), and to enable it</span>
@@ -203,71 +201,47 @@
     <span class="ident">interval</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">spawn</span>(<span class="ident">block_config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>, <span class="ident">events</span>: <span class="ident">EventsRxGetter</span>) -&gt; <span class="ident">BlockHandle</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">events</span> <span class="op">=</span> <span class="ident">events</span>();
-    <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-        <span class="kw">let</span> <span class="ident">block_config</span> <span class="op">=</span> <span class="ident">ToggleConfig::deserialize</span>(<span class="ident">block_config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">interval</span> <span class="op">=</span> <span class="ident">block_config</span>.<span class="ident">interval</span>.<span class="ident">map</span>(<span class="ident">Duration::from_secs</span>);
+<span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">block_config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">events</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_events</span>().<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">block_config</span> <span class="op">=</span> <span class="ident">ToggleConfig::deserialize</span>(<span class="ident">block_config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">interval</span> <span class="op">=</span> <span class="ident">block_config</span>.<span class="ident">interval</span>.<span class="ident">map</span>(<span class="ident">Duration::from_secs</span>);
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">text</span>) <span class="op">=</span> <span class="ident">block_config</span>.<span class="ident">text</span> {
-            <span class="ident">api</span>.<span class="ident">set_text</span>((<span class="ident">text</span>, <span class="prelude-val">None</span>));
-        }
+    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">text</span>) <span class="op">=</span> <span class="ident">block_config</span>.<span class="ident">text</span> {
+        <span class="ident">api</span>.<span class="ident">set_text</span>((<span class="ident">text</span>, <span class="prelude-val">None</span>));
+    }
 
-        <span class="comment">// Choose the shell in this priority:</span>
-        <span class="comment">// 1) `SHELL` environment varialble</span>
-        <span class="comment">// 2) `&quot;sh&quot;`</span>
-        <span class="kw">let</span> <span class="ident">shell</span> <span class="op">=</span> <span class="ident">env::var</span>(<span class="string">&quot;SHELL&quot;</span>).<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="string">&quot;sh&quot;</span>.<span class="ident">to_string</span>());
+    <span class="comment">// Choose the shell in this priority:</span>
+    <span class="comment">// 1) `SHELL` environment varialble</span>
+    <span class="comment">// 2) `&quot;sh&quot;`</span>
+    <span class="kw">let</span> <span class="ident">shell</span> <span class="op">=</span> <span class="ident">env::var</span>(<span class="string">&quot;SHELL&quot;</span>).<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="string">&quot;sh&quot;</span>.<span class="ident">to_string</span>());
 
+    <span class="kw">loop</span> {
+        <span class="comment">// Check state</span>
+        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="ident">Command::new</span>(<span class="kw-2">&amp;</span><span class="ident">shell</span>)
+            .<span class="ident">args</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;-c&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">block_config</span>.<span class="ident">command_state</span>])
+            .<span class="ident">output</span>()
+            .<span class="kw">await</span>
+            .<span class="ident">error</span>(<span class="string">&quot;Failed to run command_state&quot;</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">is_toggled</span> <span class="op">=</span> <span class="op">!</span><span class="ident">std::str::from_utf8</span>(<span class="kw-2">&amp;</span><span class="ident">output</span>.<span class="ident">stdout</span>)
+            .<span class="ident">error</span>(<span class="string">&quot;The output of command_state is invalid UTF-8&quot;</span>)<span class="question-mark">?</span>
+            .<span class="ident">trim</span>()
+            .<span class="ident">is_empty</span>();
+
+        <span class="comment">// Update widget</span>
+        <span class="ident">api</span>.<span class="ident">set_icon</span>(<span class="kw">if</span> <span class="ident">is_toggled</span> {
+            <span class="string">&quot;toggle_on&quot;</span>
+        } <span class="kw">else</span> {
+            <span class="string">&quot;toggle_off&quot;</span>
+        })<span class="question-mark">?</span>;
+        <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
+
+        <span class="comment">// TODO: try not to duplicate code</span>
         <span class="kw">loop</span> {
-            <span class="comment">// Check state</span>
-            <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="ident">Command::new</span>(<span class="kw-2">&amp;</span><span class="ident">shell</span>)
-                .<span class="ident">args</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;-c&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">block_config</span>.<span class="ident">command_state</span>])
-                .<span class="ident">output</span>()
-                .<span class="kw">await</span>
-                .<span class="ident">error</span>(<span class="string">&quot;Failed to run command_state&quot;</span>)<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">is_toggled</span> <span class="op">=</span> <span class="op">!</span><span class="ident">std::str::from_utf8</span>(<span class="kw-2">&amp;</span><span class="ident">output</span>.<span class="ident">stdout</span>)
-                .<span class="ident">error</span>(<span class="string">&quot;The output of command_state is invalid UTF-8&quot;</span>)<span class="question-mark">?</span>
-                .<span class="ident">trim</span>()
-                .<span class="ident">is_empty</span>();
-
-            <span class="comment">// Update widget</span>
-            <span class="ident">api</span>.<span class="ident">set_icon</span>(<span class="kw">if</span> <span class="ident">is_toggled</span> {
-                <span class="string">&quot;toggle_on&quot;</span>
-            } <span class="kw">else</span> {
-                <span class="string">&quot;toggle_off&quot;</span>
-            })<span class="question-mark">?</span>;
-            <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
-
-            <span class="comment">// TODO: try not to duplicate code</span>
-            <span class="kw">loop</span> {
-                <span class="kw">match</span> <span class="ident">interval</span> {
-                    <span class="prelude-val">Some</span>(<span class="ident">interval</span>) =&gt; {
-                        <span class="macro">tokio::select!</span> {
-                            <span class="kw">_</span> <span class="op">=</span> <span class="ident">tokio::time::sleep</span>(<span class="ident">interval</span>) =&gt; <span class="kw">break</span>,
-                            <span class="prelude-val">Some</span>(<span class="ident">BlockEvent::Click</span>(<span class="ident">click</span>)) <span class="op">=</span> <span class="ident">events</span>.<span class="ident">recv</span>() =&gt; {
-                                <span class="kw">if</span> <span class="ident">click</span>.<span class="ident">button</span> <span class="op">==</span> <span class="ident">MouseButton::Left</span> {
-                                    <span class="kw">let</span> <span class="ident">cmd</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_toggled</span> {
-                                        <span class="kw-2">&amp;</span><span class="ident">block_config</span>.<span class="ident">command_off</span>
-                                    } <span class="kw">else</span> {
-                                        <span class="kw-2">&amp;</span><span class="ident">block_config</span>.<span class="ident">command_on</span>
-                                    };
-                                    <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="ident">Command::new</span>(<span class="kw-2">&amp;</span><span class="ident">shell</span>)
-                                        .<span class="ident">args</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;-c&quot;</span>, <span class="ident">cmd</span>])
-                                        .<span class="ident">output</span>()
-                                        .<span class="kw">await</span>
-                                        .<span class="ident">error</span>(<span class="string">&quot;Failed to run command&quot;</span>)<span class="question-mark">?</span>;
-                                    <span class="kw">if</span> <span class="ident">output</span>.<span class="ident">status</span>.<span class="ident">success</span>() {
-                                        <span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">WidgetState::Idle</span>);
-                                        <span class="kw">break</span>;
-                                    } <span class="kw">else</span> {
-                                        <span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">WidgetState::Critical</span>);
-                                    }
-                                }
-                            },
-                        }
-                    }
-                    <span class="prelude-val">None</span> =&gt; {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">BlockEvent::Click</span>(<span class="ident">click</span>)) <span class="op">=</span> <span class="ident">events</span>.<span class="ident">recv</span>().<span class="kw">await</span> {
+            <span class="kw">match</span> <span class="ident">interval</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">interval</span>) =&gt; {
+                    <span class="macro">tokio::select!</span> {
+                        <span class="kw">_</span> <span class="op">=</span> <span class="ident">tokio::time::sleep</span>(<span class="ident">interval</span>) =&gt; <span class="kw">break</span>,
+                        <span class="prelude-val">Some</span>(<span class="ident">BlockEvent::Click</span>(<span class="ident">click</span>)) <span class="op">=</span> <span class="ident">events</span>.<span class="ident">recv</span>() =&gt; {
                             <span class="kw">if</span> <span class="ident">click</span>.<span class="ident">button</span> <span class="op">==</span> <span class="ident">MouseButton::Left</span> {
                                 <span class="kw">let</span> <span class="ident">cmd</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_toggled</span> {
                                     <span class="kw-2">&amp;</span><span class="ident">block_config</span>.<span class="ident">command_off</span>
@@ -286,12 +260,34 @@
                                     <span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">WidgetState::Critical</span>);
                                 }
                             }
+                        },
+                    }
+                }
+                <span class="prelude-val">None</span> =&gt; {
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">BlockEvent::Click</span>(<span class="ident">click</span>)) <span class="op">=</span> <span class="ident">events</span>.<span class="ident">recv</span>().<span class="kw">await</span> {
+                        <span class="kw">if</span> <span class="ident">click</span>.<span class="ident">button</span> <span class="op">==</span> <span class="ident">MouseButton::Left</span> {
+                            <span class="kw">let</span> <span class="ident">cmd</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_toggled</span> {
+                                <span class="kw-2">&amp;</span><span class="ident">block_config</span>.<span class="ident">command_off</span>
+                            } <span class="kw">else</span> {
+                                <span class="kw-2">&amp;</span><span class="ident">block_config</span>.<span class="ident">command_on</span>
+                            };
+                            <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="ident">Command::new</span>(<span class="kw-2">&amp;</span><span class="ident">shell</span>)
+                                .<span class="ident">args</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;-c&quot;</span>, <span class="ident">cmd</span>])
+                                .<span class="ident">output</span>()
+                                .<span class="kw">await</span>
+                                .<span class="ident">error</span>(<span class="string">&quot;Failed to run command&quot;</span>)<span class="question-mark">?</span>;
+                            <span class="kw">if</span> <span class="ident">output</span>.<span class="ident">status</span>.<span class="ident">success</span>() {
+                                <span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">WidgetState::Idle</span>);
+                                <span class="kw">break</span>;
+                            } <span class="kw">else</span> {
+                                <span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">WidgetState::Critical</span>);
+                            }
                         }
                     }
                 }
             }
         }
-    })
+    }
 }
 </code></pre></div>
 </section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="swaystatus" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.59.0-nightly (e2116acae 2021-12-05)" ></div>

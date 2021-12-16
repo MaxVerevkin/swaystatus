@@ -79,8 +79,6 @@
 <span id="78">78</span>
 <span id="79">79</span>
 <span id="80">80</span>
-<span id="81">81</span>
-<span id="82">82</span>
 </pre><pre class="rust"><code><span class="doccomment">//! System&#39;s uptime</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This block displays system uptime in terms of two biggest units, so minutes and seconds, or</span>
@@ -122,46 +120,44 @@
     }
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">spawn</span>(<span class="ident">block_config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>, <span class="kw">_</span>: <span class="ident">EventsRxGetter</span>) -&gt; <span class="ident">BlockHandle</span> {
-    <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-        <span class="kw">let</span> <span class="ident">block_config</span> <span class="op">=</span> <span class="ident">UptimeConfig::deserialize</span>(<span class="ident">block_config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">interval</span> <span class="op">=</span> <span class="ident">tokio::time::interval</span>(<span class="ident">Duration::from_secs</span>(<span class="ident">block_config</span>.<span class="ident">interval</span>));
-        <span class="ident">api</span>.<span class="ident">set_icon</span>(<span class="string">&quot;uptime&quot;</span>)<span class="question-mark">?</span>;
+<span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">block_config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">block_config</span> <span class="op">=</span> <span class="ident">UptimeConfig::deserialize</span>(<span class="ident">block_config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">interval</span> <span class="op">=</span> <span class="ident">tokio::time::interval</span>(<span class="ident">Duration::from_secs</span>(<span class="ident">block_config</span>.<span class="ident">interval</span>));
+    <span class="ident">api</span>.<span class="ident">set_icon</span>(<span class="string">&quot;uptime&quot;</span>)<span class="question-mark">?</span>;
 
-        <span class="kw">loop</span> {
-            <span class="kw">let</span> <span class="ident">uptime</span> <span class="op">=</span> <span class="ident">read_to_string</span>(<span class="string">&quot;/proc/uptime&quot;</span>)
-                .<span class="kw">await</span>
-                .<span class="ident">error</span>(<span class="string">&quot;Failed to read /proc/uptime&quot;</span>)<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">seconds</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">uptime</span>
-                .<span class="ident">split</span>(<span class="string">&#39;.&#39;</span>)
-                .<span class="ident">next</span>()
-                .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">u</span><span class="op">|</span> <span class="ident">u</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())
-                .<span class="ident">error</span>(<span class="string">&quot;/proc/uptime has invalid content&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">loop</span> {
+        <span class="kw">let</span> <span class="ident">uptime</span> <span class="op">=</span> <span class="ident">read_to_string</span>(<span class="string">&quot;/proc/uptime&quot;</span>)
+            .<span class="kw">await</span>
+            .<span class="ident">error</span>(<span class="string">&quot;Failed to read /proc/uptime&quot;</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">seconds</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">uptime</span>
+            .<span class="ident">split</span>(<span class="string">&#39;.&#39;</span>)
+            .<span class="ident">next</span>()
+            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">u</span><span class="op">|</span> <span class="ident">u</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())
+            .<span class="ident">error</span>(<span class="string">&quot;/proc/uptime has invalid content&quot;</span>)<span class="question-mark">?</span>;
 
-            <span class="kw">let</span> <span class="ident">weeks</span> <span class="op">=</span> <span class="ident">seconds</span> <span class="op">/</span> <span class="number">604_800</span>;
-            <span class="ident">seconds</span> <span class="op">%</span><span class="op">=</span> <span class="number">604_800</span>;
-            <span class="kw">let</span> <span class="ident">days</span> <span class="op">=</span> <span class="ident">seconds</span> <span class="op">/</span> <span class="number">86_400</span>;
-            <span class="ident">seconds</span> <span class="op">%</span><span class="op">=</span> <span class="number">86_400</span>;
-            <span class="kw">let</span> <span class="ident">hours</span> <span class="op">=</span> <span class="ident">seconds</span> <span class="op">/</span> <span class="number">3_600</span>;
-            <span class="ident">seconds</span> <span class="op">%</span><span class="op">=</span> <span class="number">3_600</span>;
-            <span class="kw">let</span> <span class="ident">minutes</span> <span class="op">=</span> <span class="ident">seconds</span> <span class="op">/</span> <span class="number">60</span>;
-            <span class="ident">seconds</span> <span class="op">%</span><span class="op">=</span> <span class="number">60</span>;
+        <span class="kw">let</span> <span class="ident">weeks</span> <span class="op">=</span> <span class="ident">seconds</span> <span class="op">/</span> <span class="number">604_800</span>;
+        <span class="ident">seconds</span> <span class="op">%</span><span class="op">=</span> <span class="number">604_800</span>;
+        <span class="kw">let</span> <span class="ident">days</span> <span class="op">=</span> <span class="ident">seconds</span> <span class="op">/</span> <span class="number">86_400</span>;
+        <span class="ident">seconds</span> <span class="op">%</span><span class="op">=</span> <span class="number">86_400</span>;
+        <span class="kw">let</span> <span class="ident">hours</span> <span class="op">=</span> <span class="ident">seconds</span> <span class="op">/</span> <span class="number">3_600</span>;
+        <span class="ident">seconds</span> <span class="op">%</span><span class="op">=</span> <span class="number">3_600</span>;
+        <span class="kw">let</span> <span class="ident">minutes</span> <span class="op">=</span> <span class="ident">seconds</span> <span class="op">/</span> <span class="number">60</span>;
+        <span class="ident">seconds</span> <span class="op">%</span><span class="op">=</span> <span class="number">60</span>;
 
-            <span class="kw">let</span> <span class="ident">text</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">weeks</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                <span class="macro">format!</span>(<span class="string">&quot;{}w {}d&quot;</span>, <span class="ident">weeks</span>, <span class="ident">days</span>)
-            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">days</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                <span class="macro">format!</span>(<span class="string">&quot;{}d {}h&quot;</span>, <span class="ident">days</span>, <span class="ident">hours</span>)
-            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">hours</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                <span class="macro">format!</span>(<span class="string">&quot;{}h {}m&quot;</span>, <span class="ident">hours</span>, <span class="ident">minutes</span>)
-            } <span class="kw">else</span> {
-                <span class="macro">format!</span>(<span class="string">&quot;{}m {}s&quot;</span>, <span class="ident">minutes</span>, <span class="ident">seconds</span>)
-            };
+        <span class="kw">let</span> <span class="ident">text</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">weeks</span> <span class="op">&gt;</span> <span class="number">0</span> {
+            <span class="macro">format!</span>(<span class="string">&quot;{}w {}d&quot;</span>, <span class="ident">weeks</span>, <span class="ident">days</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">days</span> <span class="op">&gt;</span> <span class="number">0</span> {
+            <span class="macro">format!</span>(<span class="string">&quot;{}d {}h&quot;</span>, <span class="ident">days</span>, <span class="ident">hours</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">hours</span> <span class="op">&gt;</span> <span class="number">0</span> {
+            <span class="macro">format!</span>(<span class="string">&quot;{}h {}m&quot;</span>, <span class="ident">hours</span>, <span class="ident">minutes</span>)
+        } <span class="kw">else</span> {
+            <span class="macro">format!</span>(<span class="string">&quot;{}m {}s&quot;</span>, <span class="ident">minutes</span>, <span class="ident">seconds</span>)
+        };
 
-            <span class="ident">api</span>.<span class="ident">set_text</span>((<span class="ident">text</span>.<span class="ident">into</span>(), <span class="prelude-val">None</span>));
-            <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
-            <span class="ident">interval</span>.<span class="ident">tick</span>().<span class="kw">await</span>;
-        }
-    })
+        <span class="ident">api</span>.<span class="ident">set_text</span>((<span class="ident">text</span>.<span class="ident">into</span>(), <span class="prelude-val">None</span>));
+        <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="ident">interval</span>.<span class="ident">tick</span>().<span class="kw">await</span>;
+    }
 }
 </code></pre></div>
 </section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="swaystatus" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.59.0-nightly (e2116acae 2021-12-05)" ></div>

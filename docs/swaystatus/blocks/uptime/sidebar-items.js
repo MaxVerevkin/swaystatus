@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["spawn",""]],"struct":[["UptimeConfig",""]]});
+initSidebarItems({"fn":[["run",""]],"struct":[["UptimeConfig",""]]});

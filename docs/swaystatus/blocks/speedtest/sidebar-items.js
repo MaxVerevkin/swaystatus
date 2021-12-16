@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["spawn",""]],"struct":[["SpeedtestCliOutput",""],["SpeedtestConfig",""]]});
+initSidebarItems({"fn":[["run",""]],"struct":[["SpeedtestCliOutput",""],["SpeedtestConfig",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["spawn",""]],"struct":[["Block",""],["PomodoroConfig",""]]});
+initSidebarItems({"fn":[["run",""]],"struct":[["Block",""],["PomodoroConfig",""]]});

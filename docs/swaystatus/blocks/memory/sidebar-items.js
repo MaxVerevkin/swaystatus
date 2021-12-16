@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["Memtype",""]],"fn":[["spawn",""]],"struct":[["MemoryConfig",""],["Memstate",""]]});
+initSidebarItems({"enum":[["Memtype",""]],"fn":[["run",""]],"struct":[["MemoryConfig",""],["Memstate",""]]});

@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["InfoType",""]],"fn":[["spawn",""]],"struct":[["DiskSpaceConfig",""]]});
+initSidebarItems({"enum":[["InfoType",""]],"fn":[["run",""]],"struct":[["DiskSpaceConfig",""]]});

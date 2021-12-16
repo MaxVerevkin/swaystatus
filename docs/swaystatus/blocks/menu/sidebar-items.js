@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["spawn",""]],"struct":[["Block",""],["Config",""],["Item",""]]});
+initSidebarItems({"fn":[["run",""]],"struct":[["Block",""],["Config",""],["Item",""]]});

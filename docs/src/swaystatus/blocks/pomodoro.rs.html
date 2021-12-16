@@ -243,8 +243,6 @@
 <span id="242">242</span>
 <span id="243">243</span>
 <span id="244">244</span>
-<span id="245">245</span>
-<span id="246">246</span>
 </pre><pre class="rust"><code><span class="doccomment">//! A [pomodoro timer](https://en.wikipedia.org/wiki/Pomodoro_Technique)</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Technique</span>
@@ -464,32 +462,30 @@
     }
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">spawn</span>(<span class="ident">block_config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>, <span class="ident">events</span>: <span class="ident">EventsRxGetter</span>) -&gt; <span class="ident">BlockHandle</span> {
-    <span class="kw">let</span> <span class="ident">events</span> <span class="op">=</span> <span class="ident">events</span>();
-    <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-        <span class="kw">let</span> <span class="ident">block_config</span> <span class="op">=</span> <span class="ident">PomodoroConfig::deserialize</span>(<span class="ident">block_config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
-        <span class="ident">api</span>.<span class="ident">set_icon</span>(<span class="string">&quot;pomodoro&quot;</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">block</span> <span class="op">=</span> <span class="ident">Block</span> {
-            <span class="ident">api</span>,
-            <span class="ident">block_config</span>,
-            <span class="ident">events_receiver</span>: <span class="ident">events</span>,
-        };
+<span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">block_config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">events</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_events</span>().<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">block_config</span> <span class="op">=</span> <span class="ident">PomodoroConfig::deserialize</span>(<span class="ident">block_config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
+    <span class="ident">api</span>.<span class="ident">set_icon</span>(<span class="string">&quot;pomodoro&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">block</span> <span class="op">=</span> <span class="ident">Block</span> {
+        <span class="ident">api</span>,
+        <span class="ident">block_config</span>,
+        <span class="ident">events_receiver</span>: <span class="ident">events</span>,
+    };
 
-        <span class="kw">loop</span> {
-            <span class="comment">// Send collaped block</span>
-            <span class="ident">block</span>.<span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">WidgetState::Idle</span>);
-            <span class="ident">block</span>.<span class="ident">set_text</span>(<span class="ident">String::new</span>()).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">loop</span> {
+        <span class="comment">// Send collaped block</span>
+        <span class="ident">block</span>.<span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">WidgetState::Idle</span>);
+        <span class="ident">block</span>.<span class="ident">set_text</span>(<span class="ident">String::new</span>()).<span class="kw">await</span><span class="question-mark">?</span>;
 
-            <span class="comment">// Wait for left click</span>
-            <span class="ident">block</span>.<span class="ident">wait_for_click</span>(<span class="ident">MouseButton::Left</span>).<span class="kw">await</span>;
+        <span class="comment">// Wait for left click</span>
+        <span class="ident">block</span>.<span class="ident">wait_for_click</span>(<span class="ident">MouseButton::Left</span>).<span class="kw">await</span>;
 
-            <span class="comment">// Read params</span>
-            <span class="kw">let</span> (<span class="ident">task_len</span>, <span class="ident">break_len</span>, <span class="ident">pomodoros</span>) <span class="op">=</span> <span class="ident">block</span>.<span class="ident">read_params</span>().<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="comment">// Read params</span>
+        <span class="kw">let</span> (<span class="ident">task_len</span>, <span class="ident">break_len</span>, <span class="ident">pomodoros</span>) <span class="op">=</span> <span class="ident">block</span>.<span class="ident">read_params</span>().<span class="kw">await</span><span class="question-mark">?</span>;
 
-            <span class="comment">// Run!</span>
-            <span class="ident">block</span>.<span class="ident">run_pomodoro</span>(<span class="ident">task_len</span>, <span class="ident">break_len</span>, <span class="ident">pomodoros</span>).<span class="kw">await</span><span class="question-mark">?</span>;
-        }
-    })
+        <span class="comment">// Run!</span>
+        <span class="ident">block</span>.<span class="ident">run_pomodoro</span>(<span class="ident">task_len</span>, <span class="ident">break_len</span>, <span class="ident">pomodoros</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+    }
 }
 </code></pre></div>
 </section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="swaystatus" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.59.0-nightly (e2116acae 2021-12-05)" ></div>

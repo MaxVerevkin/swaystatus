@@ -101,8 +101,6 @@
 <span id="100">100</span>
 <span id="101">101</span>
 <span id="102">102</span>
-<span id="103">103</span>
-<span id="104">104</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Ping, download, and upload speeds</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This block which requires [`speedtest-cli`](https://github.com/sivel/speedtest-cli).</span>
@@ -158,43 +156,41 @@
     }
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">spawn</span>(<span class="ident">block_config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>, <span class="kw">_</span>: <span class="ident">EventsRxGetter</span>) -&gt; <span class="ident">BlockHandle</span> {
-    <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
-        <span class="kw">let</span> <span class="ident">block_config</span> <span class="op">=</span> <span class="ident">SpeedtestConfig::deserialize</span>(<span class="ident">block_config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
-        <span class="ident">api</span>.<span class="ident">set_format</span>(
-            <span class="ident">block_config</span>
-                .<span class="ident">format</span>
-                .<span class="ident">init</span>(<span class="string">&quot;$ping$speed_down$speed_up&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">api</span>)<span class="question-mark">?</span>,
-        );
+<span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">block_config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">block_config</span> <span class="op">=</span> <span class="ident">SpeedtestConfig::deserialize</span>(<span class="ident">block_config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
+    <span class="ident">api</span>.<span class="ident">set_format</span>(
+        <span class="ident">block_config</span>
+            .<span class="ident">format</span>
+            .<span class="ident">init</span>(<span class="string">&quot;$ping$speed_down$speed_up&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">api</span>)<span class="question-mark">?</span>,
+    );
 
-        <span class="kw">let</span> <span class="ident">icon_ping</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_icon</span>(<span class="string">&quot;ping&quot;</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">icon_down</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_icon</span>(<span class="string">&quot;net_down&quot;</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">icon_up</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_icon</span>(<span class="string">&quot;net_up&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">icon_ping</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_icon</span>(<span class="string">&quot;ping&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">icon_down</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_icon</span>(<span class="string">&quot;net_down&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">icon_up</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_icon</span>(<span class="string">&quot;net_up&quot;</span>)<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">command</span> <span class="op">=</span> <span class="ident">Command::new</span>(<span class="string">&quot;speedtest-cli&quot;</span>);
-        <span class="ident">command</span>.<span class="ident">arg</span>(<span class="string">&quot;--json&quot;</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">command</span> <span class="op">=</span> <span class="ident">Command::new</span>(<span class="string">&quot;speedtest-cli&quot;</span>);
+    <span class="ident">command</span>.<span class="ident">arg</span>(<span class="string">&quot;--json&quot;</span>);
 
-        <span class="kw">loop</span> {
-            <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="ident">command</span>
-                .<span class="ident">output</span>()
-                .<span class="kw">await</span>
-                .<span class="ident">error</span>(<span class="string">&quot;failed to run &#39;speedtest-cli&#39;&quot;</span>)<span class="question-mark">?</span>
-                .<span class="ident">stdout</span>;
-            <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span>
-                <span class="ident">std::str::from_utf8</span>(<span class="kw-2">&amp;</span><span class="ident">output</span>).<span class="ident">error</span>(<span class="string">&quot;&#39;speedtest-cli&#39; produced non-UTF8 outupt&quot;</span>)<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">output</span>: <span class="ident">SpeedtestCliOutput</span> <span class="op">=</span>
-                <span class="ident">serde_json::from_str</span>(<span class="ident">output</span>).<span class="ident">error</span>(<span class="string">&quot;&#39;speedtest-cli&#39; produced wrong JSON&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">loop</span> {
+        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="ident">command</span>
+            .<span class="ident">output</span>()
+            .<span class="kw">await</span>
+            .<span class="ident">error</span>(<span class="string">&quot;failed to run &#39;speedtest-cli&#39;&quot;</span>)<span class="question-mark">?</span>
+            .<span class="ident">stdout</span>;
+        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span>
+            <span class="ident">std::str::from_utf8</span>(<span class="kw-2">&amp;</span><span class="ident">output</span>).<span class="ident">error</span>(<span class="string">&quot;&#39;speedtest-cli&#39; produced non-UTF8 outupt&quot;</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">output</span>: <span class="ident">SpeedtestCliOutput</span> <span class="op">=</span>
+            <span class="ident">serde_json::from_str</span>(<span class="ident">output</span>).<span class="ident">error</span>(<span class="string">&quot;&#39;speedtest-cli&#39; produced wrong JSON&quot;</span>)<span class="question-mark">?</span>;
 
-            <span class="ident">api</span>.<span class="ident">set_values</span>(<span class="macro">map!</span> {
-                <span class="string">&quot;ping&quot;</span> =&gt; <span class="ident">Value::seconds</span>(<span class="ident">output</span>.<span class="ident">ping</span> <span class="op">*</span> <span class="number">1e-3</span>).<span class="ident">icon</span>(<span class="ident">icon_ping</span>.<span class="ident">clone</span>()),
-                <span class="string">&quot;speed_down&quot;</span> =&gt; <span class="ident">Value::bits</span>(<span class="ident">output</span>.<span class="ident">download</span>).<span class="ident">icon</span>(<span class="ident">icon_down</span>.<span class="ident">clone</span>()),
-                <span class="string">&quot;speed_up&quot;</span> =&gt; <span class="ident">Value::bits</span>(<span class="ident">output</span>.<span class="ident">upload</span>).<span class="ident">icon</span>(<span class="ident">icon_up</span>.<span class="ident">clone</span>()),
-            });
-            <span class="ident">api</span>.<span class="ident">render</span>();
-            <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
-            <span class="ident">tokio::time::sleep</span>(<span class="ident">block_config</span>.<span class="ident">interval</span>).<span class="kw">await</span>;
-        }
-    })
+        <span class="ident">api</span>.<span class="ident">set_values</span>(<span class="macro">map!</span> {
+            <span class="string">&quot;ping&quot;</span> =&gt; <span class="ident">Value::seconds</span>(<span class="ident">output</span>.<span class="ident">ping</span> <span class="op">*</span> <span class="number">1e-3</span>).<span class="ident">icon</span>(<span class="ident">icon_ping</span>.<span class="ident">clone</span>()),
+            <span class="string">&quot;speed_down&quot;</span> =&gt; <span class="ident">Value::bits</span>(<span class="ident">output</span>.<span class="ident">download</span>).<span class="ident">icon</span>(<span class="ident">icon_down</span>.<span class="ident">clone</span>()),
+            <span class="string">&quot;speed_up&quot;</span> =&gt; <span class="ident">Value::bits</span>(<span class="ident">output</span>.<span class="ident">upload</span>).<span class="ident">icon</span>(<span class="ident">icon_up</span>.<span class="ident">clone</span>()),
+        });
+        <span class="ident">api</span>.<span class="ident">render</span>();
+        <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="ident">tokio::time::sleep</span>(<span class="ident">block_config</span>.<span class="ident">interval</span>).<span class="kw">await</span>;
+    }
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">serde_derive::Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
