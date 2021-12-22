@@ -29,7 +29,6 @@
 //! - `cogs`
 
 use std::path::Path;
-use std::time::Duration;
 
 use super::prelude::*;
 use crate::de::deserialize_duration;
@@ -62,7 +61,7 @@ impl Default for LoadConfig {
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let config = LoadConfig::deserialize(config).config_error()?;
     let mut interval = tokio::time::interval(config.interval);
-    api.set_format(config.format.init("$1m", &api)?);
+    api.set_format(config.format.with_default("$1m")?);
     api.set_icon("cogs")?;
 
     // borrowed from https://docs.rs/cpuinfo/0.1.1/src/cpuinfo/count/logical.rs.html#4-6
@@ -96,10 +95,10 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
             .error("bad /proc/loadavg file")?;
 
         api.set_state(match m1 / logical_cores {
-            x if x > config.critical => WidgetState::Critical,
-            x if x > config.warning => WidgetState::Warning,
-            x if x > config.info => WidgetState::Info,
-            _ => WidgetState::Idle,
+            x if x > config.critical => State::Critical,
+            x if x > config.warning => State::Warning,
+            x if x > config.info => State::Info,
+            _ => State::Idle,
         });
         api.set_values(map! {
             "1m" => Value::number(m1),
@@ -107,7 +106,6 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
             "15m" => Value::number(m15),
         });
 
-        api.render();
         api.flush().await?;
         interval.tick().await;
     }

@@ -64,7 +64,6 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::time::Duration;
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -133,8 +132,8 @@ enum BatteryDriver {
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let config = BatteryConfig::deserialize(config).config_error()?;
-    let format = config.format.init("$percentage", &api)?;
-    let format_full = config.full_format.init("", &api)?;
+    let format = config.format.with_default("$percentage")?;
+    let format_full = config.full_format.with_default("")?;
 
     // Get _any_ battery device if not set in the config
     let device = match config.device {
@@ -166,7 +165,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut device: Box<dyn BatteryDevice + Send + Sync> = match config.driver {
         BatteryDriver::Sysfs => Box::new(PowerSupplyDevice::from_device(&device, config.interval)),
         BatteryDriver::Upower => {
-            dbus_conn = api.system_dbus_connection().await?;
+            dbus_conn = api.get_system_dbus_connection().await?;
             Box::new(UPowerDevice::from_device(&device, &dbus_conn).await?)
         }
     };
@@ -204,31 +203,28 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                 }
 
                 let (icon, state) = match (info.status, info.capacity) {
-                    (BatteryStatus::Empty, _) => {
-                        (battery_level_icon(0, false), WidgetState::Critical)
-                    }
-                    (BatteryStatus::Full, _) => (battery_level_icon(100, false), WidgetState::Idle),
+                    (BatteryStatus::Empty, _) => (battery_level_icon(0, false), State::Critical),
+                    (BatteryStatus::Full, _) => (battery_level_icon(100, false), State::Idle),
                     (status, capacity) => (
                         battery_level_icon(capacity as u8, status == BatteryStatus::Charging),
                         if status == BatteryStatus::Charging {
-                            WidgetState::Good
+                            State::Good
                         } else if capacity <= config.critical {
-                            WidgetState::Critical
+                            State::Critical
                         } else if capacity <= config.warning {
-                            WidgetState::Warning
+                            State::Warning
                         } else if capacity <= config.info {
-                            WidgetState::Info
+                            State::Info
                         } else if capacity > config.good {
-                            WidgetState::Good
+                            State::Good
                         } else {
-                            WidgetState::Idle
+                            State::Idle
                         },
                     ),
                 };
 
                 api.set_icon(icon)?;
                 api.set_state(state);
-                api.render();
             }
             None if config.hide_missing => {
                 api.hide();

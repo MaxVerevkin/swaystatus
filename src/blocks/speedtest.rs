@@ -33,7 +33,6 @@
 
 use super::prelude::*;
 use crate::de::deserialize_duration;
-use std::time::Duration;
 use tokio::process::Command;
 
 #[derive(Deserialize, Debug)]
@@ -58,7 +57,7 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
     api.set_format(
         block_config
             .format
-            .init("$ping$speed_down$speed_up", &api)?,
+            .with_default("$ping$speed_down$speed_up")?,
     );
 
     let icon_ping = api.get_icon("ping")?;
@@ -84,7 +83,6 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
             "speed_down" => Value::bits(output.download).icon(icon_down.clone()),
             "speed_up" => Value::bits(output.upload).icon(icon_up.clone()),
         });
-        api.render();
         api.flush().await?;
         tokio::time::sleep(block_config.interval).await;
     }

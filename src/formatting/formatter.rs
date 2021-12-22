@@ -1,3 +1,6 @@
+// TODO add a `Handles` newtype to store a vector of join handles to tokio tasks. On drop it should
+// about them.
+
 use smallvec::SmallVec;
 use smartstring::alias::String;
 use std::fmt::Debug;
@@ -5,10 +8,13 @@ use std::iter::repeat;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
+use tokio::sync::mpsc::Sender;
+use tokio::task::JoinHandle;
+
 use super::prefix::Prefix;
 use super::unit::Unit;
 use super::value::Value;
-use crate::blocks::CommonApi;
+use super::Handles;
 use crate::errors::*;
 use crate::escape::IterEscape;
 use crate::{Request, RequestCmd};
@@ -68,9 +74,8 @@ enum EngFixArgs {
 pub trait Formatter: Debug {
     fn format(&self, val: &Value) -> Result<String>;
 
-    fn init(&self, _api: &CommonApi) {
-        // Do nothig
-    }
+    // TODO use `Handles`
+    fn init(&self, _tx: &Sender<Request>, _block_id: usize, _handles: &mut Handles) {}
 }
 
 pub fn new_formatter(name: &str, args: &[String]) -> Result<Box<dyn Formatter + Send + Sync>> {
@@ -114,6 +119,7 @@ pub fn new_formatter(name: &str, args: &[String]) -> Result<Box<dyn Formatter + 
                 width,
                 interval,
                 init_time: Instant::now(),
+                handle: None,
             }))
         }
         "bar" => {
@@ -133,7 +139,7 @@ pub fn new_formatter(name: &str, args: &[String]) -> Result<Box<dyn Formatter + 
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct StrFormatter {
     min_width: usize,
     max_width: Option<usize>,
@@ -162,11 +168,12 @@ impl Formatter for StrFormatter {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct RotStrFormatter {
     width: usize,
     interval: f64,
     init_time: Instant,
+    handle: Option<JoinHandle<()>>,
 }
 
 impl Formatter for RotStrFormatter {
@@ -207,23 +214,26 @@ impl Formatter for RotStrFormatter {
         }
     }
 
-    fn init(&self, api: &CommonApi) {
-        let tx = api.request_sender.clone();
-        let mut interval = tokio::time::interval(Duration::from_secs_f64(self.interval));
-        let block_id = api.id;
+    fn init(&self, tx: &Sender<Request>, block_id: usize, handles: &mut Handles) {
+        if self.handle.is_some() {
+            return;
+        }
 
-        tokio::spawn(async move {
+        let tx = tx.clone();
+        let mut interval = tokio::time::interval(Duration::from_secs_f64(self.interval));
+
+        handles.0.push(tokio::spawn(async move {
             loop {
                 let mut cmds = SmallVec::new();
-                cmds.push(RequestCmd::Render);
+                cmds.push(RequestCmd::Noop);
                 tx.send(Request { block_id, cmds }).await.unwrap();
                 interval.tick().await;
             }
-        });
+        }));
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct BarFormatter {
     width: usize,
     max_value: f64,
@@ -259,7 +269,7 @@ impl Formatter for BarFormatter {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default)]
 struct PrefixConfig {
     pub prefix: Option<(Prefix, bool)>,
     pub has_space: bool,
@@ -299,7 +309,7 @@ impl FromStr for PrefixConfig {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default)]
 struct UnitConfig {
     pub unit: Option<Unit>,
     pub has_space: bool,
@@ -332,7 +342,7 @@ impl FromStr for UnitConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 struct EngFixConfig {
     width: usize,
     unit: UnitConfig,
@@ -361,7 +371,7 @@ impl EngFixConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct EngFormatter(EngFixConfig);
 
 impl Formatter for EngFormatter {
@@ -428,7 +438,7 @@ impl Formatter for EngFormatter {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct FixFormatter(EngFixConfig);
 
 impl Formatter for FixFormatter {
@@ -453,7 +463,7 @@ impl Formatter for FixFormatter {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct FlagFormatter;
 
 impl Formatter for FlagFormatter {

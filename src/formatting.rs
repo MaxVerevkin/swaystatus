@@ -73,33 +73,63 @@ pub mod template;
 pub mod unit;
 pub mod value;
 
-use crate::errors::*;
 use smartstring::alias::String;
 use std::collections::HashMap;
+use std::sync::Arc;
+
+use tokio::sync::mpsc::Sender;
+use tokio::task::JoinHandle;
+
+use crate::errors::*;
+use crate::Request;
 use template::FormatTemplate;
 use value::Value;
 
-#[derive(Debug)]
+pub type Values = HashMap<String, Value>;
+
+#[derive(Debug, Clone)]
 pub struct Format {
-    pub full: FormatTemplate,
-    pub short: Option<FormatTemplate>,
+    full: Arc<FormatTemplate>,
+    short: Option<Arc<FormatTemplate>>,
 }
 
 impl Format {
-    /// Whether the format string contains a given placeholder
-    #[allow(dead_code)]
-    pub fn contains_key(&self, key: &str) -> bool {
-        self.full.contains_key(key)
-            || self
-                .short
-                .as_ref()
-                .map(|tl| tl.contains_key(key))
-                .unwrap_or(false)
+    pub fn run(self, tx: &Sender<Request>, block_id: usize) -> RunningFormat {
+        let mut handles = Handles(Vec::new());
+        self.full.init(tx, block_id, &mut handles);
+        if let Some(short) = &self.short {
+            short.init(tx, block_id, &mut handles);
+        }
+        RunningFormat(self, handles)
     }
 
-    pub fn render(&self, vars: &HashMap<String, Value>) -> Result<(String, Option<String>)> {
-        let full = self.full.render(vars).error("Failed to render full text")?;
-        let short = match &self.short {
+    pub fn run_no_init(self) -> RunningFormat {
+        RunningFormat(self, Handles::default())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Handles(Vec<JoinHandle<()>>);
+
+impl Drop for Handles {
+    fn drop(&mut self) {
+        for handle in &self.0 {
+            handle.abort();
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct RunningFormat(Format, Handles);
+
+impl RunningFormat {
+    pub fn render(&self, vars: &Values) -> Result<(String, Option<String>)> {
+        let full = self
+            .0
+            .full
+            .render(vars)
+            .error("Failed to render full text")?;
+        let short = match &self.0.short {
             Some(short) => Some(short.render(vars).error("Failed to render short text")?),
             None => None,
         };

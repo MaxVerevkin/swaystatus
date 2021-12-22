@@ -40,7 +40,6 @@
 
 use super::prelude::*;
 use std::env;
-use std::time::Duration;
 use tokio::process::Command;
 
 #[derive(Deserialize, Debug)]
@@ -61,7 +60,7 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
     let interval = block_config.interval.map(Duration::from_secs);
 
     if let Some(text) = block_config.text {
-        api.set_text((text, None));
+        api.set_text(text);
     }
 
     // Choose the shell in this priority:
@@ -108,10 +107,10 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
                                     .await
                                     .error("Failed to run command")?;
                                 if output.status.success() {
-                                    api.set_state(WidgetState::Idle);
+                                    api.set_state(State::Idle);
                                     break;
                                 } else {
-                                    api.set_state(WidgetState::Critical);
+                                    api.set_state(State::Critical);
                                 }
                             }
                         },
@@ -131,10 +130,10 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
                                 .await
                                 .error("Failed to run command")?;
                             if output.status.success() {
-                                api.set_state(WidgetState::Idle);
+                                api.set_state(State::Idle);
                                 break;
                             } else {
-                                api.set_state(WidgetState::Critical);
+                                api.set_state(State::Critical);
                             }
                         }
                     }

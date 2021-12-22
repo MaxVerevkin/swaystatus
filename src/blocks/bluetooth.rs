@@ -65,9 +65,9 @@ struct BluetoothConfig {
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
     let config = BluetoothConfig::deserialize(config).config_error()?;
-    api.set_format(config.format.init("$name{ $percentage|}", &api)?);
+    api.set_format(config.format.with_default("$name{ $percentage|}")?);
 
-    let dbus_conn = api.system_dbus_connection().await?;
+    let dbus_conn = api.get_system_dbus_connection().await?;
     let device = Device::from_mac(&dbus_conn, &config.mac).await?;
     api.set_icon(device.icon)?;
 
@@ -98,18 +98,13 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
 
     loop {
         if connected || !config.hide_disconnected {
-            api.set_state(if connected {
-                WidgetState::Good
-            } else {
-                WidgetState::Idle
-            });
+            api.set_state(if connected { State::Good } else { State::Idle });
             let mut values = map! {
                 "name" => Value::text((&name).into()),
             };
             percentage.map(|p| values.insert("percentage".into(), Value::percents(p)));
             api.set_values(values);
             api.show();
-            api.render();
         } else {
             api.hide();
         }

@@ -21,7 +21,7 @@
 
 use std::collections::HashMap;
 use zbus::dbus_proxy;
-use zvariant::{derive::Type, OwnedValue};
+use zbus::zvariant::{ObjectPath, OwnedValue, Type};
 
 #[derive(Debug, Clone, Type)]
 pub struct PlayerMetadata(pub HashMap<String, OwnedValue>);
@@ -30,7 +30,7 @@ impl TryFrom<OwnedValue> for PlayerMetadata {
     type Error = <HashMap<String, OwnedValue> as TryFrom<OwnedValue>>::Error;
 
     fn try_from(value: OwnedValue) -> Result<Self, Self::Error> {
-        Ok(Self(HashMap::try_from(value)?))
+        HashMap::try_from(value).map(Self)
     }
 }
 
@@ -115,7 +115,7 @@ trait Player {
     fn seek(&self, offset: i64) -> zbus::Result<()>;
 
     /// SetPosition method
-    fn set_position(&self, track_id: &zvariant::ObjectPath<'_>, position: i64) -> zbus::Result<()>;
+    fn set_position(&self, track_id: &ObjectPath<'_>, position: i64) -> zbus::Result<()>;
 
     /// Stop method
     fn stop(&self) -> zbus::Result<()>;

@@ -19,7 +19,7 @@
 //!
 //! …consequently `zbus-xmlgen` did not generate code for the above interfaces.
 
-use zbus::dbus_proxy;
+use zbus::{dbus_proxy, zvariant};
 
 #[dbus_proxy(
     interface = "org.freedesktop.UPower.Device",

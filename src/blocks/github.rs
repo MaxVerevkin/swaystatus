@@ -4,7 +4,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | <code>"$total.eng(1)&vert;X"</code>
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$total.eng(1)"`
 //! `interval` | Update interval in seconds | No | `30`
 //! `token` | A GitHub personal access token with the "notifications" scope | Yes | -
 //! `hide` | Hide this block if the total count of notifications is zero | No | `true`
@@ -28,7 +28,6 @@
 
 use super::prelude::*;
 use reqwest::header;
-use std::{collections::HashMap, time::Duration};
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
@@ -58,25 +57,21 @@ fn default_hide() -> bool {
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let config = GithubConfig::deserialize(config).config_error()?;
     let interval = Duration::from_secs(config.interval);
-    api.set_format(config.format.init("$total.eng(1)|X", &api)?);
+    api.set_format(config.format.with_default("$total.eng(1)")?);
     api.set_icon("github")?;
 
     // Http client
-    let client = reqwest::Client::new();
-    let request = client
+    let request = REQWEST_CLIENT
         .get("https://api.github.com/notifications")
         .header("Authorization", &format!("token {}", config.token))
         .header(header::USER_AGENT, "swaystatus");
 
     loop {
-        let total = get_total(&request).await;
+        let total = api.recoverable(|| get_total(&request), "X").await?;
 
-        if total != Some(0) || !config.hide {
-            let mut values = HashMap::new();
-            total.map(|t| values.insert("total".into(), Value::number(t)));
-            api.set_values(values);
+        if total != 0 || !config.hide {
+            api.set_values(map! {"total" => Value::number(total)});
             api.show();
-            api.render();
         } else {
             api.hide();
         }
@@ -86,11 +81,20 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     }
 }
 
-async fn get_total(request: &reqwest::RequestBuilder) -> Option<usize> {
+async fn get_total(request: &reqwest::RequestBuilder) -> Result<usize> {
     // Send request
-    let result = request.try_clone()?.send().await.ok()?.text().await.ok()?;
+    let result = request
+        .try_clone()
+        .error("Failed to clone request")?
+        .send()
+        .await
+        .error("Failed to send request")?
+        .text()
+        .await
+        .error("Failed to get response")?;
     // Convert to JSON
-    let notifications: Vec<serde_json::Value> = serde_json::from_str(&result).ok()?;
+    let notifications: Vec<serde_json::Value> =
+        serde_json::from_str(&result).error("Failed to deserialize JSON")?;
     // The total number of notifications is just the length of a list
-    Some(notifications.len())
+    Ok(notifications.len())
 }

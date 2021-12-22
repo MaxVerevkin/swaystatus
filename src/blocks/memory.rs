@@ -55,7 +55,6 @@
 
 use std::path::Path;
 use std::str::FromStr;
-use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -99,14 +98,12 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let config = MemoryConfig::deserialize(config).config_error()?;
     let interval = Duration::from_secs(config.interval);
 
-    let format_mem = config.format_mem.init(
+    let format_mem = config.format_mem.with_default(
         "$mem_free.eng(3,B,M)/$mem_total.eng(3,B,M)($mem_total_used_percents.eng(2))",
-        &api,
     )?;
-    let format_swap = config.format_swap.init(
-        "$swap_free.eng(3,B,M)/$swap_total.eng(3,B,M)($swap_used_percents.eng(2))",
-        &api,
-    )?;
+    let format_swap = config
+        .format_swap
+        .with_default("$swap_free.eng(3,B,M)/$swap_total.eng(3,B,M)($swap_used_percents.eng(2))")?;
 
     let clickable = config.clickable;
     let mut memtype = config.display_type;
@@ -160,18 +157,17 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
 
         api.set_state(match memtype {
             Memtype::Memory => match mem_used / mem_total * 100. {
-                x if x > config.critical_mem => WidgetState::Critical,
-                x if x > config.warning_mem => WidgetState::Warning,
-                _ => WidgetState::Idle,
+                x if x > config.critical_mem => State::Critical,
+                x if x > config.warning_mem => State::Warning,
+                _ => State::Idle,
             },
             Memtype::Swap => match swap_used / swap_total * 100. {
-                x if x > config.critical_swap => WidgetState::Critical,
-                x if x > config.warning_swap => WidgetState::Warning,
-                _ => WidgetState::Idle,
+                x if x > config.critical_swap => State::Critical,
+                x if x > config.warning_swap => State::Warning,
+                _ => State::Idle,
             },
         });
 
-        api.render();
         api.flush().await?;
 
         tokio::select! {

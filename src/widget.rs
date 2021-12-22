@@ -1,21 +1,22 @@
 use crate::config::SharedConfig;
+use crate::errors::*;
+use crate::formatting::{RunningFormat, Values};
 use crate::protocol::i3bar_block::I3BarBlock;
-use crate::themes::{Color, Theme};
 use serde_derive::Deserialize;
 use smartstring::alias::String;
 
-#[derive(Debug, Copy, Clone, Deserialize)]
-pub enum WidgetSpacing {
+/// Spacing around the widget
+#[derive(Debug, Clone, Copy)]
+pub enum Spacing {
     /// Add a leading and trailing space around the widget contents
     Normal,
-    /// Hide the leading space when the widget is inline
-    Inline,
     /// Hide both leading and trailing spaces when widget is hidden
     Hidden,
 }
 
-#[derive(Debug, Copy, Clone, Deserialize)]
-pub enum WidgetState {
+/// State of the widget. Affects the theming.
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub enum State {
     Idle,
     Info,
     Good,
@@ -23,55 +24,67 @@ pub enum WidgetState {
     Critical,
 }
 
-impl WidgetState {
-    pub fn theme_keys(self, theme: &Theme) -> (Color, Color) {
-        use self::WidgetState::*;
+impl Default for State {
+    fn default() -> Self {
+        Self::Idle
+    }
+}
+
+/// The source of text for widget
+#[derive(Debug)]
+enum Source {
+    /// Simple text
+    Text(String),
+    /// Full and short texts
+    TextWithShort(String, String),
+    /// A format template
+    Format(RunningFormat, Option<Values>),
+}
+
+impl Source {
+    fn render(&self) -> Result<(String, Option<String>)> {
         match self {
-            Idle => (theme.idle_bg, theme.idle_fg),
-            Info => (theme.info_bg, theme.info_fg),
-            Good => (theme.good_bg, theme.good_fg),
-            Warning => (theme.warning_bg, theme.warning_fg),
-            Critical => (theme.critical_bg, theme.critical_fg),
+            Source::Text(text) => Ok((text.clone(), None)),
+            Source::TextWithShort(full, short) => Ok((full.clone(), Some(short.clone()))),
+            Source::Format(format, Some(values)) => format.render(values),
+            Source::Format(_, None) => Ok((String::new(), None)),
         }
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Widget {
-    pub instance: Option<usize>,
-    pub full_text: String,
-    pub short_text: Option<String>,
+    instance: Option<usize>,
     pub icon: String,
-    pub full_spacing: WidgetSpacing,
-    pub short_spacing: WidgetSpacing,
     pub shared_config: SharedConfig,
-    pub inner: I3BarBlock,
+    pub state: State,
+
+    inner: I3BarBlock,
+    source: Source,
+    backup: Option<(Source, State)>,
 }
 
 impl Widget {
     pub fn new(id: usize, shared_config: SharedConfig) -> Self {
-        let (key_bg, key_fg) = WidgetState::Idle.theme_keys(&shared_config.theme); // Initial colors
         let inner = I3BarBlock {
             name: Some(id.to_string()),
-            color: key_fg,
-            background: key_bg,
             ..I3BarBlock::default()
         };
 
         Widget {
             instance: None,
-            full_text: String::new(),
-            short_text: None,
             icon: String::new(),
-            full_spacing: WidgetSpacing::Hidden,
-            short_spacing: WidgetSpacing::Hidden,
             shared_config,
+            state: State::Idle,
+
             inner,
+            source: Source::Text(String::new()),
+            backup: None,
         }
     }
 
     /*
-     * Consturctors
+     * Builders
      */
 
     pub fn with_instance(mut self, instance: usize) -> Self {
@@ -85,13 +98,13 @@ impl Widget {
         self
     }
 
-    pub fn with_full_text(mut self, content: String) -> Self {
-        self.set_full_text(content);
+    pub fn with_text(mut self, text: String) -> Self {
+        self.source = Source::Text(text);
         self
     }
 
-    pub fn with_state(mut self, state: WidgetState) -> Self {
-        self.set_state(state);
+    pub fn with_state(mut self, state: State) -> Self {
+        self.state = state;
         self
     }
 
@@ -99,74 +112,103 @@ impl Widget {
      * Setters
      */
 
-    pub fn set_text(&mut self, content: (String, Option<String>)) {
-        if content.0.is_empty() {
-            self.full_spacing = WidgetSpacing::Hidden;
-        } else {
-            self.full_spacing = WidgetSpacing::Normal;
-        }
-        if content.1.as_ref().map(String::is_empty).unwrap_or(true) {
-            self.short_spacing = WidgetSpacing::Hidden;
-        } else {
-            self.short_spacing = WidgetSpacing::Normal;
-        }
-        self.full_text = content.0;
-        self.short_text = content.1;
-    }
-    pub fn set_full_text(&mut self, content: String) {
-        if content.is_empty() {
-            self.full_spacing = WidgetSpacing::Hidden;
-        } else {
-            self.full_spacing = WidgetSpacing::Normal;
-        }
-        self.full_text = content;
+    pub fn set_text(&mut self, text: String) {
+        self.source = Source::Text(text);
     }
 
-    pub fn set_state(&mut self, state: WidgetState) {
-        let (key_bg, key_fg) = state.theme_keys(&self.shared_config.theme);
+    pub fn set_texts(&mut self, short: String, full: String) {
+        self.source = Source::TextWithShort(short, full);
+    }
 
-        self.inner.background = key_bg;
-        self.inner.color = key_fg;
+    pub fn set_format(&mut self, format: RunningFormat) {
+        match &mut self.source {
+            Source::Format(old, _) => *old = format,
+            _ => self.source = Source::Format(format, None),
+        }
+    }
+
+    pub fn set_values(&mut self, new_values: Values) {
+        if let Source::Format(_, values) = &mut self.source {
+            *values = Some(new_values);
+        }
+    }
+
+    /*
+     * Getters
+     */
+
+    pub fn get_instance(&self) -> Option<usize> {
+        self.instance
+    }
+
+    /*
+     * Preserve / Restore
+     */
+
+    pub fn preserve(&mut self) {
+        self.backup = Some((
+            std::mem::replace(&mut self.source, Source::Text(String::new())),
+            self.state,
+        ));
+    }
+
+    pub fn restore(&mut self) {
+        if let Some(backup) = self.backup.take() {
+            self.source = backup.0;
+            self.state = backup.1;
+        }
     }
 
     /// Constuct `I3BarBlock` from this widget
-    pub fn get_data(&self) -> I3BarBlock {
+    pub fn get_data(&self) -> Result<I3BarBlock> {
         let mut data = self.inner.clone();
+
+        let (key_bg, key_fg) = self.shared_config.theme.get_colors(self.state);
+        data.background = key_bg;
+        data.color = key_fg;
+
+        let (full, short) = self.source.render()?;
+        let full_spacing = if full.is_empty() {
+            Spacing::Hidden
+        } else {
+            Spacing::Normal
+        };
+        let short_spacing = if short.as_ref().map(String::is_empty).unwrap_or(true) {
+            Spacing::Hidden
+        } else {
+            Spacing::Normal
+        };
 
         data.full_text = format!(
             "{}{}{}",
-            match (self.icon.as_str(), self.full_spacing) {
-                ("", WidgetSpacing::Normal) => " ",
-                ("", WidgetSpacing::Inline) => "",
-                ("", WidgetSpacing::Hidden) => "",
+            match (self.icon.as_str(), full_spacing) {
+                ("", Spacing::Normal) => " ",
+                ("", Spacing::Hidden) => "",
                 (icon, _) => icon,
             },
-            self.full_text,
-            match self.full_spacing {
-                WidgetSpacing::Normal => " ",
-                WidgetSpacing::Inline => " ",
-                WidgetSpacing::Hidden => "",
+            full,
+            match full_spacing {
+                Spacing::Normal => " ",
+                Spacing::Hidden => "",
             }
         );
 
-        data.short_text = self.short_text.as_ref().map(|short_text| {
+        data.short_text = short.as_ref().map(|short_text| {
             format!(
                 "{}{}{}",
-                match (self.icon.as_str(), self.short_spacing) {
-                    ("", WidgetSpacing::Normal) => " ",
-                    ("", WidgetSpacing::Inline) => "",
-                    ("", WidgetSpacing::Hidden) => "",
+                match (self.icon.as_str(), short_spacing) {
+                    ("", Spacing::Normal) => " ",
+                    ("", Spacing::Hidden) => "",
                     (icon, _) => icon,
                 },
                 short_text,
-                match self.short_spacing {
-                    WidgetSpacing::Normal => " ",
-                    WidgetSpacing::Inline => " ",
-                    WidgetSpacing::Hidden => "",
+                match short_spacing {
+                    Spacing::Normal => " ",
+                    Spacing::Hidden => "",
                 }
             )
         });
 
-        data
+        Ok(data)
     }
 }

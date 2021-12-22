@@ -36,7 +36,6 @@
 //! - `disk_drive`
 
 use std::path::Path;
-use std::time::Duration;
 
 use nix::sys::statvfs::statvfs;
 
@@ -83,7 +82,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let config = DiskSpaceConfig::deserialize(config).config_error()?;
     api.set_icon("disk_drive")?;
 
-    let format = config.format.init("$available", &api)?;
+    let format = config.format.with_default("$available")?;
     api.set_format(format);
 
     let unit = match config.alert_unit.as_deref() {
@@ -138,25 +137,24 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         api.set_state(match config.info_type {
             InfoType::Used => {
                 if alert_val > config.alert {
-                    WidgetState::Critical
+                    State::Critical
                 } else if alert_val <= config.alert && alert_val > config.warning {
-                    WidgetState::Warning
+                    State::Warning
                 } else {
-                    WidgetState::Idle
+                    State::Idle
                 }
             }
             InfoType::Free | InfoType::Available => {
                 if 0. <= alert_val && alert_val < config.alert {
-                    WidgetState::Critical
+                    State::Critical
                 } else if config.alert <= alert_val && alert_val < config.warning {
-                    WidgetState::Warning
+                    State::Warning
                 } else {
-                    WidgetState::Idle
+                    State::Idle
                 }
             }
         });
 
-        api.render();
         api.flush().await?;
 
         interval.tick().await;

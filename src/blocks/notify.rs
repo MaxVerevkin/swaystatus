@@ -66,9 +66,9 @@ impl Default for DriverType {
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
     let config = NotifyConfig::deserialize(config).config_error()?;
-    api.set_format(config.format.init("", &api)?);
+    api.set_format(config.format.with_default("")?);
 
-    let dbus_conn = api.dbus_connection().await?;
+    let dbus_conn = api.get_dbus_connection().await?;
     let mut driver: Box<dyn Driver + Send + Sync> = match config.driver {
         DriverType::Dunst => Box::new(MakoDriver::new(&dbus_conn).await?),
     };
@@ -83,8 +83,6 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
             values.insert("paused".into(), Value::Flag);
         }
         api.set_values(values);
-
-        api.render();
         api.flush().await?;
 
         loop {

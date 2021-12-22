@@ -230,8 +230,8 @@ impl<'a> BacklightDevice<'a> {
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
     let config = BacklightConfig::deserialize(config).config_error()?;
-    let dbus_conn = api.system_dbus_connection().await?;
-    api.set_format(config.format.init("$brightness", &api)?);
+    let dbus_conn = api.get_system_dbus_connection().await?;
+    api.set_format(config.format.with_default("$brightness")?);
 
     let device = match &config.device {
         None => BacklightDevice::default(config.root_scaling, &dbus_conn).await?,
@@ -261,7 +261,6 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         api.set_values(map! {
             "brightness" => Value::percents(brightness as i64),
         });
-        api.render();
         api.flush().await?;
 
         tokio::select! {

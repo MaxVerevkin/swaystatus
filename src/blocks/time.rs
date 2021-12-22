@@ -26,7 +26,6 @@
 //! - `time`
 
 use std::collections::HashMap;
-use std::time::Duration;
 
 use chrono::offset::{Local, Utc};
 use chrono::Locale;
@@ -64,7 +63,8 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     // "short" formats, so we "render" it without providing any placeholders.
     let (format, format_short) = config
         .format
-        .init("%a %d/%m %R", &api)?
+        .with_default("%a %d/%m %R")?
+        .run_no_init()
         .render(&HashMap::new())?;
     let format = format.as_str();
     let format_short = format_short.as_deref();
@@ -79,7 +79,11 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         let full_time = get_time(format, timezone, locale);
         let short_time = format_short.map(|f| get_time(f, timezone, locale));
 
-        api.set_text((full_time, short_time));
+        if let Some(short) = short_time {
+            api.set_texts(full_time, short);
+        } else {
+            api.set_text(full_time);
+        }
         api.flush().await?;
 
         interval.tick().await;

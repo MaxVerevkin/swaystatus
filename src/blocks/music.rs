@@ -2,9 +2,8 @@ use futures::StreamExt;
 
 use zbus::fdo::DBusProxy;
 use zbus::names::{OwnedBusName, OwnedInterfaceName};
-use zbus::zvariant::{Optional, OwnedValue};
+use zbus::zvariant::{Optional, OwnedValue, Type};
 use zbus::MessageStream;
-use zvariant::derive::Type;
 
 use std::collections::HashMap;
 
@@ -50,8 +49,8 @@ struct OwnerChange {
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
     let config = MusicConfig::deserialize(config).config_error()?;
-    let dbus_conn = api.dbus_connection().await?;
-    api.set_format(config.format.init("$title_artist.rot-str()|", &api)?);
+    let dbus_conn = api.get_dbus_connection().await?;
+    api.set_format(config.format.with_default("$title_artist.rot-str()|")?);
     api.set_icon("music")?;
 
     // Init buttons
@@ -119,26 +118,25 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                 api.set_values(values);
 
                 let (state, play_icon) = match player.status {
-                    Some(PlaybackStatus::Playing) => (WidgetState::Info, "music_pause"),
-                    _ => (WidgetState::Idle, "music_play"),
+                    Some(PlaybackStatus::Playing) => (State::Info, "music_pause"),
+                    _ => (State::Idle, "music_play"),
                 };
                 api.set_state(state);
                 api.set_button(PLAY_PAUSE_BTN, play_icon)?;
             }
             None => {
                 api.collapse();
-                api.set_state(WidgetState::Idle);
+                api.set_state(State::Idle);
             }
         }
 
-        api.render();
         api.flush().await?;
 
         tokio::select! {
             // Wait for a DBUS event
             Some(msg) = dbus_stream.next() => {
                 let msg = msg.unwrap();
-                match msg.member().unwrap().as_ref().map(|m| m.as_str()) {
+                match msg.member().as_ref().map(|m| m.as_str()) {
                     Some("PropertiesChanged") => {
                         let header = msg.header().unwrap();
                         let sender = header.sender().unwrap().unwrap();
@@ -159,7 +157,6 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                     }
                     Some("NameOwnerChanged") => {
                         let body: OwnerChange = msg.body_unchecked().unwrap();
-                        dbg!(&body);
                         let old: Option<StdString> = body.old_owner.into();
                         let new: Option<StdString> = body.new_owner.into();
                         match (old, new) {

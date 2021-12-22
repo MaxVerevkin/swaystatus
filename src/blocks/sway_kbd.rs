@@ -36,7 +36,7 @@ pub struct SwayKbdConfig {
 
 pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
     let block_config = SwayKbdConfig::deserialize(block_config).config_error()?;
-    api.set_format(block_config.format.init("$layout", &api)?);
+    api.set_format(block_config.format.with_default("$layout")?);
 
     // New connection
     let mut connection = Connection::new()
@@ -70,7 +70,6 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
         api.set_values(map! {
             "layout" => Value::text(layout_mapped),
         });
-        api.render();
         api.flush().await?;
 
         // Wait for new event

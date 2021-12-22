@@ -88,8 +88,8 @@ impl Default for Config {
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let config = Config::deserialize(config).config_error()?;
-    let dbus_conn = api.dbus_connection().await?;
-    api.set_format(config.format.init("", &api)?);
+    let dbus_conn = api.get_dbus_connection().await?;
+    api.set_format(config.format.with_default("")?);
 
     let battery_state = (
         config.bat_good,
@@ -110,7 +110,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         let connected = device.connected().await?;
 
         if connected || !config.hide_disconnected {
-            let mut state = WidgetState::Idle;
+            let mut state = State::Idle;
 
             let mut values = map! {
                 "name" => Value::text(device.name().await?),
@@ -131,15 +131,15 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                 );
                 if battery_state {
                     state = if charging {
-                        WidgetState::Good
+                        State::Good
                     } else if level <= config.bat_critical {
-                        WidgetState::Critical
+                        State::Critical
                     } else if level <= config.bat_info {
-                        WidgetState::Info
+                        State::Info
                     } else if level > config.bat_good {
-                        WidgetState::Good
+                        State::Good
                     } else {
-                        WidgetState::Idle
+                        State::Idle
                     };
                 }
 
@@ -153,9 +153,9 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                 }
                 if !battery_state {
                     state = if notif_count == 0 {
-                        WidgetState::Idle
+                        State::Idle
                     } else {
-                        WidgetState::Info
+                        State::Info
                     };
                 }
             } else {
@@ -165,7 +165,6 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
             api.show();
             api.set_values(values);
             api.set_state(state);
-            api.render();
         } else {
             api.hide();
         }

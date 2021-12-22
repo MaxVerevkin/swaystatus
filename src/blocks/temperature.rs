@@ -46,7 +46,6 @@
 
 use super::prelude::*;
 use crate::de::deserialize_duration;
-use std::time::Duration;
 use tokio::fs::{read_dir, read_to_string};
 
 #[derive(Deserialize, Debug)]
@@ -82,7 +81,7 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
     let block_config = TemperatureConfig::deserialize(block_config).config_error()?;
     let mut collapsed = block_config.collapsed;
-    api.set_format(block_config.format.init("$average avg, $max max", &api)?);
+    api.set_format(block_config.format.with_default("$average avg, $max max")?);
     api.set_icon("thermometer")?;
 
     loop {
@@ -93,11 +92,11 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
         let avg_temp = (temp.iter().sum::<i32>() as f64) / (temp.len() as f64);
 
         api.set_state(match max_temp {
-            x if x <= block_config.good => WidgetState::Good,
-            x if x <= block_config.idle => WidgetState::Idle,
-            x if x <= block_config.info => WidgetState::Info,
-            x if x <= block_config.warning => WidgetState::Warning,
-            _ => WidgetState::Critical,
+            x if x <= block_config.good => State::Good,
+            x if x <= block_config.idle => State::Idle,
+            x if x <= block_config.info => State::Info,
+            x if x <= block_config.warning => State::Warning,
+            _ => State::Critical,
         });
 
         if collapsed {
@@ -109,7 +108,6 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
                 "max" => Value::degrees(max_temp),
             });
             api.show();
-            api.render();
         }
 
         api.flush().await?;

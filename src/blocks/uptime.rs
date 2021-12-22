@@ -24,7 +24,6 @@
 //! - Add `time` or `dur` formatter to `src/formatting/formatter.rs`
 
 use super::prelude::*;
-use std::time::Duration;
 use tokio::fs::read_to_string;
 
 #[derive(Deserialize, Debug)]
@@ -73,7 +72,7 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
             format!("{}m {}s", minutes, seconds)
         };
 
-        api.set_text((text.into(), None));
+        api.set_text(text.into());
         api.flush().await?;
         interval.tick().await;
     }

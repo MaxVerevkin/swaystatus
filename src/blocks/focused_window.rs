@@ -50,7 +50,7 @@ impl Default for FocusedWindowConfig {
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let config = FocusedWindowConfig::deserialize(config).config_error()?;
-    api.set_format(config.format.init("$title.rot-str(15)|", &api)?);
+    api.set_format(config.format.with_default("$title.rot-str(15)|")?);
 
     let mut title: Option<String> = None;
     let mut marks = Vec::new();
@@ -117,7 +117,6 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                     .map(|t| values.insert("title".into(), Value::text(t)));
                 api.set_values(values);
                 api.show();
-                api.render();
             } else {
                 api.hide();
             }

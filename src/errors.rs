@@ -15,7 +15,7 @@ pub struct Error {
     pub kind: ErrorKind,
     pub message: Option<String>,
     pub cause: Option<Arc<dyn StdError + Send + Sync + 'static>>,
-    pub block: Option<BlockType>,
+    pub block: Option<(BlockType, usize)>,
 }
 
 /// A set of errors that can occur during the runtime of swaystatus
@@ -47,13 +47,13 @@ impl Error {
 }
 
 pub trait InBlock {
-    fn in_block(self, block: BlockType) -> Self;
+    fn in_block(self, block: BlockType, block_id: usize) -> Self;
 }
 
 impl<T> InBlock for Result<T> {
-    fn in_block(self, block: BlockType) -> Self {
+    fn in_block(self, block: BlockType, block_id: usize) -> Self {
         self.map_err(|mut e| {
-            e.block = Some(block);
+            e.block = Some((block, block_id));
             e
         })
     }
@@ -158,7 +158,7 @@ impl fmt::Display for Error {
                     ErrorKind::Other => f.write_str("Error")?,
                 }
 
-                write!(f, " in {}", block_name(block))?;
+                write!(f, " in {}", block_name(block.0))?;
 
                 if let Some(message) = &self.message {
                     write!(f, ": {}", message)?;

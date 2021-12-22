@@ -96,17 +96,16 @@ pub fn xdg_config_home() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-pub fn deserialize_file<T>(path: &Path) -> Result<T>
+pub fn deserialize_toml_file<T>(path: &Path) -> Result<T>
 where
     T: DeserializeOwned,
 {
-    let file = path.to_str().unwrap();
     let mut contents = String::new();
-    let mut file =
-        BufReader::new(File::open(file).error(format!("failed to open file: {}", file))?);
-    file.read_to_string(&mut contents)
-        .error("failed to read file")?;
-    toml::from_str(&contents).config_error()
+    let file = File::open(path).or_error(|| format!("Failed to open file: {}", path.display()))?;
+    BufReader::new(file)
+        .read_to_string(&mut contents)
+        .or_error(|| format!("Failed to read file: {}", path.display()))?;
+    toml::from_str(&contents).or_error(|| format!("Failed to deserialize file: {}", path.display()))
 }
 
 pub async fn read_file(path: &Path) -> StdResult<String, std::io::Error> {

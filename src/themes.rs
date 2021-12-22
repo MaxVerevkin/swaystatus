@@ -10,6 +10,7 @@ use smartstring::alias::String;
 
 use crate::errors::{self, OptionExt, ResultExt, ToSerdeError};
 use crate::util;
+use crate::widget::State;
 
 // TODO docs
 // TODO tests
@@ -159,10 +160,20 @@ impl Theme {
     pub fn from_file(file: &str) -> errors::Result<Theme> {
         let file = util::find_file(file, Some("themes"), Some("toml"))
             .error(&format!("Theme '{}' not found", file))?;
-        let map: HashMap<String, String> = util::deserialize_file(&file)?;
+        let map: HashMap<String, String> = util::deserialize_toml_file(&file)?;
         let mut theme = Self::default();
         theme.apply_overrides(&map)?;
         Ok(theme)
+    }
+
+    pub fn get_colors(&self, state: State) -> (Color, Color) {
+        match state {
+            State::Idle => (self.idle_bg, self.idle_fg),
+            State::Info => (self.info_bg, self.info_fg),
+            State::Good => (self.good_bg, self.good_fg),
+            State::Warning => (self.warning_bg, self.warning_fg),
+            State::Critical => (self.critical_bg, self.critical_fg),
+        }
     }
 
     pub fn apply_overrides(

@@ -45,7 +45,7 @@
 
 use super::prelude::*;
 use crate::subprocess::{spawn_shell, spawn_shell_sync};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::mpsc;
 
 #[derive(Deserialize, Debug)]
@@ -76,7 +76,7 @@ struct Block {
 
 impl Block {
     async fn set_text(&mut self, text: String) -> Result<()> {
-        self.api.set_text((text, None));
+        self.api.set_text(text);
         self.api.flush().await
     }
 
@@ -124,7 +124,7 @@ impl Block {
     ) -> Result<()> {
         for pomodoro in 0..pomodoros {
             // Task timer
-            self.api.set_state(WidgetState::Idle);
+            self.api.set_state(State::Idle);
             let timer = Instant::now();
             loop {
                 let elapsed = timer.elapsed();
@@ -153,7 +153,7 @@ impl Block {
             }
 
             // Show break message
-            self.api.set_state(WidgetState::Good);
+            self.api.set_state(State::Good);
             self.set_text(self.block_config.message.clone()).await?;
             if let Some(cmd) = &self.block_config.notify_cmd {
                 let cmd = cmd.replace("{msg}", &self.block_config.message);
@@ -195,7 +195,7 @@ impl Block {
             }
 
             // Show task message
-            self.api.set_state(WidgetState::Good);
+            self.api.set_state(State::Good);
             self.set_text(self.block_config.break_message.clone())
                 .await?;
             if let Some(cmd) = &self.block_config.notify_cmd {
@@ -229,7 +229,7 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
 
     loop {
         // Send collaped block
-        block.api.set_state(WidgetState::Idle);
+        block.api.set_state(State::Idle);
         block.set_text(String::new()).await?;
 
         // Wait for left click

@@ -1,6 +1,5 @@
 use super::prelude::*;
 use crate::de::deserialize_duration;
-use std::time::Duration;
 
 const IP_API_URL: &str = "https://ipapi.co/json";
 
@@ -71,7 +70,7 @@ impl WeatherService {
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let config = WeatherConfig::deserialize(config).config_error()?;
-    api.set_format(config.format.init("$weather $temp", &api)?);
+    api.set_format(config.format.with_default("$weather $temp")?);
 
     loop {
         if let Ok(data) = config.service.get(config.autolocate).await {
@@ -112,10 +111,8 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
 
             api.set_icon(icon)?;
             api.set_values(keys);
-            api.render();
         } else {
-            api.unset_values();
-            api.set_text(("X".into(), None));
+            api.set_text("X".into());
         }
 
         api.flush().await?;
@@ -233,12 +230,7 @@ async fn find_ip_location() -> Result<Option<String>> {
     struct ApiResponse {
         city: Option<String>,
     }
-    static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-    let client = reqwest::Client::builder()
-        .user_agent(APP_USER_AGENT)
-        .build()
-        .unwrap();
-    client
+    REQWEST_CLIENT
         .get(IP_API_URL)
         .send()
         .await

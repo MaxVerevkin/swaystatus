@@ -45,7 +45,6 @@
 
 use super::prelude::*;
 use crate::de::deserialize_duration;
-use std::time::Duration;
 use tokio::process::Command;
 
 #[derive(Deserialize, Debug)]
@@ -79,7 +78,7 @@ impl Default for TaskwarriorConfig {
 pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
     let block_config = TaskwarriorConfig::deserialize(block_config).config_error()?;
-    api.set_format(block_config.format.init("$count.eng(1)", &api)?);
+    api.set_format(block_config.format.with_default("$count.eng(1)")?);
     api.set_icon("tasks")?;
 
     let mut filters = block_config.filters.iter().cycle();
@@ -101,15 +100,14 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
             api.set_values(values);
 
             api.set_state(if number_of_tasks >= block_config.critical_threshold {
-                WidgetState::Critical
+                State::Critical
             } else if number_of_tasks >= block_config.warning_threshold {
-                WidgetState::Warning
+                State::Warning
             } else {
-                WidgetState::Idle
+                State::Idle
             });
 
             api.show();
-            api.render();
         } else {
             api.hide();
         }

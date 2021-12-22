@@ -1,5 +1,4 @@
 use super::{template::FormatTemplate, Format};
-use crate::blocks::CommonApi;
 use crate::errors::ToSerdeError;
 use serde::de::{MapAccess, Visitor};
 use serde::{de, Deserialize, Deserializer};
@@ -14,21 +13,15 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn init(self, default_full: &str, api: &CommonApi) -> crate::errors::Result<Arc<Format>> {
+    pub fn with_default(self, default_full: &str) -> crate::errors::Result<Format> {
         let full = match self.full {
             Some(full) => full,
             None => default_full.parse()?,
         };
-
-        full.init(api);
-        if let Some(short) = &self.short {
-            short.init(api);
-        }
-
-        Ok(Arc::new(Format {
-            full,
-            short: self.short,
-        }))
+        Ok(Format {
+            full: Arc::new(full),
+            short: self.short.map(Arc::new),
+        })
     }
 }
 

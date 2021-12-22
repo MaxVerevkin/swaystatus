@@ -43,7 +43,7 @@
 use super::prelude::*;
 use crate::netlink::{default_interface, NetDevice};
 use crate::util;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
@@ -77,9 +77,9 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let config = NetConfig::deserialize(config).config_error()?;
     let mut format = config
         .format
-        .init("$speed_down.eng(3,B,K)$speed_up.eng(3,B,K)", &api)?;
+        .with_default("$speed_down.eng(3,B,K)$speed_up.eng(3,B,K)")?;
     let mut format_alt = match config.format_alt {
-        Some(f) => Some(f.init("", &api)?),
+        Some(f) => Some(f.with_default("")?),
         None => None,
     };
     api.set_format(format.clone());
@@ -145,7 +145,6 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
 
         api.set_values(values);
         api.set_icon(device.icon)?;
-        api.render();
         api.flush().await?;
 
         tokio::select! {

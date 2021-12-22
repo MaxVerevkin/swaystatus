@@ -45,11 +45,15 @@ impl Default for SharedConfig {
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
     #[serde(flatten)]
-    shared: SharedConfig,
+    pub shared: SharedConfig,
 
     /// Set to `true` to invert mouse wheel direction
     #[serde(default)]
     pub invert_scrolling: bool,
+
+    /// The maximum delay (ms) between two clicks that are considered as doulble click
+    #[serde(default = "Config::default_double_click_delay")]
+    pub double_click_delay: u64,
 
     #[serde(deserialize_with = "deserialize_blocks")]
     pub block: Vec<(BlockType, value::Value)>,
@@ -60,13 +64,8 @@ impl Config {
         Arc::new(" {icon} ".into())
     }
 
-    pub fn into_parts(self) -> (SharedConfig, Vec<(BlockType, value::Value)>, bool) {
-        let Self {
-            shared,
-            invert_scrolling,
-            block,
-        } = self;
-        (shared, block, invert_scrolling)
+    fn default_double_click_delay() -> u64 {
+        200
     }
 }
 

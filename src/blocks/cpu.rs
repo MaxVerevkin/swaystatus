@@ -34,7 +34,6 @@
 
 use std::path::Path;
 use std::str::FromStr;
-use std::time::Duration;
 
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -67,9 +66,9 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
     let config = CpuConfig::deserialize(config).config_error()?;
     let interval = Duration::from_secs(config.interval);
-    let mut format = config.format.init("$utilization", &api)?;
+    let mut format = config.format.with_default("$utilization")?;
     let mut format_alt = match config.format_alt {
-        Some(f) => Some(f.init("", &api)?),
+        Some(f) => Some(f.with_default("")?),
         None => None,
     };
     api.set_format(format.clone());
@@ -116,7 +115,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
             "frequency" => Value::hertz(freq_avg),
             "utilization" => Value::percents(utilization_avg * 100.),
         );
-        boost.map(|b| values.insert("boost".into(), Value::text(b)));
+        boost.map(|b| values.insert("boost".into(), Value::Icon(b)));
         for (i, freq) in freqs.iter().enumerate() {
             values.insert(format!("frequency{}", i + 1).into(), Value::hertz(*freq));
         }
@@ -129,12 +128,11 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
 
         api.set_values(values);
         api.set_state(match utilization_avg {
-            x if x > 0.9 => WidgetState::Critical,
-            x if x > 0.6 => WidgetState::Warning,
-            x if x > 0.3 => WidgetState::Info,
-            _ => WidgetState::Idle,
+            x if x > 0.9 => State::Critical,
+            x if x > 0.6 => State::Warning,
+            x if x > 0.3 => State::Info,
+            _ => State::Idle,
         });
-        api.render();
         api.flush().await?;
 
         tokio::select! {

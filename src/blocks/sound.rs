@@ -41,7 +41,7 @@ impl Default for SoundConfig {
 pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
     let block_config = SoundConfig::deserialize(block_config).config_error()?;
-    api.set_format(block_config.format.init("$volume.eng(2)|", &api)?);
+    api.set_format(block_config.format.with_default("$volume.eng(2)|")?);
 
     let device_kind = block_config.device_kind;
     let icon = |volume: u32| -> String {
@@ -99,17 +99,16 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
 
         if device.muted() {
             api.set_icon(&icon(0))?;
-            api.set_state(WidgetState::Warning);
+            api.set_state(State::Warning);
             if !block_config.show_volume_when_muted {
                 values.remove("volume");
             }
         } else {
             api.set_icon(&icon(volume))?;
-            api.set_state(WidgetState::Idle);
+            api.set_state(State::Idle);
         }
 
         api.set_values(values);
-        api.render();
         api.flush().await?;
 
         tokio::select! {

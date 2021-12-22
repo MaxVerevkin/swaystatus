@@ -61,7 +61,7 @@ impl Block {
     }
 
     async fn set_text(&mut self, full: StdString, short: StdString) -> StdString {
-        self.api.set_text((full.into(), Some(short.into())));
+        self.api.set_texts(full.into(), short.into());
         if let Err(e) = self.api.flush().await {
             return e.to_string();
         }
@@ -70,11 +70,11 @@ impl Block {
 
     async fn set_state(&mut self, state: &str) -> StdString {
         match state {
-            "idle" => self.api.set_state(WidgetState::Idle),
-            "info" => self.api.set_state(WidgetState::Info),
-            "good" => self.api.set_state(WidgetState::Good),
-            "warning" => self.api.set_state(WidgetState::Warning),
-            "critical" => self.api.set_state(WidgetState::Critical),
+            "idle" => self.api.set_state(State::Idle),
+            "info" => self.api.set_state(State::Info),
+            "good" => self.api.set_state(State::Good),
+            "warning" => self.api.set_state(State::Warning),
+            "critical" => self.api.set_state(State::Critical),
             _ => return format!("'{}' is not a valid state", state),
         }
         if let Err(e) = self.api.flush().await {
@@ -84,13 +84,13 @@ impl Block {
     }
 }
 
-pub async fn run(config: toml::Value, api: CommonApi) -> Result<()> {
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let path = CustomDBusConfig::deserialize(config).config_error()?.path;
-    let dbus_conn = api.dbus_connection().await?;
+    let dbus_conn = api.get_dbus_connection().await?;
     dbus_conn
-        .object_server_mut()
-        .await
+        .object_server()
         .at(path, Block { api })
+        .await
         .error("Failed to setup DBus server")?;
     Ok(())
 }

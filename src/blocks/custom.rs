@@ -66,13 +66,9 @@
 //! one_shot = true
 //! ```
 
-use std::collections::HashMap;
-use std::env;
-use std::time::Duration;
-use tokio::process::Command;
-
 use super::prelude::*;
 use crate::signals::Signal;
+use tokio::process::Command;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
@@ -123,7 +119,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     // 2) `SHELL` environment varialble
     // 3) `"sh"`
     let shell = shell
-        .or_else(|| env::var("SHELL").ok())
+        .or_else(|| std::env::var("SHELL").ok())
         .unwrap_or_else(|| "sh".to_string());
 
     let mut cycle = cycle
@@ -147,24 +143,19 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         if stdout.is_empty() && hide_when_empty {
             api.hide();
         } else if json {
-            let vals: HashMap<String, String> =
-                serde_json::from_str(stdout).error("invalid JSON")?;
+            let input: Input = serde_json::from_str(stdout).error("invalid JSON")?;
 
             api.show();
-            api.set_icon(vals.get("icon").map(|s| s.as_str()).unwrap_or(""))?;
-            api.set_state(match vals.get("state").map(|s| s.as_str()).unwrap_or("") {
-                "Info" => WidgetState::Info,
-                "Good" => WidgetState::Good,
-                "Warning" => WidgetState::Warning,
-                "Critical" => WidgetState::Critical,
-                _ => WidgetState::Idle,
-            });
-            let text = vals.get("text").cloned().unwrap_or_default();
-            let short_text = vals.get("short_text").cloned();
-            api.set_text((text, short_text));
+            api.set_icon(&input.icon)?;
+            api.set_state(input.state);
+            if let Some(short) = input.short_text {
+                api.set_texts(input.text, short);
+            } else {
+                api.set_text(input.text);
+            }
         } else {
             api.show();
-            api.set_text((stdout.into(), None));
+            api.set_text(stdout.into());
         };
         api.flush().await?;
 
@@ -185,4 +176,13 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
             }
         }
     }
+}
+
+#[derive(Deserialize, Debug, Default)]
+#[serde(default)]
+struct Input {
+    icon: String,
+    state: State,
+    text: String,
+    short_text: Option<String>,
 }

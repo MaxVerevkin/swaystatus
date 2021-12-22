@@ -104,7 +104,7 @@ impl Icons {
             Some(Icons::default())
         } else {
             let file = util::find_file(file, Some("icons"), Some("toml"))?;
-            Some(Icons(util::deserialize_file(&file).ok()?))
+            Some(Icons(util::deserialize_toml_file(&file).ok()?))
         }
     }
 }

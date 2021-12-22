@@ -3,8 +3,10 @@ use super::formatter::{
     DEFAULT_STRING_FORMATTER,
 };
 use super::value::Value;
-use crate::blocks::CommonApi;
 use crate::errors::*;
+use crate::Request;
+
+use tokio::sync::mpsc::Sender;
 
 use smartstring::alias::String;
 
@@ -29,6 +31,7 @@ pub enum Token {
 }
 
 impl FormatTemplate {
+    #[allow(dead_code)]
     pub fn contains_key(&self, key: &str) -> bool {
         self.0.iter().any(|token_list| {
             token_list.0.iter().any(|token| match token {
@@ -51,14 +54,14 @@ impl FormatTemplate {
         Ok(String::new())
     }
 
-    pub fn init(&self, api: &CommonApi) {
+    pub fn init(&self, tx: &Sender<Request>, block_id: usize, handles: &mut super::Handles) {
         for tl in &self.0 {
             for t in &tl.0 {
                 match t {
-                    Token::Recursive(r) => r.init(api),
+                    Token::Recursive(r) => r.init(tx, block_id, handles),
                     Token::Var {
                         formatter: Some(f), ..
-                    } => f.init(api),
+                    } => f.init(tx, block_id, handles),
                     _ => (),
                 }
             }

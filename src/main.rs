@@ -15,10 +15,11 @@ mod subprocess;
 mod themes;
 mod widget;
 
-use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version, Arg};
+use clap::Parser;
 use futures::stream::futures_unordered::FuturesUnordered;
 use futures::stream::StreamExt;
 use futures::Future;
+use once_cell::sync::Lazy;
 use protocol::i3bar_block::I3BarBlock;
 use protocol::i3bar_event::I3BarEvent;
 use smallvec::SmallVec;
@@ -26,125 +27,101 @@ use smartstring::alias::String;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio::sync::oneshot::Sender as OneshotSender;
 
 use blocks::{BlockEvent, BlockType, CommonApi, CommonConfig};
 use click::ClickHandler;
 use config::Config;
 use config::SharedConfig;
 use errors::*;
-use formatting::{value::Value, Format};
-use protocol::i3bar_event::process_events;
-use signals::{process_signals, Signal};
-use util::deserialize_file;
-use widget::{Widget, WidgetState};
+use formatting::{value::Value, RunningFormat};
+use protocol::i3bar_event::events_stream;
+use signals::{signals_stream, Signal};
+use widget::{State, Widget};
 
-const DBUS_WELL_KNOWN_NAME: &str = "rs.swaystatus";
+pub static REQWEST_CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
+    const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+    reqwest::Client::builder()
+        .user_agent(APP_USER_AGENT)
+        // .timeout(std::time::Duration::from_secs(1))
+        .build()
+        .unwrap()
+});
+
+#[derive(Debug, Parser)]
+#[clap(author, about, version = env!("VERSION"))]
+struct CliArgs {
+    /// Sets a TOML config file
+    #[clap(default_value = "config.toml")]
+    config: String,
+    /// Ignore any attempts by i3 to pause the bar when hidden/fullscreen
+    #[clap(long = "never-pause")]
+    never_pause: bool,
+    /// Do not send the init sequence
+    #[clap(long = "no-init")]
+    no_init: bool,
+    /// The maximum number of blocking threads spawned by tokio
+    #[clap(long = "threads", short = 'j', default_value = "2")]
+    blocking_threads: usize,
+    /// The DBUS name
+    #[clap(long = "dbus-name", default_value = "rs.swaystatus")]
+    dbus_name: String,
+}
 
 fn main() {
-    let args = app_from_crate!()
-        .version(env!("VERSION"))
-        .arg(
-            Arg::with_name("config")
-                .value_name("CONFIG_FILE")
-                .help("Sets a toml config file")
-                .required(false)
-                .index(1),
-        )
-        .arg(
-            Arg::with_name("exit-on-error")
-                .help("Exit rather than printing errors to i3bar and continuing")
-                .long("exit-on-error")
-                .takes_value(false),
-        )
-        .arg(
-            Arg::with_name("never-pause")
-                .help("Ignore any attempts by i3 to pause the bar when hidden/fullscreen")
-                .long("never-pause")
-                .takes_value(false),
-        )
-        .arg(
-            Arg::with_name("no-init")
-                .help("Do not send an init sequence")
-                .long("no-init")
-                .takes_value(false)
-                .hidden(true),
-        )
-        .get_matches();
+    let args = CliArgs::parse();
+    if !args.no_init {
+        protocol::init(args.never_pause);
+    }
 
-    // Build the runtime and run the program
-    tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
-        .max_blocking_threads(2)
+    let result = tokio::runtime::Builder::new_current_thread()
+        .max_blocking_threads(args.blocking_threads)
         .enable_all()
         .build()
         .unwrap()
-        .block_on(async move {
-            if let Err(error) = run(
-                args.value_of("config"),
-                args.is_present("no-init"),
-                args.is_present("never_pause"),
-            )
-            .await
-            {
-                if args.is_present("exit-on-error") {
-                    eprintln!("{:?}", error);
-                    std::process::exit(1);
-                }
+        .block_on(run(args));
 
-                // Create widget with error message
-                let error_widget = Widget::new(0, Default::default())
-                    .with_state(WidgetState::Critical)
-                    .with_full_text(error.to_string().into());
+    if let Err(error) = result {
+        let error_widget = Widget::new(0, Default::default()).with_text(error.to_string().into());
+        println!("[{}],", error_widget.get_data().unwrap().render());
+        eprintln!("\n\n{}\n\n", error);
+        dbg!(error);
 
-                // Print errors
-                println!("[{}],", error_widget.get_data().render());
-                eprintln!("\n\n{}\n\n", error);
-                dbg!(error);
-
-                // Wait for USR2 signal to restart
-                signal_hook::iterator::Signals::new(&[signal_hook::consts::SIGUSR2])
-                    .unwrap()
-                    .forever()
-                    .next()
-                    .unwrap();
-                restart();
-            }
-        });
+        // Wait for USR2 signal to restart
+        signal_hook::iterator::Signals::new(&[signal_hook::consts::SIGUSR2])
+            .unwrap()
+            .forever()
+            .next()
+            .unwrap();
+        restart();
+    }
 }
 
-async fn run(config: Option<&str>, noinit: bool, never_pause: bool) -> Result<()> {
-    if !noinit {
-        // Now we can start to run the i3bar protocol
-        protocol::init(never_pause);
-    }
-
+async fn run(args: CliArgs) -> Result<()> {
     // Read & parse the config file
-    let config_path = util::find_file(config.unwrap_or("config.toml"), None, Some("toml"))
-        .error("Configuration file not found")?;
-    let config: Config = deserialize_file(&config_path)?;
-    let (shared_config, block_list, invert_scrolling) = config.into_parts();
+    let config_path = util::find_file(&args.config, None, Some("toml"))
+        .or_error(|| format!("Configuration file '{}' not found", args.config))?;
+    let config: Config = util::deserialize_toml_file(&config_path).config_error()?;
 
     // Spawn blocks
-    let mut swaystatus = Swaystatus::new(shared_config);
-    for (block_type, block_config) in block_list {
+    let mut swaystatus = Swaystatus::new(config.shared, args);
+    for (block_type, block_config) in config.block {
         swaystatus.spawn_block(block_type, block_config)?;
     }
 
-    // Listen to signals and clicks
-    let (signals_sender, signals_receiver) = mpsc::channel(64);
-    let (events_sender, events_receiver) = mpsc::channel(64);
-    tokio::spawn(process_signals(signals_sender));
-    tokio::spawn(process_events(events_sender, invert_scrolling));
+    let mut signals = signals_stream();
+    let mut events = events_stream(
+        config.invert_scrolling,
+        Duration::from_millis(config.double_click_delay),
+    );
 
     // Main loop
-    swaystatus
-        .run_event_loop(signals_receiver, events_receiver)
-        .await
+    swaystatus.run_event_loop(&mut signals, &mut events).await
 }
 
-pub struct Block {
-    block_type: BlockType,
+pub struct RunningBlock {
     id: usize,
 
     event_sender: Option<mpsc::Sender<BlockEvent>>,
@@ -154,9 +131,17 @@ pub struct Block {
     collapsed: bool,
     widget: Widget,
     buttons: Vec<Widget>,
+}
 
-    values: Option<HashMap<String, Value>>,
-    format: Option<Arc<Format>>,
+pub struct FailedBlock {
+    id: usize,
+    error_widget: Widget,
+    error: Error,
+}
+
+pub enum Block {
+    Running(RunningBlock),
+    Failed(FailedBlock),
 }
 
 #[derive(Debug)]
@@ -171,45 +156,57 @@ pub enum RequestCmd {
     Collapse,
     Show,
 
-    GetEvents(tokio::sync::oneshot::Sender<blocks::EventsRx>),
+    GetEvents(OneshotSender<blocks::EventsRx>),
 
     SetIcon(String),
-    SetState(WidgetState),
-    SetText((String, Option<String>)),
+    SetState(State),
+    SetText(String),
+    SetTexts(String, String),
 
+    SetFormat(RunningFormat),
     SetValues(HashMap<String, Value>),
-    UnsetValues,
-    SetFormat(Arc<Format>),
 
     AddButton(usize, String),
     SetButton(usize, String),
 
-    Render,
+    SetFullScreen(bool),
+
+    Preserve,
+    Restore,
+
+    GetDbusConnection(OneshotSender<Result<zbus::Connection>>),
+    GetSystemDbusConnection(OneshotSender<Result<zbus::Connection>>),
+
+    Noop,
 }
 
-pub struct Swaystatus {
-    pub shared_config: SharedConfig,
+struct Swaystatus {
+    shared_config: SharedConfig,
+    cli_args: CliArgs,
 
-    pub blocks: Vec<Block>,
+    blocks: Vec<(Block, BlockType)>,
+    fullscreen_block: Option<usize>,
     // TODO: find a way to avoid this `Box<dyn Future>`
-    pub spawned_blocks: FuturesUnordered<Pin<Box<dyn Future<Output = Result<()>>>>>,
+    spawned_blocks: FuturesUnordered<Pin<Box<dyn Future<Output = Result<()>>>>>,
 
-    pub blocks_render_cache: Vec<Vec<I3BarBlock>>,
+    blocks_render_cache: Vec<Vec<I3BarBlock>>,
 
-    pub request_sender: mpsc::Sender<Request>,
-    pub request_receiver: mpsc::Receiver<Request>,
+    request_sender: mpsc::Sender<Request>,
+    request_receiver: mpsc::Receiver<Request>,
 
-    pub dbus_connection: Arc<async_lock::Mutex<Option<zbus::Connection>>>,
-    pub system_dbus_connection: Arc<async_lock::Mutex<Option<zbus::Connection>>>,
+    dbus_connection: Option<zbus::Connection>,
+    system_dbus_connection: Option<zbus::Connection>,
 }
 
 impl Swaystatus {
-    pub fn new(shared_config: SharedConfig) -> Self {
+    fn new(shared_config: SharedConfig, cli: CliArgs) -> Self {
         let (request_sender, request_receiver) = mpsc::channel(64);
         Self {
             shared_config,
+            cli_args: cli,
 
             blocks: Vec::new(),
+            fullscreen_block: None,
             spawned_blocks: FuturesUnordered::new(),
 
             blocks_render_cache: Vec::new(),
@@ -217,16 +214,12 @@ impl Swaystatus {
             request_sender,
             request_receiver,
 
-            dbus_connection: Arc::new(async_lock::Mutex::new(None)),
-            system_dbus_connection: Arc::new(async_lock::Mutex::new(None)),
+            dbus_connection: None,
+            system_dbus_connection: None,
         }
     }
 
-    pub fn spawn_block(
-        &mut self,
-        block_type: BlockType,
-        mut block_config: toml::Value,
-    ) -> Result<()> {
+    fn spawn_block(&mut self, block_type: BlockType, mut block_config: toml::Value) -> Result<()> {
         let common_config = CommonConfig::new(&mut block_config)?;
         let mut shared_config = self.shared_config.clone();
 
@@ -245,12 +238,11 @@ impl Swaystatus {
             request_sender: self.request_sender.clone(),
             cmd_buf: SmallVec::new(),
 
-            dbus_connection: Arc::clone(&self.dbus_connection),
-            system_dbus_connection: Arc::clone(&self.system_dbus_connection),
+            error_interval: Duration::from_secs(common_config.error_interval),
+            error_format: common_config.error_format,
         };
 
-        let block = Block {
-            block_type,
+        let block = Block::Running(RunningBlock {
             id: api.id,
 
             event_sender: None,
@@ -260,115 +252,232 @@ impl Swaystatus {
             collapsed: false,
             widget: Widget::new(api.id, api.shared_config.clone()),
             buttons: Vec::new(),
-
-            values: None,
-            format: None,
-        };
+        });
 
         let handle = block_type.run(block_config, api);
         self.spawned_blocks.push(Box::pin(handle));
-        self.blocks.push(block);
+        self.blocks.push((block, block_type));
         self.blocks_render_cache.push(Vec::new());
         Ok(())
     }
 
-    pub async fn run_event_loop(
+    async fn process_request(&mut self, request: Request) -> Result<()> {
+        let (block, block_type) = self
+            .blocks
+            .get_mut(request.block_id)
+            .error("Message receiver: ID out of bounds")?;
+        let block = match block {
+            Block::Running(block) => block,
+            Block::Failed(_) => {
+                // Ignore requests from failed blocks
+                return Ok(());
+            }
+        };
+        for cmd in request.cmds {
+            match cmd {
+                RequestCmd::Hide => block.hidden = true,
+                RequestCmd::Collapse => block.collapsed = true,
+                RequestCmd::Show => {
+                    block.hidden = false;
+                    block.collapsed = false;
+                }
+                RequestCmd::GetEvents(tx) => {
+                    let (sender, receiver) = mpsc::channel(64);
+                    block.event_sender = Some(sender);
+                    let _ = tx.send(receiver);
+                }
+                RequestCmd::SetIcon(icon) => block.widget.icon = icon,
+                RequestCmd::SetText(text) => block.widget.set_text(text),
+                RequestCmd::SetTexts(full, short) => block.widget.set_texts(full, short),
+                RequestCmd::SetState(state) => {
+                    block.widget.state = state;
+                    for b in &mut block.buttons {
+                        b.state = state;
+                    }
+                }
+                RequestCmd::SetFormat(format) => block.widget.set_format(format),
+                RequestCmd::SetValues(values) => block.widget.set_values(values),
+                RequestCmd::AddButton(instance, icon) => block.buttons.push(
+                    Widget::new(request.block_id, block.widget.shared_config.clone())
+                        .with_instance(instance)
+                        .with_icon_str(icon),
+                ),
+                RequestCmd::SetButton(instance, icon) => {
+                    for b in &mut block.buttons {
+                        if b.get_instance() == Some(instance) {
+                            b.icon = icon.clone();
+                        }
+                    }
+                }
+                RequestCmd::SetFullScreen(true) => self.fullscreen_block = Some(block.id),
+                RequestCmd::SetFullScreen(false) => self.fullscreen_block = None,
+                RequestCmd::Preserve => block.widget.preserve(),
+                RequestCmd::Restore => block.widget.restore(),
+                RequestCmd::GetDbusConnection(tx) => match &self.dbus_connection {
+                    Some(conn) => {
+                        let _ = tx.send(Ok(conn.clone()));
+                    }
+                    None => {
+                        let conn = zbus::ConnectionBuilder::session()
+                            .unwrap()
+                            .internal_executor(false)
+                            .build()
+                            .await
+                            .error("Failed to open DBus connection")?;
+                        {
+                            let conn = conn.clone();
+                            tokio::spawn(async move {
+                                loop {
+                                    conn.executor().tick().await;
+                                }
+                            });
+                        }
+                        conn.request_name(self.cli_args.dbus_name.as_str())
+                            .await
+                            .error("Failed to reuqest DBus name")?;
+                        self.dbus_connection = Some(conn.clone());
+                        let _ = tx.send(Ok(conn));
+                    }
+                },
+                RequestCmd::GetSystemDbusConnection(tx) => match &self.system_dbus_connection {
+                    Some(conn) => {
+                        let _ = tx.send(Ok(conn.clone()));
+                    }
+                    None => {
+                        let conn = zbus::ConnectionBuilder::system()
+                            .unwrap()
+                            .internal_executor(false)
+                            .build()
+                            .await
+                            .error("Failed to open DBus connection")?;
+                        {
+                            let conn = conn.clone();
+                            tokio::spawn(async move {
+                                loop {
+                                    conn.executor().tick().await;
+                                }
+                            });
+                        }
+                        self.system_dbus_connection = Some(conn.clone());
+                        let _ = tx.send(Ok(conn));
+                    }
+                },
+                RequestCmd::Noop => (),
+            }
+        }
+
+        let data = &mut self.blocks_render_cache[block.id];
+        data.clear();
+        if !block.hidden {
+            if block.collapsed {
+                block.widget.set_text(String::new());
+                data.push(block.widget.get_data().in_block(*block_type, block.id)?);
+            } else {
+                data.push(block.widget.get_data().in_block(*block_type, block.id)?);
+                for button in &block.buttons {
+                    data.push(button.get_data().in_block(*block_type, block.id)?);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn render(&self) -> Result<()> {
+        if let Some(id) = self.fullscreen_block {
+            protocol::print_blocks(&[self.blocks_render_cache[id].clone()], &self.shared_config)
+        } else {
+            protocol::print_blocks(&self.blocks_render_cache, &self.shared_config)
+        }
+    }
+
+    async fn process_event(
+        &mut self,
+        signals_receiver: &mut mpsc::Receiver<Signal>,
+        events_receiver: &mut mpsc::Receiver<I3BarEvent>,
+    ) -> Result<()> {
+        tokio::select! {
+            // Handle blocks' errors
+            Some(block_result) = self.spawned_blocks.next() => {
+                block_result
+            },
+            // Recieve messages from blocks
+            Some(request) = self.request_receiver.recv() => {
+                self.process_request(request).await?;
+                self.render()
+            }
+            // Handle clicks
+            Some(event) = events_receiver.recv() => {
+                let (block, block_type) = self.blocks.get_mut(event.id).error("Events receiver: ID out of bounds")?;
+                match block {
+                    Block::Running(block) => {
+                        if block.click_handler.handle(event.button).await.in_block(*block_type, event.id)? {
+                            if let Some(sender) = &block.event_sender {
+                                let _ = sender.send(BlockEvent::Click(event)).await;
+                            }
+                        }
+                    }
+                    Block::Failed(block) => {
+                        let text = if self.fullscreen_block == Some(block.id) {
+                            self.fullscreen_block = None;
+                            block.error.message.as_deref().unwrap_or("Error").into()
+                        } else {
+                            self.fullscreen_block = Some(block.id);
+                            block.error.to_string().into()
+                        };
+                        block.error_widget.set_text(text);
+                        let data = &mut self.blocks_render_cache[block.id];
+                        data.clear();
+                        data.push(block.error_widget.get_data()?);
+                        self.render()?;
+                    }
+                }
+                Ok(())
+            }
+            // Handle signals
+            Some(signal) = signals_receiver.recv() => match signal {
+                Signal::Usr2 => restart(),
+                signal => {
+                    for (block, _) in &self.blocks {
+                        if let Block::Running(block) = block {
+                            if let Some(sender) = &block.event_sender {
+                                let _ = sender.send(BlockEvent::Signal(signal)).await;
+                            }
+                        }
+                    }
+                    Ok(())
+                }
+            }
+        }
+    }
+
+    async fn run_event_loop(
         mut self,
-        mut signals_receiver: mpsc::Receiver<Signal>,
-        mut events_receiver: mpsc::Receiver<I3BarEvent>,
+        signals_receiver: &mut mpsc::Receiver<Signal>,
+        events_receiver: &mut mpsc::Receiver<I3BarEvent>,
     ) -> Result<()> {
         loop {
-            tokio::select! {
-                // Handle blocks' errors
-                Some(block_result) = self.spawned_blocks.next() => {
-                    block_result?;
-                },
-                // Recieve messages from blocks
-                Some(request) = self.request_receiver.recv() => {
-                    let block = self.blocks.get_mut(request.block_id).error("Message receiver: ID out of bounds")?;
-                    for cmd in request.cmds {
-                        match cmd {
-                            RequestCmd::Hide => block.hidden = true,
-                            RequestCmd::Collapse => block.collapsed = true,
-                            RequestCmd::Show => {
-                                block.hidden = false;
-                                block.collapsed = false;
-                            }
-                            RequestCmd::GetEvents(tx) => {
-                                let (sender, receiver) = mpsc::channel(64);
-                                block.event_sender = Some(sender);
-                                tx.send(receiver).ok().or_error(|| format!("Failed to send events receiver to block {:?}", block.block_type))?;
-                            }
-                            RequestCmd::SetIcon(icon) => block.widget.icon = icon,
-                            RequestCmd::SetText(text) => block.widget.set_text(text),
-                            RequestCmd::SetState(state) => {
-                                block.widget.set_state(state);
-                                for b in &mut block.buttons {
-                                    b.set_state(state);
-                                }
-                            }
-                            RequestCmd::SetValues(values) => block.values = Some(values),
-                            RequestCmd::UnsetValues => block.values = None,
-                            RequestCmd::SetFormat(format) => block.format = Some(format),
-                            RequestCmd::AddButton(instance, icon) => block.buttons.push(
-                                Widget::new(request.block_id, block.widget.shared_config.clone())
-                                    .with_instance(instance)
-                                    .with_icon_str(icon)
-                            ),
-                            RequestCmd::SetButton(instance, icon) => {
-                                for b in &mut block.buttons {
-                                    if b.instance == Some(instance) {
-                                        b.icon = icon.clone();
-                                    }
-                                }
-                            }
-                            RequestCmd::Render => {
-                                if let (Some(format), Some(values)) = (&block.format, &block.values) {
-                                    block.widget.set_text(
-                                        format
-                                            .render(values)
-                                            .in_block(block.block_type)?
-                                    );
-                                }
-                            }
-                        }
-                    }
+            if let Err(error) = self.process_event(signals_receiver, events_receiver).await {
+                match error.block {
+                    Some((_, id)) => {
+                        let block = FailedBlock {
+                            id,
+                            error_widget: Widget::new(id, self.shared_config.clone())
+                                .with_state(State::Critical)
+                                .with_text(error.message.as_deref().unwrap_or("Error").into()),
+                            error,
+                        };
 
-                    let data = &mut self.blocks_render_cache[block.id];
-                    data.clear();
-                    if !block.hidden {
-                        if block.collapsed {
-                            block.widget.set_text((String::new(), None));
-                            data.push(block.widget.get_data());
-                        } else {
-                            data.push(block.widget.get_data());
-                            for button in &block.buttons {
-                                data.push(button.get_data());
-                            }
-                        }
-                    }
+                        let data = &mut self.blocks_render_cache[block.id];
+                        data.clear();
+                        data.push(block.error_widget.get_data()?);
 
-                    protocol::print_blocks(&self.blocks_render_cache, &self.shared_config)?;
-                }
-                // Handle clicks
-                Some(event) = events_receiver.recv() => {
-                    let block = self.blocks.get(event.id).error("Events receiver: ID out of bounds")?;
-                    if block.click_handler.handle(event.button).await.in_block(block.block_type)? {
-                        if let Some(sender) = &block.event_sender {
-                            sender.send(BlockEvent::Click(event)).await.error("Failed to send event to block")?;
-                        }
+                        self.render()?;
+
+                        self.blocks[id].0 = Block::Failed(block);
+                        self.fullscreen_block = None;
                     }
-                }
-                // Handle signals
-                Some(signal) = signals_receiver.recv() => match signal {
-                    Signal::Usr2 => restart(),
-                    signal => {
-                        for block in &self.blocks {
-                            if let Some(sender) = &block.event_sender {
-                                sender.send(BlockEvent::Signal(signal)).await.error("Failed to send signal to block")?;
-                            }
-                        }
-                    }
+                    None => return Err(error),
                 }
             }
         }

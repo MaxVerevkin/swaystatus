@@ -31,7 +31,7 @@ impl Block {
     }
 
     async fn set_text(&mut self, text: String) -> Result<()> {
-        self.api.set_text((text, None));
+        self.api.set_text(text);
         self.api.flush().await
     }
 
