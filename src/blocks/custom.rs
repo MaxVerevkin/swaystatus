@@ -1,10 +1,12 @@
 //! The output of a custom shell command
 //!
 //! For further customisation, use the `json` option and have the shell command output valid JSON in the schema below:  
-//! `{"icon": "ICON", "state": "STATE", "text": "YOURTEXT", "short_text": "YOUR SHORT TEXT"}
-//! `{"icon": "ICON", "state": "STATE", "text": "YOURTEXT"}`  
-//! `icon` is optional (TODO add a link to the docs) (default "")  
+//! ```json
+//! {"icon": "...", "state": "...", "text": "...", "short_text": "..."}
+//! ```
+//! `icon` is optional (default "")  
 //! `state` is optional, it may be Idle, Info, Good, Warning, Critical (default Idle)  
+//! `short_text` is optional.
 //!
 //! # Configuration
 //!
@@ -159,13 +161,13 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         };
         api.flush().await?;
 
+        if one_shot {
+            return Ok(());
+        }
+
         loop {
             tokio::select! {
-                _ = tokio::time::sleep(interval) => {
-                    if !one_shot {
-                        break;
-                    }
-                },
+                _ = tokio::time::sleep(interval) => break,
                 Some(event) = events.recv() => {
                     match (event, signal) {
                         (BlockEvent::Signal(Signal::Custom(s)), Some(signal)) if s == signal => break,

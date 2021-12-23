@@ -187,13 +187,17 @@
 <span id="186">186</span>
 <span id="187">187</span>
 <span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The output of a custom shell command</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! For further customisation, use the `json` option and have the shell command output valid JSON in the schema below:  </span>
-<span class="doccomment">//! `{&quot;icon&quot;: &quot;ICON&quot;, &quot;state&quot;: &quot;STATE&quot;, &quot;text&quot;: &quot;YOURTEXT&quot;, &quot;short_text&quot;: &quot;YOUR SHORT TEXT&quot;}</span>
-<span class="doccomment">//! `{&quot;icon&quot;: &quot;ICON&quot;, &quot;state&quot;: &quot;STATE&quot;, &quot;text&quot;: &quot;YOURTEXT&quot;}`  </span>
-<span class="doccomment">//! `icon` is optional (TODO add a link to the docs) (default &quot;&quot;)  </span>
+<span class="doccomment">//! ```json</span>
+<span class="doccomment">//! {&quot;icon&quot;: &quot;...&quot;, &quot;state&quot;: &quot;...&quot;, &quot;text&quot;: &quot;...&quot;, &quot;short_text&quot;: &quot;...&quot;}</span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//! `icon` is optional (default &quot;&quot;)  </span>
 <span class="doccomment">//! `state` is optional, it may be Idle, Info, Good, Warning, Critical (default Idle)  </span>
+<span class="doccomment">//! `short_text` is optional.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Configuration</span>
 <span class="doccomment">//!</span>
@@ -348,13 +352,13 @@
         };
         <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
 
+        <span class="kw">if</span> <span class="ident">one_shot</span> {
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+        }
+
         <span class="kw">loop</span> {
             <span class="macro">tokio::select!</span> {
-                <span class="kw">_</span> <span class="op">=</span> <span class="ident">tokio::time::sleep</span>(<span class="ident">interval</span>) =&gt; {
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">one_shot</span> {
-                        <span class="kw">break</span>;
-                    }
-                },
+                <span class="kw">_</span> <span class="op">=</span> <span class="ident">tokio::time::sleep</span>(<span class="ident">interval</span>) =&gt; <span class="kw">break</span>,
                 <span class="prelude-val">Some</span>(<span class="ident">event</span>) <span class="op">=</span> <span class="ident">events</span>.<span class="ident">recv</span>() =&gt; {
                     <span class="kw">match</span> (<span class="ident">event</span>, <span class="ident">signal</span>) {
                         (<span class="ident">BlockEvent::Signal</span>(<span class="ident">Signal::Custom</span>(<span class="ident">s</span>)), <span class="prelude-val">Some</span>(<span class="ident">signal</span>)) <span class="kw">if</span> <span class="ident">s</span> <span class="op">==</span> <span class="ident">signal</span> =&gt; <span class="kw">break</span>,
