@@ -20,7 +20,6 @@ pub struct SharedConfig {
 
 impl SharedConfig {
     pub fn get_icon(&self, icon: &str) -> crate::errors::Result<String> {
-        // TODO avoid allocations
         use crate::errors::OptionExt;
         Ok(self.icons_format.replace(
             "{icon}",

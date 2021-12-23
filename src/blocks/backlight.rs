@@ -16,6 +16,9 @@
 //! `device` | The `/sys/class/backlight` device to read brightness information from.  When there is no `device` specified, this block will display information from the first device found in the `/sys/class/backlight` directory. If you only have one display, this approach should find it correctly.| No | Default device
 //! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$brightness"`
 //! `step_width` | The brightness increment to use when scrolling, in percent | No | `5`
+//! `minimum` | The minimum brightness that can be scrolled down to | No | `1`
+//! `maximum` | The maximum brightness that can be scrolled up to | No | `100`
+//! `cycle` | The brightnesses to cycle through on each click | No | `[minimum, maximum]`
 //! `root_scaling` | Scaling exponent reciprocal (ie. root) | No | `1.0`
 //! `invert_icons` | Invert icons' ordering, useful if you have colorful emoji | No | `false`
 //!
@@ -107,11 +110,14 @@ const BACKLIGHT_ICONS: &[&str] = &[
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct BacklightConfig {
-    pub device: Option<String>,
-    pub format: FormatConfig,
-    pub step_width: u8,
-    pub root_scaling: f64,
-    pub invert_icons: bool,
+    device: Option<String>,
+    format: FormatConfig,
+    step_width: u8,
+    minimum: u8,
+    maximum: u8,
+    cycle: Option<Vec<u8>>,
+    root_scaling: f64,
+    invert_icons: bool,
 }
 
 impl Default for BacklightConfig {
@@ -120,118 +126,27 @@ impl Default for BacklightConfig {
             device: None,
             format: Default::default(),
             step_width: 5,
+            minimum: 1,
+            maximum: 100,
+            cycle: None,
             root_scaling: 1f64,
             invert_icons: false,
         }
     }
 }
 
-/// Read a brightness value from the given path.
-async fn read_brightness_raw(device_file: &Path) -> Result<u64> {
-    read_file(device_file)
-        .await
-        .error("Failed to read brightness file")?
-        .parse::<u64>()
-        .error("Failed to read value from brightness file")
-}
-
-/// Represents a physical backlight device whose brightness level can be queried.
-pub struct BacklightDevice<'a> {
-    device_name: String,
-    brightness_file: PathBuf,
-    max_brightness: u64,
-    root_scaling: f64,
-    dbus_proxy: SessionProxy<'a>,
-}
-
-impl<'a> BacklightDevice<'a> {
-    async fn new(
-        device_path: PathBuf,
-        root_scaling: f64,
-        dbus_conn: &'a zbus::Connection,
-    ) -> Result<BacklightDevice<'a>> {
-        Ok(Self {
-            brightness_file: device_path.join({
-                if device_path.ends_with("amdgpu_bl0") {
-                    FILE_BRIGHTNESS_AMD
-                } else {
-                    FILE_BRIGHTNESS
-                }
-            }),
-            device_name: device_path
-                .file_name()
-                .map(|x| x.to_str().unwrap().into())
-                .error("Malformed device path")?,
-            max_brightness: read_brightness_raw(&device_path.join(FILE_MAX_BRIGHTNESS)).await?,
-            root_scaling: root_scaling.clamp(ROOT_SCALDING_RANGE.start, ROOT_SCALDING_RANGE.end),
-            dbus_proxy: SessionProxy::new(dbus_conn)
-                .await
-                .error("failed to create SessionProxy")?,
-        })
-    }
-
-    /// Use the default backlit device, i.e. the first one found in the
-    /// `/sys/class/backlight` directory.
-    pub async fn default(
-        root_scaling: f64,
-        dbus_conn: &'a zbus::Connection,
-    ) -> Result<BacklightDevice<'a>> {
-        let device = read_dir(DEVICES_PATH)
-            .await
-            .error("Failed to read backlight device directory")?
-            .next_entry()
-            .await
-            .error("No backlit devices found")?
-            .error("Failed to read default device file")?;
-        Self::new(device.path(), root_scaling, dbus_conn).await
-    }
-
-    /// Use the backlit device `device`. Returns an error if a directory for
-    /// that device is not found.
-    pub async fn from_device(
-        device: &str,
-        root_scaling: f64,
-        dbus_conn: &'a zbus::Connection,
-    ) -> Result<BacklightDevice<'a>> {
-        Self::new(
-            Path::new(DEVICES_PATH).join(device),
-            root_scaling,
-            dbus_conn,
-        )
-        .await
-    }
-
-    /// Query the brightness value for this backlit device, as a percent.
-    pub async fn brightness(&self) -> Result<u8> {
-        let raw = read_brightness_raw(&self.brightness_file).await?;
-
-        let brightness_ratio =
-            (raw as f64 / self.max_brightness as f64).powf(self.root_scaling.recip());
-
-        ((brightness_ratio * 100.0).round() as i64)
-            .try_into()
-            .ok()
-            .filter(|brightness| (0..=100).contains(brightness))
-            .error("Brightness is not in [0, 100]")
-    }
-
-    /// Set the brightness value for this backlight device, as a percent.
-    pub async fn set_brightness(&self, value: u8) -> Result<()> {
-        let value = value.clamp(0, 100);
-        let ratio = (value as f64 / 100.0).powf(self.root_scaling);
-        let raw = max(1, (ratio * (self.max_brightness as f64)).round() as u32);
-        self.dbus_proxy
-            .set_brightness("backlight", &self.device_name, raw)
-            .await
-            .error("Failed to send D-Bus message")
-    }
-}
-
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
-    let config = BacklightConfig::deserialize(config).config_error()?;
     let dbus_conn = api.get_system_dbus_connection().await?;
+
+    let config = BacklightConfig::deserialize(config).config_error()?;
     api.set_format(config.format.with_default("$brightness")?);
+
+    let mut cycle = config
+        .cycle
+        .unwrap_or_else(|| vec![config.minimum, config.maximum])
+        .into_iter()
+        .cycle();
 
     let device = match &config.device {
         None => BacklightDevice::default(config.root_scaling, &dbus_conn).await?,
@@ -268,19 +183,132 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
             Some(BlockEvent::Click(event)) = events.recv() => {
                 let brightness = device.brightness().await?;
                 match event.button {
+                    MouseButton::Left => {
+                        if let Some(brightness) = cycle.next() {
+                            device.set_brightness(brightness).await?;
+                        }
+                    }
                     MouseButton::WheelUp => {
                         device
-                            .set_brightness(brightness + config.step_width)
+                            .set_brightness(
+                                (brightness + config.step_width)
+                                    .clamp(config.minimum, config.maximum)
+                            )
                             .await?;
                     }
                     MouseButton::WheelDown => {
                         device
-                            .set_brightness(brightness.saturating_sub(config.step_width))
+                            .set_brightness(
+                                brightness
+                                    .saturating_sub(config.step_width)
+                                    .clamp(config.minimum, config.maximum)
+                            )
                             .await?;
                     }
                     _ => (),
                 }
             }
         }
+    }
+}
+
+/// Read a brightness value from the given path.
+async fn read_brightness_raw(device_file: &Path) -> Result<u64> {
+    read_file(device_file)
+        .await
+        .error("Failed to read brightness file")?
+        .parse::<u64>()
+        .error("Failed to read value from brightness file")
+}
+
+/// Represents a physical backlight device whose brightness level can be queried.
+struct BacklightDevice<'a> {
+    device_name: String,
+    brightness_file: PathBuf,
+    max_brightness: u64,
+    root_scaling: f64,
+    dbus_proxy: SessionProxy<'a>,
+}
+
+impl<'a> BacklightDevice<'a> {
+    async fn new(
+        device_path: PathBuf,
+        root_scaling: f64,
+        dbus_conn: &'a zbus::Connection,
+    ) -> Result<BacklightDevice<'a>> {
+        Ok(Self {
+            brightness_file: device_path.join({
+                if device_path.ends_with("amdgpu_bl0") {
+                    FILE_BRIGHTNESS_AMD
+                } else {
+                    FILE_BRIGHTNESS
+                }
+            }),
+            device_name: device_path
+                .file_name()
+                .map(|x| x.to_str().unwrap().into())
+                .error("Malformed device path")?,
+            max_brightness: read_brightness_raw(&device_path.join(FILE_MAX_BRIGHTNESS)).await?,
+            root_scaling: root_scaling.clamp(ROOT_SCALDING_RANGE.start, ROOT_SCALDING_RANGE.end),
+            dbus_proxy: SessionProxy::new(dbus_conn)
+                .await
+                .error("failed to create SessionProxy")?,
+        })
+    }
+
+    /// Use the default backlit device, i.e. the first one found in the
+    /// `/sys/class/backlight` directory.
+    async fn default(
+        root_scaling: f64,
+        dbus_conn: &'a zbus::Connection,
+    ) -> Result<BacklightDevice<'a>> {
+        let device = read_dir(DEVICES_PATH)
+            .await
+            .error("Failed to read backlight device directory")?
+            .next_entry()
+            .await
+            .error("No backlit devices found")?
+            .error("Failed to read default device file")?;
+        Self::new(device.path(), root_scaling, dbus_conn).await
+    }
+
+    /// Use the backlit device `device`. Returns an error if a directory for
+    /// that device is not found.
+    async fn from_device(
+        device: &str,
+        root_scaling: f64,
+        dbus_conn: &'a zbus::Connection,
+    ) -> Result<BacklightDevice<'a>> {
+        Self::new(
+            Path::new(DEVICES_PATH).join(device),
+            root_scaling,
+            dbus_conn,
+        )
+        .await
+    }
+
+    /// Query the brightness value for this backlit device, as a percent.
+    async fn brightness(&self) -> Result<u8> {
+        let raw = read_brightness_raw(&self.brightness_file).await?;
+
+        let brightness_ratio =
+            (raw as f64 / self.max_brightness as f64).powf(self.root_scaling.recip());
+
+        ((brightness_ratio * 100.0).round() as i64)
+            .try_into()
+            .ok()
+            .filter(|brightness| (0..=100).contains(brightness))
+            .error("Brightness is not in [0, 100]")
+    }
+
+    /// Set the brightness value for this backlight device, as a percent.
+    async fn set_brightness(&self, value: u8) -> Result<()> {
+        let value = value.clamp(0, 100);
+        let ratio = (value as f64 / 100.0).powf(self.root_scaling);
+        let raw = max(1, (ratio * (self.max_brightness as f64)).round() as u32);
+        self.dbus_proxy
+            .set_brightness("backlight", &self.device_name, raw)
+            .await
+            .error("Failed to send D-Bus message")
     }
 }
