@@ -72,16 +72,38 @@ struct CliArgs {
 
 fn main() {
     let args = CliArgs::parse();
+    let blocking_threads = args.blocking_threads;
+
     if !args.no_init {
         protocol::init(args.never_pause);
     }
 
-    let result = tokio::runtime::Builder::new_current_thread()
-        .max_blocking_threads(args.blocking_threads)
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(run(args));
+    let result = (|| {
+        // Read & parse the config file
+        let config_path = util::find_file(&args.config, None, Some("toml"))
+            .or_error(|| format!("Configuration file '{}' not found", args.config))?;
+        let config: Config = util::deserialize_toml_file(&config_path).config_error()?;
+
+        // Spawn blocks
+        let mut swaystatus = Swaystatus::new(config.shared, args);
+        for (block_type, block_config) in config.block {
+            swaystatus.spawn_block(block_type, block_config)?;
+        }
+
+        let mut signals = signals_stream();
+        let mut events = events_stream(
+            config.invert_scrolling,
+            Duration::from_millis(config.double_click_delay),
+        );
+
+        // Run main loop
+        tokio::runtime::Builder::new_current_thread()
+            .max_blocking_threads(blocking_threads)
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(swaystatus.run_event_loop(&mut signals, &mut events))
+    })();
 
     if let Err(error) = result {
         let error_widget = Widget::new(0, Default::default()).with_text(error.to_string().into());
@@ -97,28 +119,6 @@ fn main() {
             .unwrap();
         restart();
     }
-}
-
-async fn run(args: CliArgs) -> Result<()> {
-    // Read & parse the config file
-    let config_path = util::find_file(&args.config, None, Some("toml"))
-        .or_error(|| format!("Configuration file '{}' not found", args.config))?;
-    let config: Config = util::deserialize_toml_file(&config_path).config_error()?;
-
-    // Spawn blocks
-    let mut swaystatus = Swaystatus::new(config.shared, args);
-    for (block_type, block_config) in config.block {
-        swaystatus.spawn_block(block_type, block_config)?;
-    }
-
-    let mut signals = signals_stream();
-    let mut events = events_stream(
-        config.invert_scrolling,
-        Duration::from_millis(config.double_click_delay),
-    );
-
-    // Main loop
-    swaystatus.run_event_loop(&mut signals, &mut events).await
 }
 
 pub struct RunningBlock {
