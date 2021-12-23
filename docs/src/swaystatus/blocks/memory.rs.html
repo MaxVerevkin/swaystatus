@@ -287,10 +287,6 @@
 <span id="286">286</span>
 <span id="287">287</span>
 <span id="288">288</span>
-<span id="289">289</span>
-<span id="290">290</span>
-<span id="291">291</span>
-<span id="292">292</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Memory and swap usage</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This module keeps track of both Swap and Memory. By default, a click switches between them.</span>
@@ -348,7 +344,6 @@
 
 <span class="kw">use</span> <span class="ident">std::path::Path</span>;
 <span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
-<span class="kw">use</span> <span class="ident">std::time::Duration</span>;
 <span class="kw">use</span> <span class="ident">tokio::fs::File</span>;
 <span class="kw">use</span> <span class="ident">tokio::io</span>::{<span class="ident">AsyncBufReadExt</span>, <span class="ident">BufReader</span>};
 
@@ -392,14 +387,12 @@
     <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">MemoryConfig::deserialize</span>(<span class="ident">config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">interval</span> <span class="op">=</span> <span class="ident">Duration::from_secs</span>(<span class="ident">config</span>.<span class="ident">interval</span>);
 
-    <span class="kw">let</span> <span class="ident">format_mem</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">format_mem</span>.<span class="ident">init</span>(
+    <span class="kw">let</span> <span class="ident">format_mem</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">format_mem</span>.<span class="ident">with_default</span>(
         <span class="string">&quot;$mem_free.eng(3,B,M)/$mem_total.eng(3,B,M)($mem_total_used_percents.eng(2))&quot;</span>,
-        <span class="kw-2">&amp;</span><span class="ident">api</span>,
     )<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">format_swap</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">format_swap</span>.<span class="ident">init</span>(
-        <span class="string">&quot;$swap_free.eng(3,B,M)/$swap_total.eng(3,B,M)($swap_used_percents.eng(2))&quot;</span>,
-        <span class="kw-2">&amp;</span><span class="ident">api</span>,
-    )<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">format_swap</span> <span class="op">=</span> <span class="ident">config</span>
+        .<span class="ident">format_swap</span>
+        .<span class="ident">with_default</span>(<span class="string">&quot;$swap_free.eng(3,B,M)/$swap_total.eng(3,B,M)($swap_used_percents.eng(2))&quot;</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let</span> <span class="ident">clickable</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">clickable</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">memtype</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">display_type</span>;
@@ -453,18 +446,17 @@
 
         <span class="ident">api</span>.<span class="ident">set_state</span>(<span class="kw">match</span> <span class="ident">memtype</span> {
             <span class="ident">Memtype::Memory</span> =&gt; <span class="kw">match</span> <span class="ident">mem_used</span> <span class="op">/</span> <span class="ident">mem_total</span> <span class="op">*</span> <span class="number">100.</span> {
-                <span class="ident">x</span> <span class="kw">if</span> <span class="ident">x</span> <span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">critical_mem</span> =&gt; <span class="ident">WidgetState::Critical</span>,
-                <span class="ident">x</span> <span class="kw">if</span> <span class="ident">x</span> <span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">warning_mem</span> =&gt; <span class="ident">WidgetState::Warning</span>,
-                <span class="kw">_</span> =&gt; <span class="ident">WidgetState::Idle</span>,
+                <span class="ident">x</span> <span class="kw">if</span> <span class="ident">x</span> <span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">critical_mem</span> =&gt; <span class="ident">State::Critical</span>,
+                <span class="ident">x</span> <span class="kw">if</span> <span class="ident">x</span> <span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">warning_mem</span> =&gt; <span class="ident">State::Warning</span>,
+                <span class="kw">_</span> =&gt; <span class="ident">State::Idle</span>,
             },
             <span class="ident">Memtype::Swap</span> =&gt; <span class="kw">match</span> <span class="ident">swap_used</span> <span class="op">/</span> <span class="ident">swap_total</span> <span class="op">*</span> <span class="number">100.</span> {
-                <span class="ident">x</span> <span class="kw">if</span> <span class="ident">x</span> <span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">critical_swap</span> =&gt; <span class="ident">WidgetState::Critical</span>,
-                <span class="ident">x</span> <span class="kw">if</span> <span class="ident">x</span> <span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">warning_swap</span> =&gt; <span class="ident">WidgetState::Warning</span>,
-                <span class="kw">_</span> =&gt; <span class="ident">WidgetState::Idle</span>,
+                <span class="ident">x</span> <span class="kw">if</span> <span class="ident">x</span> <span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">critical_swap</span> =&gt; <span class="ident">State::Critical</span>,
+                <span class="ident">x</span> <span class="kw">if</span> <span class="ident">x</span> <span class="op">&gt;</span> <span class="ident">config</span>.<span class="ident">warning_swap</span> =&gt; <span class="ident">State::Warning</span>,
+                <span class="kw">_</span> =&gt; <span class="ident">State::Idle</span>,
             },
         });
 
-        <span class="ident">api</span>.<span class="ident">render</span>();
         <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="macro">tokio::select!</span> {

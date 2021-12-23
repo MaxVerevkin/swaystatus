@@ -465,17 +465,33 @@
 <span id="464">464</span>
 <span id="465">465</span>
 <span id="466">466</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">smallvec::SmallVec</span>;
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+</pre><pre class="rust"><code><span class="comment">// TODO add a `Handles` newtype to store a vector of join handles to tokio tasks. On drop it should</span>
+<span class="comment">// about them.</span>
+
+<span class="kw">use</span> <span class="ident">smallvec::SmallVec</span>;
 <span class="kw">use</span> <span class="ident">smartstring::alias::String</span>;
 <span class="kw">use</span> <span class="ident">std::fmt::Debug</span>;
 <span class="kw">use</span> <span class="ident">std::iter::repeat</span>;
 <span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
 <span class="kw">use</span> <span class="ident">std::time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
 
+<span class="kw">use</span> <span class="ident">tokio::sync::mpsc::Sender</span>;
+<span class="kw">use</span> <span class="ident">tokio::task::JoinHandle</span>;
+
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prefix::Prefix</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::unit::Unit</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::value::Value</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::blocks::CommonApi</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">super</span>::Handles</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::errors</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::escape::IterEscape</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">Request</span>, <span class="ident">RequestCmd</span>};
@@ -535,9 +551,8 @@
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Formatter</span>: <span class="ident">Debug</span> {
     <span class="kw">fn</span> <span class="ident">format</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">Value</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>;
 
-    <span class="kw">fn</span> <span class="ident">init</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_api</span>: <span class="kw-2">&amp;</span><span class="ident">CommonApi</span>) {
-        <span class="comment">// Do nothig</span>
-    }
+    <span class="comment">// TODO use `Handles`</span>
+    <span class="kw">fn</span> <span class="ident">init</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">_tx</span>: <span class="kw-2">&amp;</span><span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">Request</span><span class="op">&gt;</span>, <span class="ident">_block_id</span>: <span class="ident">usize</span>, <span class="ident">_handles</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Handles</span>) {}
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_formatter</span>(<span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">args</span>: <span class="kw-2">&amp;</span>[<span class="ident">String</span>]) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Formatter</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span><span class="op">&gt;</span><span class="op">&gt;</span> {
@@ -581,6 +596,7 @@
                 <span class="ident">width</span>,
                 <span class="ident">interval</span>,
                 <span class="ident">init_time</span>: <span class="ident">Instant::now</span>(),
+                <span class="ident">handle</span>: <span class="prelude-val">None</span>,
             }))
         }
         <span class="string">&quot;bar&quot;</span> =&gt; {
@@ -600,7 +616,7 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">StrFormatter</span> {
     <span class="ident">min_width</span>: <span class="ident">usize</span>,
     <span class="ident">max_width</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
@@ -629,11 +645,12 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RotStrFormatter</span> {
     <span class="ident">width</span>: <span class="ident">usize</span>,
     <span class="ident">interval</span>: <span class="ident">f64</span>,
     <span class="ident">init_time</span>: <span class="ident">Instant</span>,
+    <span class="ident">handle</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">JoinHandle</span><span class="op">&lt;</span>()<span class="op">&gt;</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Formatter</span> <span class="kw">for</span> <span class="ident">RotStrFormatter</span> {
@@ -674,23 +691,26 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">init</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">api</span>: <span class="kw-2">&amp;</span><span class="ident">CommonApi</span>) {
-        <span class="kw">let</span> <span class="ident">tx</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">request_sender</span>.<span class="ident">clone</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">interval</span> <span class="op">=</span> <span class="ident">tokio::time::interval</span>(<span class="ident">Duration::from_secs_f64</span>(<span class="self">self</span>.<span class="ident">interval</span>));
-        <span class="kw">let</span> <span class="ident">block_id</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">id</span>;
+    <span class="kw">fn</span> <span class="ident">init</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tx</span>: <span class="kw-2">&amp;</span><span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">Request</span><span class="op">&gt;</span>, <span class="ident">block_id</span>: <span class="ident">usize</span>, <span class="ident">handles</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Handles</span>) {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">handle</span>.<span class="ident">is_some</span>() {
+            <span class="kw">return</span>;
+        }
 
-        <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
+        <span class="kw">let</span> <span class="ident">tx</span> <span class="op">=</span> <span class="ident">tx</span>.<span class="ident">clone</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">interval</span> <span class="op">=</span> <span class="ident">tokio::time::interval</span>(<span class="ident">Duration::from_secs_f64</span>(<span class="self">self</span>.<span class="ident">interval</span>));
+
+        <span class="ident">handles</span>.<span class="number">0</span>.<span class="ident">push</span>(<span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
             <span class="kw">loop</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cmds</span> <span class="op">=</span> <span class="ident">SmallVec::new</span>();
-                <span class="ident">cmds</span>.<span class="ident">push</span>(<span class="ident">RequestCmd::Render</span>);
+                <span class="ident">cmds</span>.<span class="ident">push</span>(<span class="ident">RequestCmd::Noop</span>);
                 <span class="ident">tx</span>.<span class="ident">send</span>(<span class="ident">Request</span> { <span class="ident">block_id</span>, <span class="ident">cmds</span> }).<span class="kw">await</span>.<span class="ident">unwrap</span>();
                 <span class="ident">interval</span>.<span class="ident">tick</span>().<span class="kw">await</span>;
             }
-        });
+        }));
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">BarFormatter</span> {
     <span class="ident">width</span>: <span class="ident">usize</span>,
     <span class="ident">max_value</span>: <span class="ident">f64</span>,
@@ -726,7 +746,7 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">PrefixConfig</span> {
     <span class="kw">pub</span> <span class="ident">prefix</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">Prefix</span>, <span class="ident">bool</span>)<span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">has_space</span>: <span class="ident">bool</span>,
@@ -766,7 +786,7 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">UnitConfig</span> {
     <span class="kw">pub</span> <span class="ident">unit</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Unit</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">has_space</span>: <span class="ident">bool</span>,
@@ -799,7 +819,7 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">struct</span> <span class="ident">EngFixConfig</span> {
     <span class="ident">width</span>: <span class="ident">usize</span>,
     <span class="ident">unit</span>: <span class="ident">UnitConfig</span>,
@@ -828,7 +848,7 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">EngFormatter</span>(<span class="ident">EngFixConfig</span>);
 
 <span class="kw">impl</span> <span class="ident">Formatter</span> <span class="kw">for</span> <span class="ident">EngFormatter</span> {
@@ -895,7 +915,7 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FixFormatter</span>(<span class="ident">EngFixConfig</span>);
 
 <span class="kw">impl</span> <span class="ident">Formatter</span> <span class="kw">for</span> <span class="ident">FixFormatter</span> {
@@ -920,7 +940,7 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FlagFormatter</span>;
 
 <span class="kw">impl</span> <span class="ident">Formatter</span> <span class="kw">for</span> <span class="ident">FlagFormatter</span> {

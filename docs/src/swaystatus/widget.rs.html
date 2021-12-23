@@ -171,24 +171,67 @@
 <span id="170">170</span>
 <span id="171">171</span>
 <span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::config::SharedConfig</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::errors</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::formatting</span>::{<span class="ident">RunningFormat</span>, <span class="ident">Values</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::protocol::i3bar_block::I3BarBlock</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::themes</span>::{<span class="ident">Color</span>, <span class="ident">Theme</span>};
 <span class="kw">use</span> <span class="ident">serde_derive::Deserialize</span>;
 <span class="kw">use</span> <span class="ident">smartstring::alias::String</span>;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">WidgetSpacing</span> {
+<span class="doccomment">/// Spacing around the widget</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Spacing</span> {
     <span class="doccomment">/// Add a leading and trailing space around the widget contents</span>
     <span class="ident">Normal</span>,
-    <span class="doccomment">/// Hide the leading space when the widget is inline</span>
-    <span class="ident">Inline</span>,
     <span class="doccomment">/// Hide both leading and trailing spaces when widget is hidden</span>
     <span class="ident">Hidden</span>,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">WidgetState</span> {
+<span class="doccomment">/// State of the widget. Affects the theming.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Deserialize</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">State</span> {
     <span class="ident">Idle</span>,
     <span class="ident">Info</span>,
     <span class="ident">Good</span>,
@@ -196,55 +239,67 @@
     <span class="ident">Critical</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">WidgetState</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">theme_keys</span>(<span class="self">self</span>, <span class="ident">theme</span>: <span class="kw-2">&amp;</span><span class="ident">Theme</span>) -&gt; (<span class="ident">Color</span>, <span class="ident">Color</span>) {
-        <span class="kw">use</span> <span class="ident"><span class="self">self</span>::WidgetState</span>::<span class="kw-2">*</span>;
+<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">State</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::Idle</span>
+    }
+}
+
+<span class="doccomment">/// The source of text for widget</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">enum</span> <span class="ident">Source</span> {
+    <span class="doccomment">/// Simple text</span>
+    <span class="ident">Text</span>(<span class="ident">String</span>),
+    <span class="doccomment">/// Full and short texts</span>
+    <span class="ident">TextWithShort</span>(<span class="ident">String</span>, <span class="ident">String</span>),
+    <span class="doccomment">/// A format template</span>
+    <span class="ident">Format</span>(<span class="ident">RunningFormat</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Values</span><span class="op">&gt;</span>),
+}
+
+<span class="kw">impl</span> <span class="ident">Source</span> {
+    <span class="kw">fn</span> <span class="ident">render</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>)<span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Idle</span> =&gt; (<span class="ident">theme</span>.<span class="ident">idle_bg</span>, <span class="ident">theme</span>.<span class="ident">idle_fg</span>),
-            <span class="ident">Info</span> =&gt; (<span class="ident">theme</span>.<span class="ident">info_bg</span>, <span class="ident">theme</span>.<span class="ident">info_fg</span>),
-            <span class="ident">Good</span> =&gt; (<span class="ident">theme</span>.<span class="ident">good_bg</span>, <span class="ident">theme</span>.<span class="ident">good_fg</span>),
-            <span class="ident">Warning</span> =&gt; (<span class="ident">theme</span>.<span class="ident">warning_bg</span>, <span class="ident">theme</span>.<span class="ident">warning_fg</span>),
-            <span class="ident">Critical</span> =&gt; (<span class="ident">theme</span>.<span class="ident">critical_bg</span>, <span class="ident">theme</span>.<span class="ident">critical_fg</span>),
+            <span class="ident">Source::Text</span>(<span class="ident">text</span>) =&gt; <span class="prelude-val">Ok</span>((<span class="ident">text</span>.<span class="ident">clone</span>(), <span class="prelude-val">None</span>)),
+            <span class="ident">Source::TextWithShort</span>(<span class="ident">full</span>, <span class="ident">short</span>) =&gt; <span class="prelude-val">Ok</span>((<span class="ident">full</span>.<span class="ident">clone</span>(), <span class="prelude-val">Some</span>(<span class="ident">short</span>.<span class="ident">clone</span>()))),
+            <span class="ident">Source::Format</span>(<span class="ident">format</span>, <span class="prelude-val">Some</span>(<span class="ident">values</span>)) =&gt; <span class="ident">format</span>.<span class="ident">render</span>(<span class="ident">values</span>),
+            <span class="ident">Source::Format</span>(<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="prelude-val">Ok</span>((<span class="ident">String::new</span>(), <span class="prelude-val">None</span>)),
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Widget</span> {
-    <span class="kw">pub</span> <span class="ident">instance</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">full_text</span>: <span class="ident">String</span>,
-    <span class="kw">pub</span> <span class="ident">short_text</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    <span class="ident">instance</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">icon</span>: <span class="ident">String</span>,
-    <span class="kw">pub</span> <span class="ident">full_spacing</span>: <span class="ident">WidgetSpacing</span>,
-    <span class="kw">pub</span> <span class="ident">short_spacing</span>: <span class="ident">WidgetSpacing</span>,
     <span class="kw">pub</span> <span class="ident">shared_config</span>: <span class="ident">SharedConfig</span>,
-    <span class="kw">pub</span> <span class="ident">inner</span>: <span class="ident">I3BarBlock</span>,
+    <span class="kw">pub</span> <span class="ident">state</span>: <span class="ident">State</span>,
+
+    <span class="ident">inner</span>: <span class="ident">I3BarBlock</span>,
+    <span class="ident">source</span>: <span class="ident">Source</span>,
+    <span class="ident">backup</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">Source</span>, <span class="ident">State</span>)<span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Widget</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">id</span>: <span class="ident">usize</span>, <span class="ident">shared_config</span>: <span class="ident">SharedConfig</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">let</span> (<span class="ident">key_bg</span>, <span class="ident">key_fg</span>) <span class="op">=</span> <span class="ident">WidgetState::Idle</span>.<span class="ident">theme_keys</span>(<span class="kw-2">&amp;</span><span class="ident">shared_config</span>.<span class="ident">theme</span>); <span class="comment">// Initial colors</span>
         <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="ident">I3BarBlock</span> {
             <span class="ident">name</span>: <span class="prelude-val">Some</span>(<span class="ident">id</span>.<span class="ident">to_string</span>()),
-            <span class="ident">color</span>: <span class="ident">key_fg</span>,
-            <span class="ident">background</span>: <span class="ident">key_bg</span>,
             ..<span class="ident">I3BarBlock::default</span>()
         };
 
         <span class="ident">Widget</span> {
             <span class="ident">instance</span>: <span class="prelude-val">None</span>,
-            <span class="ident">full_text</span>: <span class="ident">String::new</span>(),
-            <span class="ident">short_text</span>: <span class="prelude-val">None</span>,
             <span class="ident">icon</span>: <span class="ident">String::new</span>(),
-            <span class="ident">full_spacing</span>: <span class="ident">WidgetSpacing::Hidden</span>,
-            <span class="ident">short_spacing</span>: <span class="ident">WidgetSpacing::Hidden</span>,
             <span class="ident">shared_config</span>,
+            <span class="ident">state</span>: <span class="ident">State::Idle</span>,
+
             <span class="ident">inner</span>,
+            <span class="ident">source</span>: <span class="ident">Source::Text</span>(<span class="ident">String::new</span>()),
+            <span class="ident">backup</span>: <span class="prelude-val">None</span>,
         }
     }
 
     <span class="comment">/*
-     * Consturctors
+     * Builders
      */</span>
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_instance</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">instance</span>: <span class="ident">usize</span>) -&gt; <span class="self">Self</span> {
@@ -258,13 +313,13 @@
         <span class="self">self</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_full_text</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">content</span>: <span class="ident">String</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">set_full_text</span>(<span class="ident">content</span>);
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_text</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">text</span>: <span class="ident">String</span>) -&gt; <span class="self">Self</span> {
+        <span class="self">self</span>.<span class="ident">source</span> <span class="op">=</span> <span class="ident">Source::Text</span>(<span class="ident">text</span>);
         <span class="self">self</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_state</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">state</span>: <span class="ident">WidgetState</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">set_state</span>(<span class="ident">state</span>);
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_state</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">state</span>: <span class="ident">State</span>) -&gt; <span class="self">Self</span> {
+        <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">state</span>;
         <span class="self">self</span>
     }
 
@@ -272,75 +327,104 @@
      * Setters
      */</span>
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_text</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">content</span>: (<span class="ident">String</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>)) {
-        <span class="kw">if</span> <span class="ident">content</span>.<span class="number">0</span>.<span class="ident">is_empty</span>() {
-            <span class="self">self</span>.<span class="ident">full_spacing</span> <span class="op">=</span> <span class="ident">WidgetSpacing::Hidden</span>;
-        } <span class="kw">else</span> {
-            <span class="self">self</span>.<span class="ident">full_spacing</span> <span class="op">=</span> <span class="ident">WidgetSpacing::Normal</span>;
-        }
-        <span class="kw">if</span> <span class="ident">content</span>.<span class="number">1</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="ident">String::is_empty</span>).<span class="ident">unwrap_or</span>(<span class="bool-val">true</span>) {
-            <span class="self">self</span>.<span class="ident">short_spacing</span> <span class="op">=</span> <span class="ident">WidgetSpacing::Hidden</span>;
-        } <span class="kw">else</span> {
-            <span class="self">self</span>.<span class="ident">short_spacing</span> <span class="op">=</span> <span class="ident">WidgetSpacing::Normal</span>;
-        }
-        <span class="self">self</span>.<span class="ident">full_text</span> <span class="op">=</span> <span class="ident">content</span>.<span class="number">0</span>;
-        <span class="self">self</span>.<span class="ident">short_text</span> <span class="op">=</span> <span class="ident">content</span>.<span class="number">1</span>;
-    }
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_full_text</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">content</span>: <span class="ident">String</span>) {
-        <span class="kw">if</span> <span class="ident">content</span>.<span class="ident">is_empty</span>() {
-            <span class="self">self</span>.<span class="ident">full_spacing</span> <span class="op">=</span> <span class="ident">WidgetSpacing::Hidden</span>;
-        } <span class="kw">else</span> {
-            <span class="self">self</span>.<span class="ident">full_spacing</span> <span class="op">=</span> <span class="ident">WidgetSpacing::Normal</span>;
-        }
-        <span class="self">self</span>.<span class="ident">full_text</span> <span class="op">=</span> <span class="ident">content</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_text</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">text</span>: <span class="ident">String</span>) {
+        <span class="self">self</span>.<span class="ident">source</span> <span class="op">=</span> <span class="ident">Source::Text</span>(<span class="ident">text</span>);
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_state</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">state</span>: <span class="ident">WidgetState</span>) {
-        <span class="kw">let</span> (<span class="ident">key_bg</span>, <span class="ident">key_fg</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">theme_keys</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">shared_config</span>.<span class="ident">theme</span>);
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_texts</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">short</span>: <span class="ident">String</span>, <span class="ident">full</span>: <span class="ident">String</span>) {
+        <span class="self">self</span>.<span class="ident">source</span> <span class="op">=</span> <span class="ident">Source::TextWithShort</span>(<span class="ident">short</span>, <span class="ident">full</span>);
+    }
 
-        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">background</span> <span class="op">=</span> <span class="ident">key_bg</span>;
-        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">color</span> <span class="op">=</span> <span class="ident">key_fg</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_format</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">format</span>: <span class="ident">RunningFormat</span>) {
+        <span class="kw">match</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">source</span> {
+            <span class="ident">Source::Format</span>(<span class="ident">old</span>, <span class="kw">_</span>) =&gt; <span class="kw-2">*</span><span class="ident">old</span> <span class="op">=</span> <span class="ident">format</span>,
+            <span class="kw">_</span> =&gt; <span class="self">self</span>.<span class="ident">source</span> <span class="op">=</span> <span class="ident">Source::Format</span>(<span class="ident">format</span>, <span class="prelude-val">None</span>),
+        }
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_values</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">new_values</span>: <span class="ident">Values</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Source::Format</span>(<span class="kw">_</span>, <span class="ident">values</span>) <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">source</span> {
+            <span class="kw-2">*</span><span class="ident">values</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">new_values</span>);
+        }
+    }
+
+    <span class="comment">/*
+     * Getters
+     */</span>
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_instance</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">instance</span>
+    }
+
+    <span class="comment">/*
+     * Preserve / Restore
+     */</span>
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">preserve</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">backup</span> <span class="op">=</span> <span class="prelude-val">Some</span>((
+            <span class="ident">std::mem::replace</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">source</span>, <span class="ident">Source::Text</span>(<span class="ident">String::new</span>())),
+            <span class="self">self</span>.<span class="ident">state</span>,
+        ));
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">restore</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">backup</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">backup</span>.<span class="ident">take</span>() {
+            <span class="self">self</span>.<span class="ident">source</span> <span class="op">=</span> <span class="ident">backup</span>.<span class="number">0</span>;
+            <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">backup</span>.<span class="number">1</span>;
+        }
     }
 
     <span class="doccomment">/// Constuct `I3BarBlock` from this widget</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_data</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">I3BarBlock</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_data</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">I3BarBlock</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">clone</span>();
+
+        <span class="kw">let</span> (<span class="ident">key_bg</span>, <span class="ident">key_fg</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">shared_config</span>.<span class="ident">theme</span>.<span class="ident">get_colors</span>(<span class="self">self</span>.<span class="ident">state</span>);
+        <span class="ident">data</span>.<span class="ident">background</span> <span class="op">=</span> <span class="ident">key_bg</span>;
+        <span class="ident">data</span>.<span class="ident">color</span> <span class="op">=</span> <span class="ident">key_fg</span>;
+
+        <span class="kw">let</span> (<span class="ident">full</span>, <span class="ident">short</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">source</span>.<span class="ident">render</span>()<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">full_spacing</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">full</span>.<span class="ident">is_empty</span>() {
+            <span class="ident">Spacing::Hidden</span>
+        } <span class="kw">else</span> {
+            <span class="ident">Spacing::Normal</span>
+        };
+        <span class="kw">let</span> <span class="ident">short_spacing</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">short</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="ident">String::is_empty</span>).<span class="ident">unwrap_or</span>(<span class="bool-val">true</span>) {
+            <span class="ident">Spacing::Hidden</span>
+        } <span class="kw">else</span> {
+            <span class="ident">Spacing::Normal</span>
+        };
 
         <span class="ident">data</span>.<span class="ident">full_text</span> <span class="op">=</span> <span class="macro">format!</span>(
             <span class="string">&quot;{}{}{}&quot;</span>,
-            <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">icon</span>.<span class="ident">as_str</span>(), <span class="self">self</span>.<span class="ident">full_spacing</span>) {
-                (<span class="string">&quot;&quot;</span>, <span class="ident">WidgetSpacing::Normal</span>) =&gt; <span class="string">&quot; &quot;</span>,
-                (<span class="string">&quot;&quot;</span>, <span class="ident">WidgetSpacing::Inline</span>) =&gt; <span class="string">&quot;&quot;</span>,
-                (<span class="string">&quot;&quot;</span>, <span class="ident">WidgetSpacing::Hidden</span>) =&gt; <span class="string">&quot;&quot;</span>,
+            <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">icon</span>.<span class="ident">as_str</span>(), <span class="ident">full_spacing</span>) {
+                (<span class="string">&quot;&quot;</span>, <span class="ident">Spacing::Normal</span>) =&gt; <span class="string">&quot; &quot;</span>,
+                (<span class="string">&quot;&quot;</span>, <span class="ident">Spacing::Hidden</span>) =&gt; <span class="string">&quot;&quot;</span>,
                 (<span class="ident">icon</span>, <span class="kw">_</span>) =&gt; <span class="ident">icon</span>,
             },
-            <span class="self">self</span>.<span class="ident">full_text</span>,
-            <span class="kw">match</span> <span class="self">self</span>.<span class="ident">full_spacing</span> {
-                <span class="ident">WidgetSpacing::Normal</span> =&gt; <span class="string">&quot; &quot;</span>,
-                <span class="ident">WidgetSpacing::Inline</span> =&gt; <span class="string">&quot; &quot;</span>,
-                <span class="ident">WidgetSpacing::Hidden</span> =&gt; <span class="string">&quot;&quot;</span>,
+            <span class="ident">full</span>,
+            <span class="kw">match</span> <span class="ident">full_spacing</span> {
+                <span class="ident">Spacing::Normal</span> =&gt; <span class="string">&quot; &quot;</span>,
+                <span class="ident">Spacing::Hidden</span> =&gt; <span class="string">&quot;&quot;</span>,
             }
         );
 
-        <span class="ident">data</span>.<span class="ident">short_text</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">short_text</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">short_text</span><span class="op">|</span> {
+        <span class="ident">data</span>.<span class="ident">short_text</span> <span class="op">=</span> <span class="ident">short</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">short_text</span><span class="op">|</span> {
             <span class="macro">format!</span>(
                 <span class="string">&quot;{}{}{}&quot;</span>,
-                <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">icon</span>.<span class="ident">as_str</span>(), <span class="self">self</span>.<span class="ident">short_spacing</span>) {
-                    (<span class="string">&quot;&quot;</span>, <span class="ident">WidgetSpacing::Normal</span>) =&gt; <span class="string">&quot; &quot;</span>,
-                    (<span class="string">&quot;&quot;</span>, <span class="ident">WidgetSpacing::Inline</span>) =&gt; <span class="string">&quot;&quot;</span>,
-                    (<span class="string">&quot;&quot;</span>, <span class="ident">WidgetSpacing::Hidden</span>) =&gt; <span class="string">&quot;&quot;</span>,
+                <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">icon</span>.<span class="ident">as_str</span>(), <span class="ident">short_spacing</span>) {
+                    (<span class="string">&quot;&quot;</span>, <span class="ident">Spacing::Normal</span>) =&gt; <span class="string">&quot; &quot;</span>,
+                    (<span class="string">&quot;&quot;</span>, <span class="ident">Spacing::Hidden</span>) =&gt; <span class="string">&quot;&quot;</span>,
                     (<span class="ident">icon</span>, <span class="kw">_</span>) =&gt; <span class="ident">icon</span>,
                 },
                 <span class="ident">short_text</span>,
-                <span class="kw">match</span> <span class="self">self</span>.<span class="ident">short_spacing</span> {
-                    <span class="ident">WidgetSpacing::Normal</span> =&gt; <span class="string">&quot; &quot;</span>,
-                    <span class="ident">WidgetSpacing::Inline</span> =&gt; <span class="string">&quot; &quot;</span>,
-                    <span class="ident">WidgetSpacing::Hidden</span> =&gt; <span class="string">&quot;&quot;</span>,
+                <span class="kw">match</span> <span class="ident">short_spacing</span> {
+                    <span class="ident">Spacing::Normal</span> =&gt; <span class="string">&quot; &quot;</span>,
+                    <span class="ident">Spacing::Hidden</span> =&gt; <span class="string">&quot;&quot;</span>,
                 }
             )
         });
 
-        <span class="ident">data</span>
+        <span class="prelude-val">Ok</span>(<span class="ident">data</span>)
     }
 }
 </code></pre></div>

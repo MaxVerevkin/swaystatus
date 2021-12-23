@@ -158,7 +158,7 @@
     }
 
     <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">set_text</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">full</span>: <span class="ident">StdString</span>, <span class="ident">short</span>: <span class="ident">StdString</span>) -&gt; <span class="ident">StdString</span> {
-        <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">set_text</span>((<span class="ident">full</span>.<span class="ident">into</span>(), <span class="prelude-val">Some</span>(<span class="ident">short</span>.<span class="ident">into</span>())));
+        <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">set_texts</span>(<span class="ident">full</span>.<span class="ident">into</span>(), <span class="ident">short</span>.<span class="ident">into</span>());
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span> {
             <span class="kw">return</span> <span class="ident">e</span>.<span class="ident">to_string</span>();
         }
@@ -167,11 +167,11 @@
 
     <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">set_state</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">StdString</span> {
         <span class="kw">match</span> <span class="ident">state</span> {
-            <span class="string">&quot;idle&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">WidgetState::Idle</span>),
-            <span class="string">&quot;info&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">WidgetState::Info</span>),
-            <span class="string">&quot;good&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">WidgetState::Good</span>),
-            <span class="string">&quot;warning&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">WidgetState::Warning</span>),
-            <span class="string">&quot;critical&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">WidgetState::Critical</span>),
+            <span class="string">&quot;idle&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">State::Idle</span>),
+            <span class="string">&quot;info&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">State::Info</span>),
+            <span class="string">&quot;good&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">State::Good</span>),
+            <span class="string">&quot;warning&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">State::Warning</span>),
+            <span class="string">&quot;critical&quot;</span> =&gt; <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">State::Critical</span>),
             <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="macro">format!</span>(<span class="string">&quot;&#39;{}&#39; is not a valid state&quot;</span>, <span class="ident">state</span>),
         }
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span> {
@@ -181,13 +181,13 @@
     }
 }
 
-<span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">config</span>: <span class="ident">toml::Value</span>, <span class="ident">api</span>: <span class="ident">CommonApi</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">CustomDBusConfig::deserialize</span>(<span class="ident">config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>.<span class="ident">path</span>;
-    <span class="kw">let</span> <span class="ident">dbus_conn</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">dbus_connection</span>().<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">dbus_conn</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_dbus_connection</span>().<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="ident">dbus_conn</span>
-        .<span class="ident">object_server_mut</span>()
-        .<span class="kw">await</span>
+        .<span class="ident">object_server</span>()
         .<span class="ident">at</span>(<span class="ident">path</span>, <span class="ident">Block</span> { <span class="ident">api</span> })
+        .<span class="kw">await</span>
         .<span class="ident">error</span>(<span class="string">&quot;Failed to setup DBus server&quot;</span>)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }

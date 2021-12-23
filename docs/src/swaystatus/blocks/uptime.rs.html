@@ -78,7 +78,6 @@
 <span id="77">77</span>
 <span id="78">78</span>
 <span id="79">79</span>
-<span id="80">80</span>
 </pre><pre class="rust"><code><span class="doccomment">//! System&#39;s uptime</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This block displays system uptime in terms of two biggest units, so minutes and seconds, or</span>
@@ -105,7 +104,6 @@
 <span class="doccomment">//! - Add `time` or `dur` formatter to `src/formatting/formatter.rs`</span>
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">std::time::Duration</span>;
 <span class="kw">use</span> <span class="ident">tokio::fs::read_to_string</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
@@ -154,7 +152,7 @@
             <span class="macro">format!</span>(<span class="string">&quot;{}m {}s&quot;</span>, <span class="ident">minutes</span>, <span class="ident">seconds</span>)
         };
 
-        <span class="ident">api</span>.<span class="ident">set_text</span>((<span class="ident">text</span>.<span class="ident">into</span>(), <span class="prelude-val">None</span>));
+        <span class="ident">api</span>.<span class="ident">set_text</span>(<span class="ident">text</span>.<span class="ident">into</span>());
         <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="ident">interval</span>.<span class="ident">tick</span>().<span class="kw">await</span>;
     }

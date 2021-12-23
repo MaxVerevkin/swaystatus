@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["get_event",""],["process_events",""]],"struct":[["I3BarEvent",""],["I3BarEventInternal",""]]});
+initSidebarItems({"fn":[["events_stream",""],["unprocessed_events_stream",""]],"struct":[["I3BarEvent",""],["I3BarEventInternal",""]]});

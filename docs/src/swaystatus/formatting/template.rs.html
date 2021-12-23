@@ -243,13 +243,18 @@
 <span id="242">242</span>
 <span id="243">243</span>
 <span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">super</span>::formatter</span>::{
     <span class="ident">new_formatter</span>, <span class="ident">Formatter</span>, <span class="ident">DEFAULT_FLAG_FORMATTER</span>, <span class="ident">DEFAULT_NUMBER_FORMATTER</span>,
     <span class="ident">DEFAULT_STRING_FORMATTER</span>,
 };
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::value::Value</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::blocks::CommonApi</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::errors</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::Request</span>;
+
+<span class="kw">use</span> <span class="ident">tokio::sync::mpsc::Sender</span>;
 
 <span class="kw">use</span> <span class="ident">smartstring::alias::String</span>;
 
@@ -274,6 +279,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">FormatTemplate</span> {
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">contains_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">token_list</span><span class="op">|</span> {
             <span class="ident">token_list</span>.<span class="number">0</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">token</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">token</span> {
@@ -296,14 +302,14 @@
         <span class="prelude-val">Ok</span>(<span class="ident">String::new</span>())
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">init</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">api</span>: <span class="kw-2">&amp;</span><span class="ident">CommonApi</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">init</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tx</span>: <span class="kw-2">&amp;</span><span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">Request</span><span class="op">&gt;</span>, <span class="ident">block_id</span>: <span class="ident">usize</span>, <span class="ident">handles</span>: <span class="kw-2">&amp;mut</span> <span class="ident"><span class="kw">super</span>::Handles</span>) {
         <span class="kw">for</span> <span class="ident">tl</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span> {
             <span class="kw">for</span> <span class="ident">t</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">tl</span>.<span class="number">0</span> {
                 <span class="kw">match</span> <span class="ident">t</span> {
-                    <span class="ident">Token::Recursive</span>(<span class="ident">r</span>) =&gt; <span class="ident">r</span>.<span class="ident">init</span>(<span class="ident">api</span>),
+                    <span class="ident">Token::Recursive</span>(<span class="ident">r</span>) =&gt; <span class="ident">r</span>.<span class="ident">init</span>(<span class="ident">tx</span>, <span class="ident">block_id</span>, <span class="ident">handles</span>),
                     <span class="ident">Token::Var</span> {
                         <span class="ident">formatter</span>: <span class="prelude-val">Some</span>(<span class="ident">f</span>), ..
-                    } =&gt; <span class="ident">f</span>.<span class="ident">init</span>(<span class="ident">api</span>),
+                    } =&gt; <span class="ident">f</span>.<span class="ident">init</span>(<span class="ident">tx</span>, <span class="ident">block_id</span>, <span class="ident">handles</span>),
                     <span class="kw">_</span> =&gt; (),
                 }
             }

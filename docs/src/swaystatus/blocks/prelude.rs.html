@@ -14,13 +14,14 @@
 <span id="13">13</span>
 <span id="14">14</span>
 <span id="15">15</span>
+<span id="16">16</span>
 </pre><pre class="rust"><code><span class="kw">pub</span> <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">BlockEvent</span>, <span class="ident">CommonApi</span>};
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::click::MouseButton</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::errors</span>::{<span class="ident">Error</span>, <span class="ident">OptionExt</span>, <span class="prelude-ty">Result</span>, <span class="ident">ResultExt</span>, <span class="ident">StdError</span>, <span class="ident">StdResult</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::formatting</span>::{<span class="ident">config::Config</span> <span class="kw">as</span> <span class="ident">FormatConfig</span>, <span class="ident">value::Value</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::widget</span>::{<span class="ident">Widget</span>, <span class="ident">WidgetSpacing</span>, <span class="ident">WidgetState</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::Swaystatus</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::widget</span>::{<span class="ident">Spacing</span>, <span class="ident">State</span>, <span class="ident">Widget</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::REQWEST_CLIENT</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">serde::de::Deserialize</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">serde_derive::Deserialize</span>;
@@ -29,6 +30,7 @@
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">std::fmt::Write</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">std::string::String</span> <span class="kw">as</span> <span class="ident">StdString</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">std::time::Duration</span>;
 </code></pre></div>
 </section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="swaystatus" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.59.0-nightly (e2116acae 2021-12-05)" ></div>
 </body></html>
