@@ -91,21 +91,21 @@ impl FromStr for Color {
         } else if color == "auto" {
             Color::Auto
         } else if color.starts_with("hsv:") {
-            let err_msg = format!("'{}' is not a vaild HSVA color", color);
+            let err_msg = || format!("'{}' is not a vaild HSVA color", color);
             let color = color.split_at(4).1;
             let mut components = color.split(':').map(|x| x.parse::<f64>()).flatten();
-            let h = components.next().error(&err_msg)?;
-            let s = components.next().error(&err_msg)?;
-            let v = components.next().error(&err_msg)?;
+            let h = components.next().or_error(err_msg)?;
+            let s = components.next().or_error(err_msg)?;
+            let v = components.next().or_error(err_msg)?;
             let a = components.next().unwrap_or(100.);
             Color::Hsva(Hsv::new(h, s / 100., v / 100.), (a / 100. * 255.) as u8)
         } else {
-            let err_msg = format!("'{}' is not a vaild RGBA color", color);
-            let rgb = color.get(1..7).error(&err_msg)?;
+            let err_msg = || format!("'{}' is not a vaild RGBA color", color);
+            let rgb = color.get(1..7).or_error(err_msg)?;
             let a = color.get(7..9).unwrap_or("FF");
             Color::Rgba(
-                Rgb::from_hex(u32::from_str_radix(rgb, 16).error(&err_msg)?),
-                u8::from_str_radix(a, 16).error(&err_msg)?,
+                Rgb::from_hex(u32::from_str_radix(rgb, 16).or_error(err_msg)?),
+                u8::from_str_radix(a, 16).or_error(err_msg)?,
             )
         })
     }
@@ -159,7 +159,7 @@ pub struct Theme {
 impl Theme {
     pub fn from_file(file: &str) -> errors::Result<Theme> {
         let file = util::find_file(file, Some("themes"), Some("toml"))
-            .error(&format!("Theme '{}' not found", file))?;
+            .or_error(|| format!("Theme '{}' not found", file))?;
         let map: HashMap<String, String> = util::deserialize_toml_file(&file)?;
         let mut theme = Self::default();
         theme.apply_overrides(&map)?;

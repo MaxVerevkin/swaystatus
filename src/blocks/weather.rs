@@ -163,12 +163,11 @@ impl WeatherService {
             lang,
         } = self;
 
-        let api_key = api_key.as_ref().or_error::<String, _>(|| {
+        let api_key = api_key.as_ref().or_error(|| {
             format!(
                 "missing key 'service.api_key' and environment variable {}",
                 OPEN_WEATHER_MAP_API_KEY_ENV
             )
-            .into()
         })?;
 
         let city = if autolocate {

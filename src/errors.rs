@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
 
@@ -9,11 +10,13 @@ pub use std::result::Result as StdResult;
 /// Result type returned from functions that can have our `Error`s.
 pub type Result<T> = StdResult<T, Error>;
 
+type ErrorMsg = Cow<'static, str>;
+
 /// Swaystatus' error type
 #[derive(Debug, Clone)]
 pub struct Error {
     pub kind: ErrorKind,
-    pub message: Option<String>,
+    pub message: Option<ErrorMsg>,
     pub cause: Option<Arc<dyn StdError + Send + Sync + 'static>>,
     pub block: Option<(BlockType, usize)>,
 }
@@ -27,7 +30,7 @@ pub enum ErrorKind {
 }
 
 impl Error {
-    pub fn new<T: Into<String>>(message: T) -> Self {
+    pub fn new<T: Into<ErrorMsg>>(message: T) -> Self {
         Self {
             kind: ErrorKind::Other,
             message: Some(message.into()),
@@ -36,7 +39,7 @@ impl Error {
         }
     }
 
-    pub fn new_format<T: Into<String>>(message: T) -> Self {
+    pub fn new_format<T: Into<ErrorMsg>>(message: T) -> Self {
         Self {
             kind: ErrorKind::Format,
             message: Some(message.into()),
@@ -60,14 +63,14 @@ impl<T> InBlock for Result<T> {
 }
 
 pub trait ResultExt<T> {
-    fn error<M: Into<String>>(self, message: M) -> Result<T>;
-    fn or_error<M: Into<String>, F: FnOnce() -> M>(self, f: F) -> Result<T>;
+    fn error<M: Into<ErrorMsg>>(self, message: M) -> Result<T>;
+    fn or_error<M: Into<ErrorMsg>, F: FnOnce() -> M>(self, f: F) -> Result<T>;
     fn config_error(self) -> Result<T>;
-    fn format_error<M: Into<String>>(self, message: M) -> Result<T>;
+    fn format_error<M: Into<ErrorMsg>>(self, message: M) -> Result<T>;
 }
 
 impl<T, E: StdError + Send + Sync + 'static> ResultExt<T> for StdResult<T, E> {
-    fn error<M: Into<String>>(self, message: M) -> Result<T> {
+    fn error<M: Into<ErrorMsg>>(self, message: M) -> Result<T> {
         self.map_err(|e| Error {
             kind: ErrorKind::Other,
             message: Some(message.into()),
@@ -76,7 +79,7 @@ impl<T, E: StdError + Send + Sync + 'static> ResultExt<T> for StdResult<T, E> {
         })
     }
 
-    fn or_error<M: Into<String>, F: FnOnce() -> M>(self, f: F) -> Result<T> {
+    fn or_error<M: Into<ErrorMsg>, F: FnOnce() -> M>(self, f: F) -> Result<T> {
         self.map_err(|e| Error {
             kind: ErrorKind::Other,
             message: Some(f().into()),
@@ -94,7 +97,7 @@ impl<T, E: StdError + Send + Sync + 'static> ResultExt<T> for StdResult<T, E> {
         })
     }
 
-    fn format_error<M: Into<String>>(self, message: M) -> Result<T> {
+    fn format_error<M: Into<ErrorMsg>>(self, message: M) -> Result<T> {
         self.map_err(|e| Error {
             kind: ErrorKind::Format,
             message: Some(message.into()),
@@ -105,14 +108,14 @@ impl<T, E: StdError + Send + Sync + 'static> ResultExt<T> for StdResult<T, E> {
 }
 
 pub trait OptionExt<T> {
-    fn error<M: Into<String>>(self, message: M) -> Result<T>;
-    fn or_error<M: Into<String>, F: FnOnce() -> M>(self, f: F) -> Result<T>;
+    fn error<M: Into<ErrorMsg>>(self, message: M) -> Result<T>;
+    fn or_error<M: Into<ErrorMsg>, F: FnOnce() -> M>(self, f: F) -> Result<T>;
     fn config_error(self) -> Result<T>;
-    fn format_error<M: Into<String>>(self, message: M) -> Result<T>;
+    fn format_error<M: Into<ErrorMsg>>(self, message: M) -> Result<T>;
 }
 
 impl<T> OptionExt<T> for Option<T> {
-    fn error<M: Into<String>>(self, message: M) -> Result<T> {
+    fn error<M: Into<ErrorMsg>>(self, message: M) -> Result<T> {
         self.ok_or_else(|| Error {
             kind: ErrorKind::Other,
             message: Some(message.into()),
@@ -121,7 +124,7 @@ impl<T> OptionExt<T> for Option<T> {
         })
     }
 
-    fn or_error<M: Into<String>, F: FnOnce() -> M>(self, f: F) -> Result<T> {
+    fn or_error<M: Into<ErrorMsg>, F: FnOnce() -> M>(self, f: F) -> Result<T> {
         self.ok_or_else(|| Error {
             kind: ErrorKind::Other,
             message: Some(f().into()),
@@ -139,7 +142,7 @@ impl<T> OptionExt<T> for Option<T> {
         })
     }
 
-    fn format_error<M: Into<String>>(self, message: M) -> Result<T> {
+    fn format_error<M: Into<ErrorMsg>>(self, message: M) -> Result<T> {
         self.ok_or_else(|| Error {
             kind: ErrorKind::Format,
             message: Some(message.into()),
