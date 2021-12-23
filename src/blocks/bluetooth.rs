@@ -39,9 +39,6 @@
 //! - `keyboard` for bluetooth devices identifying as "input-keyboard"
 //! - `mouse` for bluetooth devices identifying as "input-mouse"
 //! - `bluetooth` for all other devices
-//!
-//! # TODO:
-//! - Don't throw errors when there is no bluetooth
 
 #![allow(clippy::type_complexity)]
 
@@ -68,7 +65,9 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     api.set_format(config.format.with_default("$name{ $percentage|}")?);
 
     let dbus_conn = api.get_system_dbus_connection().await?;
-    let device = Device::from_mac(&dbus_conn, &config.mac).await?;
+    let device = api
+        .recoverable(|| Device::from_mac(&dbus_conn, &config.mac), "X")
+        .await?;
     api.set_icon(device.icon)?;
 
     let name = device
@@ -76,11 +75,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         .name()
         .await
         .unwrap_or_else(|_| "N/A".to_string());
-    let mut connected = device
-        .device_proxy
-        .connected()
-        .await
-        .error("Failed to get device state")?;
+    let mut connected = device.device_proxy.connected().await.unwrap_or(false);
 
     let mut connected_stream = device.device_proxy.receive_connected_changed().await;
 
@@ -121,10 +116,10 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                 }
             }
             Some(pc) = connected_stream.next() => {
-                connected = pc.get().await.unwrap();
+                connected = pc.get().await.error("Unexpected error")?;
             }
             Some(pc) = battery_stream.next() => {
-                percentage = Some(pc.get().await.unwrap());
+                percentage = Some(pc.get().await.error("Unexpected error")?);
             }
         }
     }

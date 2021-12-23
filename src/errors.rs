@@ -18,7 +18,7 @@ pub struct Error {
     pub block: Option<(BlockType, usize)>,
 }
 
-/// A set of errors that can occur during the runtime of swaystatus
+/// A set of errors that can occur during the runtime
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorKind {
     Config,
