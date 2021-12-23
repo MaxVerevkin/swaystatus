@@ -96,5 +96,4 @@ struct SpeedtestCliOutput {
     upload: f64,
     /// Ping time in ms
     ping: f64,
-    // TODO add more
 }

@@ -1,6 +1,3 @@
-// TODO add a `Handles` newtype to store a vector of join handles to tokio tasks. On drop it should
-// about them.
-
 use smallvec::SmallVec;
 use smartstring::alias::String;
 use std::fmt::Debug;
@@ -74,7 +71,6 @@ enum EngFixArgs {
 pub trait Formatter: Debug {
     fn format(&self, val: &Value) -> Result<String>;
 
-    // TODO use `Handles`
     fn init(&self, _tx: &Sender<Request>, _block_id: usize, _handles: &mut Handles) {}
 }
 
