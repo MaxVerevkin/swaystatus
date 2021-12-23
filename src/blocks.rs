@@ -45,16 +45,6 @@ macro_rules! define_blocks {
                 }
             }
         }
-
-        const BLOCK_NAMES: &[&str] = &[
-            $(stringify!($block),)*
-        ];
-
-        /// Matches the block's type to block's name
-        #[inline(always)]
-        pub fn block_name(block: BlockType) -> &'static str {
-            BLOCK_NAMES[block as usize]
-        }
     };
 }
 

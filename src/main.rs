@@ -85,16 +85,10 @@ fn main() {
         let config: Config = util::deserialize_toml_file(&config_path).config_error()?;
 
         // Spawn blocks
-        let mut swaystatus = Swaystatus::new(config.shared, args);
+        let mut swaystatus = BarState::new(config.shared, args);
         for (block_type, block_config) in config.block {
             swaystatus.spawn_block(block_type, block_config)?;
         }
-
-        let mut signals = signals_stream();
-        let mut events = events_stream(
-            config.invert_scrolling,
-            Duration::from_millis(config.double_click_delay),
-        );
 
         // Run main loop
         tokio::runtime::Builder::new_current_thread()
@@ -102,7 +96,14 @@ fn main() {
             .enable_all()
             .build()
             .unwrap()
-            .block_on(swaystatus.run_event_loop(&mut signals, &mut events))
+            .block_on(async move {
+                let mut signals = signals_stream();
+                let mut events = events_stream(
+                    config.invert_scrolling,
+                    Duration::from_millis(config.double_click_delay),
+                );
+                swaystatus.run_event_loop(&mut signals, &mut events).await
+            })
     })();
 
     if let Err(error) = result {
@@ -180,14 +181,14 @@ pub enum RequestCmd {
     Noop,
 }
 
-struct Swaystatus {
+struct BarState {
     shared_config: SharedConfig,
     cli_args: CliArgs,
 
     blocks: Vec<(Block, BlockType)>,
     fullscreen_block: Option<usize>,
     // TODO: find a way to avoid this `Box<dyn Future>`
-    spawned_blocks: FuturesUnordered<Pin<Box<dyn Future<Output = Result<()>>>>>,
+    running_blocks: FuturesUnordered<Pin<Box<dyn Future<Output = Result<()>>>>>,
 
     blocks_render_cache: Vec<Vec<I3BarBlock>>,
 
@@ -198,7 +199,7 @@ struct Swaystatus {
     system_dbus_connection: Option<zbus::Connection>,
 }
 
-impl Swaystatus {
+impl BarState {
     fn new(shared_config: SharedConfig, cli: CliArgs) -> Self {
         let (request_sender, request_receiver) = mpsc::channel(64);
         Self {
@@ -207,7 +208,7 @@ impl Swaystatus {
 
             blocks: Vec::new(),
             fullscreen_block: None,
-            spawned_blocks: FuturesUnordered::new(),
+            running_blocks: FuturesUnordered::new(),
 
             blocks_render_cache: Vec::new(),
 
@@ -254,8 +255,8 @@ impl Swaystatus {
             buttons: Vec::new(),
         });
 
-        let handle = block_type.run(block_config, api);
-        self.spawned_blocks.push(Box::pin(handle));
+        self.running_blocks
+            .push(Box::pin(block_type.run(block_config, api)));
         self.blocks.push((block, block_type));
         self.blocks_render_cache.push(Vec::new());
         Ok(())
@@ -309,8 +310,13 @@ impl Swaystatus {
                         }
                     }
                 }
-                RequestCmd::SetFullScreen(true) => self.fullscreen_block = Some(block.id),
-                RequestCmd::SetFullScreen(false) => self.fullscreen_block = None,
+                RequestCmd::SetFullScreen(value) => {
+                    if self.fullscreen_block.is_none() && value {
+                        self.fullscreen_block = Some(block.id)
+                    } else if self.fullscreen_block == Some(block.id) && !value {
+                        self.fullscreen_block = None;
+                    }
+                }
                 RequestCmd::Preserve => block.widget.preserve(),
                 RequestCmd::Restore => block.widget.restore(),
                 RequestCmd::GetDbusConnection(tx) => match &self.dbus_connection {
@@ -398,9 +404,9 @@ impl Swaystatus {
     ) -> Result<()> {
         tokio::select! {
             // Handle blocks' errors
-            Some(block_result) = self.spawned_blocks.next() => {
+            Some(block_result) = self.running_blocks.next() => {
                 block_result
-            },
+            }
             // Recieve messages from blocks
             Some(request) = self.request_receiver.recv() => {
                 self.process_request(request).await?;

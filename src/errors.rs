@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use crate::blocks::{block_name, BlockType};
+use crate::blocks::BlockType;
 
 pub use std::error::Error as StdError;
 pub use std::result::Result as StdResult;
@@ -158,7 +158,7 @@ impl fmt::Display for Error {
                     ErrorKind::Other => f.write_str("Error")?,
                 }
 
-                write!(f, " in {}", block_name(block.0))?;
+                write!(f, " in {:?}", block.0)?;
 
                 if let Some(message) = &self.message {
                     write!(f, ": {}", message)?;
