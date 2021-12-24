@@ -1,4 +1,3 @@
-use std::fmt;
 use std::time::Duration;
 
 use serde::de::{self, Deserialize, Deserializer};
@@ -12,7 +11,7 @@ where
     impl<'de> de::Visitor<'de> for DurationWrapper {
         type Value = Duration;
 
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
             formatter.write_str("i64, f64 or map")
         }
 
@@ -39,4 +38,54 @@ where
     }
 
     deserializer.deserialize_any(DurationWrapper)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OnceDuration {
+    Once,
+    Duration(Duration),
+}
+
+impl<'de> Deserialize<'de> for OnceDuration {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct OnceDurationVisitor;
+
+        impl<'de> de::Visitor<'de> for OnceDurationVisitor {
+            type Value = OnceDuration;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("\"once\", i64 or f64")
+            }
+
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OnceDuration::Duration(Duration::from_secs(v as u64)))
+            }
+
+            fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(OnceDuration::Duration(Duration::from_secs_f64(v)))
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                if v == "once" {
+                    Ok(OnceDuration::Once)
+                } else {
+                    Err(E::custom(format!("'{}' is not a valid interval", v)))
+                }
+            }
+        }
+
+        deserializer.deserialize_any(OnceDurationVisitor)
+    }
 }

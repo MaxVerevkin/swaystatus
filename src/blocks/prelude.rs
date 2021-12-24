@@ -1,6 +1,7 @@
 pub use super::{BlockEvent, CommonApi};
 
 pub use crate::click::MouseButton;
+pub use crate::de::OnceDuration;
 pub use crate::errors::{Error, OptionExt, Result, ResultExt, StdError, StdResult};
 pub use crate::formatting::{config::Config as FormatConfig, value::Value};
 pub use crate::widget::{Spacing, State, Widget};
