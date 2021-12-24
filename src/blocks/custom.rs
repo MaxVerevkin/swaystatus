@@ -144,7 +144,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
             for file in files {
                 notify
                     .add_watch(file, WatchMask::MODIFY | WatchMask::CLOSE_WRITE)
-                    .error("Failed to watch brightness file")?;
+                    .error("Failed to file")?;
             }
             Box::pin(
                 notify
