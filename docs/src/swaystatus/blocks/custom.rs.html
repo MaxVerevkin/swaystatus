@@ -189,6 +189,46 @@
 <span id="188">188</span>
 <span id="189">189</span>
 <span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The output of a custom shell command</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! For further customisation, use the `json` option and have the shell command output valid JSON in the schema below:  </span>
@@ -205,10 +245,10 @@
 <span class="doccomment">//! ----|--------|----------|--------</span>
 <span class="doccomment">//! `command` | Shell command to execute &amp; display | No | None</span>
 <span class="doccomment">//! `cycle` | Commands to execute and change when the button is clicked | No | None</span>
-<span class="doccomment">//! `interval` | Update interval in seconds | No | `10`</span>
-<span class="doccomment">//! `one_shot` | Whether to run the command only once (if set to `true`, `interval` will be ignored) | No | `false`</span>
+<span class="doccomment">//! `interval` | Update interval in seconds (or &quot;once&quot; to update only once) | No | `10`</span>
 <span class="doccomment">//! `json` | Use JSON from command output to format the block. If the JSON is not valid, the block will error out. | No | `false`</span>
 <span class="doccomment">//! `signal` | Signal value that causes an update for this block with 0 corresponding to `-SIGRTMIN+0` and the largest value being `-SIGRTMAX` | No | None</span>
+<span class="doccomment">//! watch_files | Watch files to trigger update on file modification | No | None</span>
 <span class="doccomment">//! `hide_when_empty` | Hides the block when the command output (or json text field) is empty | No | false</span>
 <span class="doccomment">//! `shell` | Specify the shell to use when running commands | No | `$SHELL` if set, otherwise fallback to `sh`</span>
 <span class="doccomment">//!</span>
@@ -229,6 +269,9 @@
 <span class="doccomment">//! block = &quot;custom&quot;</span>
 <span class="doccomment">//! cycle = [&quot;echo ON&quot;, &quot;echo OFF&quot;]</span>
 <span class="doccomment">//! interval = 1</span>
+<span class="doccomment">//! [[block.click]]</span>
+<span class="doccomment">//! button = &quot;left&quot;</span>
+<span class="doccomment">//! cmd = &quot;&lt;command&gt;&quot;</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Use JSON output:</span>
@@ -246,7 +289,7 @@
 <span class="doccomment">//! [[block]]</span>
 <span class="doccomment">//! block = &quot;custom&quot;</span>
 <span class="doccomment">//! command = &quot;uname -r&quot;</span>
-<span class="doccomment">//! one_shot = true</span>
+<span class="doccomment">//! interval = &quot;once&quot;</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Display the screen brightness on an intel machine and update this only when `pkill -SIGRTMIN+4 i3status-rs` is called:</span>
@@ -256,24 +299,42 @@
 <span class="doccomment">//! block = &quot;custom&quot;</span>
 <span class="doccomment">//! command = &#39;&#39;&#39; cat /sys/class/backlight/intel_backlight/brightness | awk &#39;{print $1}&#39; &#39;&#39;&#39;</span>
 <span class="doccomment">//! signal = 4</span>
-<span class="doccomment">//! one_shot = true</span>
+<span class="doccomment">//! interval = &quot;once&quot;</span>
 <span class="doccomment">//! ```</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Update block when one or more specified files are modified:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ```toml</span>
+<span class="doccomment">//! [[block]]</span>
+<span class="doccomment">//! block = &quot;custom&quot;</span>
+<span class="doccomment">//! command = &quot;cat custom_status&quot;</span>
+<span class="doccomment">//! watch_files = [&quot;custom_status&quot;]</span>
+<span class="doccomment">//! interval = &quot;once&quot;</span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! # TODO:</span>
+<span class="doccomment">//! - Use `shellexpand`</span>
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::signals::Signal</span>;
-<span class="kw">use</span> <span class="ident">tokio::process::Command</span>;
+<span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">Stream</span>, <span class="ident">StreamExt</span>};
+<span class="kw">use</span> <span class="ident">inotify</span>::{<span class="ident">Inotify</span>, <span class="ident">WatchMask</span>};
+<span class="kw">use</span> <span class="ident">std::io</span>;
+<span class="kw">use</span> <span class="ident">std::pin::Pin</span>;
+<span class="kw">use</span> <span class="ident">tokio</span>::{<span class="ident">process::Command</span>, <span class="ident">time::Instant</span>};
+<span class="kw">use</span> <span class="ident">tokio_stream::wrappers::IntervalStream</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">deny_unknown_fields</span>, <span class="ident">default</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CustomConfig</span> {
+<span class="kw">struct</span> <span class="ident">CustomConfig</span> {
     <span class="ident">command</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StdString</span><span class="op">&gt;</span>,
     <span class="ident">cycle</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">StdString</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">interval</span>: <span class="ident">u64</span>,
+    <span class="ident">interval</span>: <span class="ident">OnceDuration</span>,
     <span class="ident">json</span>: <span class="ident">bool</span>,
     <span class="ident">hide_when_empty</span>: <span class="ident">bool</span>,
     <span class="ident">shell</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StdString</span><span class="op">&gt;</span>,
-    <span class="ident">one_shot</span>: <span class="ident">bool</span>,
     <span class="ident">signal</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>,
+    <span class="ident">watch_files</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">StdString</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">CustomConfig</span> {
@@ -281,12 +342,12 @@
         <span class="self">Self</span> {
             <span class="ident">command</span>: <span class="prelude-val">None</span>,
             <span class="ident">cycle</span>: <span class="prelude-val">None</span>,
-            <span class="ident">interval</span>: <span class="number">10</span>,
+            <span class="ident">interval</span>: <span class="ident">OnceDuration::Duration</span>(<span class="ident">Duration::from_secs</span>(<span class="number">10</span>)),
             <span class="ident">json</span>: <span class="bool-val">false</span>,
             <span class="ident">hide_when_empty</span>: <span class="bool-val">false</span>,
             <span class="ident">shell</span>: <span class="prelude-val">None</span>,
-            <span class="ident">one_shot</span>: <span class="bool-val">false</span>,
             <span class="ident">signal</span>: <span class="prelude-val">None</span>,
+            <span class="ident">watch_files</span>: <span class="ident">Vec::new</span>(),
         }
     }
 }
@@ -294,29 +355,48 @@
 <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">events</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_events</span>().<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">CustomConfig::deserialize</span>(<span class="ident">config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">CustomConfig</span> {
-        <span class="ident">command</span>,
-        <span class="ident">cycle</span>,
-        <span class="ident">interval</span>,
-        <span class="ident">json</span>,
-        <span class="ident">hide_when_empty</span>,
-        <span class="ident">shell</span>,
-        <span class="ident">one_shot</span>,
-        <span class="ident">signal</span>,
-    } <span class="op">=</span> <span class="ident">config</span>;
 
-    <span class="kw">let</span> <span class="ident">interval</span> <span class="op">=</span> <span class="ident">Duration::from_secs</span>(<span class="ident">interval</span>);
+    <span class="comment">// let mut notify;</span>
+
+    <span class="kw">type</span> <span class="ident">TimerStream</span> <span class="op">=</span> <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">Instant</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">timer</span>: <span class="ident">TimerStream</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">interval</span> {
+        <span class="ident">OnceDuration::Once</span> =&gt; <span class="ident">Box::pin</span>(<span class="ident">futures::stream::pending</span>()),
+        <span class="ident">OnceDuration::Duration</span>(<span class="ident">dur</span>) =&gt; <span class="ident">Box::pin</span>(<span class="ident">IntervalStream::new</span>(<span class="ident">tokio::time::interval</span>(<span class="ident">dur</span>))),
+    };
+
+    <span class="kw">type</span> <span class="ident">FileStream</span> <span class="op">=</span> <span class="ident">Pin</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">io::Result</span><span class="op">&lt;</span><span class="ident">inotify::EventOwned</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">file_updates</span>: <span class="ident">FileStream</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">watch_files</span>.<span class="ident">as_slice</span>() {
+        [] =&gt; <span class="ident">Box::pin</span>(<span class="ident">futures::stream::pending</span>()),
+        <span class="ident">files</span> =&gt; {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">notify</span> <span class="op">=</span> <span class="ident">Inotify::init</span>().<span class="ident">error</span>(<span class="string">&quot;Failed to start inotify&quot;</span>)<span class="question-mark">?</span>;
+            <span class="comment">// TODO: is there a way to avoid this leak?</span>
+            <span class="kw">let</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">Box::leak</span>(<span class="ident">Box::new</span>([<span class="number">0</span>; <span class="number">1024</span>]));
+
+            <span class="kw">for</span> <span class="ident">file</span> <span class="kw">in</span> <span class="ident">files</span> {
+                <span class="ident">notify</span>
+                    .<span class="ident">add_watch</span>(<span class="ident">file</span>, <span class="ident">WatchMask::MODIFY</span> <span class="op">|</span> <span class="ident">WatchMask::CLOSE_WRITE</span>)
+                    .<span class="ident">error</span>(<span class="string">&quot;Failed to watch brightness file&quot;</span>)<span class="question-mark">?</span>;
+            }
+            <span class="ident">Box::pin</span>(
+                <span class="ident">notify</span>
+                    .<span class="ident">event_stream</span>(<span class="ident">buf</span>)
+                    .<span class="ident">error</span>(<span class="string">&quot;Failed to create event stream&quot;</span>)<span class="question-mark">?</span>,
+            )
+        }
+    };
 
     <span class="comment">// Choose the shell in this priority:</span>
     <span class="comment">// 1) `shell` config option</span>
     <span class="comment">// 2) `SHELL` environment varialble</span>
     <span class="comment">// 3) `&quot;sh&quot;`</span>
-    <span class="kw">let</span> <span class="ident">shell</span> <span class="op">=</span> <span class="ident">shell</span>
+    <span class="kw">let</span> <span class="ident">shell</span> <span class="op">=</span> <span class="ident">config</span>
+        .<span class="ident">shell</span>
         .<span class="ident">or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">std::env::var</span>(<span class="string">&quot;SHELL&quot;</span>).<span class="ident">ok</span>())
         .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;sh&quot;</span>.<span class="ident">to_string</span>());
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cycle</span> <span class="op">=</span> <span class="ident">cycle</span>
-        .<span class="ident">or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">command</span>.<span class="ident">clone</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">cmd</span><span class="op">|</span> <span class="macro">vec!</span>[<span class="ident">cmd</span>]))
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cycle</span> <span class="op">=</span> <span class="ident">config</span>
+        .<span class="ident">cycle</span>
+        .<span class="ident">or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">config</span>.<span class="ident">command</span>.<span class="ident">clone</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">cmd</span><span class="op">|</span> <span class="macro">vec!</span>[<span class="ident">cmd</span>]))
         .<span class="ident">error</span>(<span class="string">&quot;either &#39;command&#39; or &#39;cycle&#39; must be specified&quot;</span>)<span class="question-mark">?</span>
         .<span class="ident">into_iter</span>()
         .<span class="ident">cycle</span>();
@@ -332,10 +412,9 @@
             .<span class="ident">error</span>(<span class="string">&quot;the output of command is invalid UTF-8&quot;</span>)<span class="question-mark">?</span>
             .<span class="ident">trim</span>();
 
-        <span class="comment">// {&quot;icon&quot;: &quot;ICON&quot;, &quot;state&quot;: &quot;STATE&quot;, &quot;text&quot;: &quot;YOURTEXT&quot;, &quot;short_text&quot;: &quot;YOUR SHORT TEXT&quot;}</span>
-        <span class="kw">if</span> <span class="ident">stdout</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">hide_when_empty</span> {
+        <span class="kw">if</span> <span class="ident">stdout</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">config</span>.<span class="ident">hide_when_empty</span> {
             <span class="ident">api</span>.<span class="ident">hide</span>();
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">json</span> {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">json</span> {
             <span class="kw">let</span> <span class="ident">input</span>: <span class="ident">Input</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>(<span class="ident">stdout</span>).<span class="ident">error</span>(<span class="string">&quot;invalid JSON&quot;</span>)<span class="question-mark">?</span>;
 
             <span class="ident">api</span>.<span class="ident">show</span>();
@@ -352,15 +431,16 @@
         };
         <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="kw">if</span> <span class="ident">one_shot</span> {
+        <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">interval</span> <span class="op">==</span> <span class="ident">OnceDuration::Once</span> <span class="op">&amp;&amp;</span> <span class="ident">config</span>.<span class="ident">watch_files</span>.<span class="ident">is_empty</span>() {
             <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
         }
 
         <span class="kw">loop</span> {
             <span class="macro">tokio::select!</span> {
-                <span class="kw">_</span> <span class="op">=</span> <span class="ident">tokio::time::sleep</span>(<span class="ident">interval</span>) =&gt; <span class="kw">break</span>,
+                <span class="kw">_</span> <span class="op">=</span> <span class="ident">timer</span>.<span class="ident">next</span>() =&gt; <span class="kw">break</span>,
+                <span class="kw">_</span> <span class="op">=</span> <span class="ident">file_updates</span>.<span class="ident">next</span>() =&gt; <span class="kw">break</span>,
                 <span class="prelude-val">Some</span>(<span class="ident">event</span>) <span class="op">=</span> <span class="ident">events</span>.<span class="ident">recv</span>() =&gt; {
-                    <span class="kw">match</span> (<span class="ident">event</span>, <span class="ident">signal</span>) {
+                    <span class="kw">match</span> (<span class="ident">event</span>, <span class="ident">config</span>.<span class="ident">signal</span>) {
                         (<span class="ident">BlockEvent::Signal</span>(<span class="ident">Signal::Custom</span>(<span class="ident">s</span>)), <span class="prelude-val">Some</span>(<span class="ident">signal</span>)) <span class="kw">if</span> <span class="ident">s</span> <span class="op">==</span> <span class="ident">signal</span> =&gt; <span class="kw">break</span>,
                         (<span class="ident">BlockEvent::Click</span>(<span class="kw">_</span>), <span class="kw">_</span>) =&gt; <span class="kw">break</span>,
                         <span class="kw">_</span> =&gt; (),

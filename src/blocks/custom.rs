@@ -38,6 +38,9 @@
 //! block = "custom"
 //! cycle = ["echo ON", "echo OFF"]
 //! interval = 1
+//! [[block.click]]
+//! button = "left"
+//! cmd = "<command>"
 //! ```
 //!
 //! Use JSON output:
@@ -55,7 +58,7 @@
 //! [[block]]
 //! block = "custom"
 //! command = "uname -r"
-//! one_shot = true
+//! interval = "once"
 //! ```
 //!
 //! Display the screen brightness on an intel machine and update this only when `pkill -SIGRTMIN+4 i3status-rs` is called:
@@ -65,8 +68,21 @@
 //! block = "custom"
 //! command = ''' cat /sys/class/backlight/intel_backlight/brightness | awk '{print $1}' '''
 //! signal = 4
-//! one_shot = true
+//! interval = "once"
 //! ```
+//!
+//! Update block when one or more specified files are modified:
+//!
+//! ```toml
+//! [[block]]
+//! block = "custom"
+//! command = "cat custom_status"
+//! watch_files = ["custom_status"]
+//! interval = "once"
+//! ```
+//!
+//! # TODO:
+//! - Use `shellexpand`
 
 use super::prelude::*;
 use crate::signals::Signal;
