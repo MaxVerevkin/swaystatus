@@ -21,6 +21,7 @@
 //! `format` | A string to customise the output of this block. See below for available placeholders | No | `"$average avg, $max max"`
 //! `interval` | Update interval in seconds | No | `5`
 //! `collapsed` | Whether the block will be collapsed by default | No | `false`
+//! `scale` | Either `"celsius"` or `"fahrenheit"` | No | `"celsius"`
 //! `good` | Maximum temperature to set state to good | No | `20` °C (`68` °F)
 //! `idle` | Maximum temperature to set state to idle | No | `45` °C (`113` °F)
 //! `info` | Maximum temperature to set state to info | No | `60` °C (`140` °F)
@@ -46,9 +47,6 @@
 //!
 //! # Icons Used
 //! - `thermometer`
-//!
-//! # TODO
-//! - Support Fahrenheit scale
 
 use super::prelude::*;
 
@@ -56,16 +54,22 @@ use sensors::FeatureType::SENSORS_FEATURE_TEMP;
 use sensors::Sensors;
 use sensors::SubfeatureType::SENSORS_SUBFEATURE_TEMP_INPUT;
 
+const DEFAULT_GOOD: f64 = 20.0;
+const DEFAULT_IDLE: f64 = 45.0;
+const DEFAULT_INFO: f64 = 60.0;
+const DEFAULT_WARN: f64 = 80.0;
+
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct TemperatureConfig {
     format: FormatConfig,
     interval: Seconds,
     collapsed: bool,
-    good: f64,
-    idle: f64,
-    info: f64,
-    warning: f64,
+    scale: TemperatureScale,
+    good: Option<f64>,
+    idle: Option<f64>,
+    info: Option<f64>,
+    warning: Option<f64>,
     chip: Option<String>,
     inputs: Option<Vec<StdString>>,
 }
@@ -76,12 +80,30 @@ impl Default for TemperatureConfig {
             format: Default::default(),
             interval: Seconds::new(5),
             collapsed: false,
-            good: 20.0,
-            idle: 45.0,
-            info: 60.0,
-            warning: 80.0,
+            scale: TemperatureScale::Celsius,
+            good: None,
+            idle: None,
+            info: None,
+            warning: None,
             chip: None,
             inputs: None,
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum TemperatureScale {
+    Celsius,
+    Fahrenheit,
+}
+
+impl TemperatureScale {
+    #[allow(clippy::wrong_self_convention)]
+    pub fn from_celsius(self, val: f64) -> f64 {
+        match self {
+            Self::Celsius => val,
+            Self::Fahrenheit => val * 1.8 + 32.0,
         }
     }
 }
@@ -92,6 +114,19 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut collapsed = config.collapsed;
     api.set_format(config.format.with_default("$average avg, $max max")?);
     api.set_icon("thermometer")?;
+
+    let good = config
+        .good
+        .unwrap_or_else(|| config.scale.from_celsius(DEFAULT_GOOD));
+    let idle = config
+        .idle
+        .unwrap_or_else(|| config.scale.from_celsius(DEFAULT_IDLE));
+    let info = config
+        .info
+        .unwrap_or_else(|| config.scale.from_celsius(DEFAULT_INFO));
+    let warn = config
+        .warning
+        .unwrap_or_else(|| config.scale.from_celsius(DEFAULT_WARN));
 
     loop {
         // Perhaps it's better to just Box::leak() once and don't clone() every time?
@@ -121,7 +156,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                         if *subfeat.subfeature_type() == SENSORS_SUBFEATURE_TEMP_INPUT {
                             let value = subfeat.get_value().error("Failed to get input value")?;
                             if (-100.0..=150.0).contains(&value) {
-                                vals.push(value);
+                                vals.push(config.scale.from_celsius(value));
                             } else {
                                 eprintln!("Temperature ({}) outside of range ([-100, 150])", value);
                             }
@@ -147,10 +182,10 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         let avg_temp = temp.iter().sum::<f64>() / temp.len() as f64;
 
         api.set_state(match max_temp {
-            x if x <= config.good => State::Good,
-            x if x <= config.idle => State::Idle,
-            x if x <= config.info => State::Info,
-            x if x <= config.warning => State::Warning,
+            x if x <= good => State::Good,
+            x if x <= idle => State::Idle,
+            x if x <= info => State::Info,
+            x if x <= warn => State::Warning,
             _ => State::Critical,
         });
 
