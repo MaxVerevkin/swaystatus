@@ -44,14 +44,12 @@
 //! - `tasks`
 
 use super::prelude::*;
-use crate::de::deserialize_duration;
 use tokio::process::Command;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct TaskwarriorConfig {
-    #[serde(deserialize_with = "deserialize_duration")]
-    interval: Duration,
+    interval: Seconds,
     warning_threshold: u32,
     critical_threshold: u32,
     hide_when_zero: bool,
@@ -62,7 +60,7 @@ struct TaskwarriorConfig {
 impl Default for TaskwarriorConfig {
     fn default() -> Self {
         Self {
-            interval: Duration::from_secs(600),
+            interval: Seconds::new(600),
             warning_threshold: 10,
             critical_threshold: 20,
             hide_when_zero: false,
@@ -115,7 +113,7 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
         api.flush().await?;
 
         tokio::select! {
-            _ = tokio::time::sleep(block_config.interval) =>(),
+            _ = sleep(block_config.interval.0) =>(),
             Some(BlockEvent::Click(click)) = events.recv() => {
                 if click.button == MouseButton::Right {
                     filter = filters.next().error("failed to get next filter")?;

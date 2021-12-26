@@ -1,5 +1,4 @@
 use super::prelude::*;
-use crate::de::deserialize_duration;
 
 const IP_API_URL: &str = "https://ipapi.co/json";
 
@@ -11,11 +10,8 @@ const OPEN_WEATHER_MAP_PLACE_ENV: &str = "OPENWEATHERMAP_PLACE";
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 struct WeatherConfig {
-    #[serde(
-        default = "WeatherConfig::default_interval",
-        deserialize_with = "deserialize_duration"
-    )]
-    interval: Duration,
+    #[serde(default = "default_interval")]
+    interval: Seconds,
     #[serde(default)]
     format: FormatConfig,
     service: WeatherService,
@@ -23,10 +19,8 @@ struct WeatherConfig {
     autolocate: bool,
 }
 
-impl WeatherConfig {
-    fn default_interval() -> Duration {
-        Duration::from_secs(600)
-    }
+fn default_interval() -> Seconds {
+    Seconds::new(600)
 }
 
 #[derive(Deserialize, Debug)]
@@ -117,7 +111,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
 
         api.flush().await?;
 
-        tokio::time::sleep(config.interval).await;
+        sleep(config.interval.0).await;
     }
 }
 

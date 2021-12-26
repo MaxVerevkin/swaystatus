@@ -32,33 +32,27 @@
 //! - `net_up`
 
 use super::prelude::*;
-use crate::de::deserialize_duration;
 use tokio::process::Command;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct SpeedtestConfig {
     format: FormatConfig,
-    #[serde(deserialize_with = "deserialize_duration")]
-    interval: Duration,
+    interval: Seconds,
 }
 
 impl Default for SpeedtestConfig {
     fn default() -> Self {
         Self {
             format: Default::default(),
-            interval: Duration::from_secs(1800),
+            interval: Seconds::new(1800),
         }
     }
 }
 
-pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
-    let block_config = SpeedtestConfig::deserialize(block_config).config_error()?;
-    api.set_format(
-        block_config
-            .format
-            .with_default("$ping$speed_down$speed_up")?,
-    );
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let config = SpeedtestConfig::deserialize(config).config_error()?;
+    api.set_format(config.format.with_default("$ping$speed_down$speed_up")?);
 
     let icon_ping = api.get_icon("ping")?;
     let icon_down = api.get_icon("net_down")?;
@@ -84,7 +78,7 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
             "speed_up" => Value::bits(output.upload).icon(icon_up.clone()),
         });
         api.flush().await?;
-        tokio::time::sleep(block_config.interval).await;
+        sleep(config.interval.0).await;
     }
 }
 

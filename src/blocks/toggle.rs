@@ -93,7 +93,7 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
             match interval {
                 Some(interval) => {
                     tokio::select! {
-                        _ = tokio::time::sleep(interval) => break,
+                        _ = sleep(interval) => break,
                         Some(BlockEvent::Click(click)) = events.recv() => {
                             if click.button == MouseButton::Left {
                                 let cmd = if is_toggled {

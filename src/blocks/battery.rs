@@ -73,7 +73,6 @@ use zbus::fdo::DBusProxy;
 use zbus::MessageStream;
 
 use super::prelude::*;
-use crate::de::deserialize_duration;
 use crate::util::{battery_level_icon, read_file};
 
 mod zbus_upower;
@@ -89,8 +88,7 @@ const BATTERY_UNAVAILABLE_ICON: &str = "bat_not_available";
 struct BatteryConfig {
     device: Option<StdString>,
     driver: BatteryDriver,
-    #[serde(deserialize_with = "deserialize_duration")]
-    interval: Duration,
+    interval: Seconds,
     format: FormatConfig,
     full_format: FormatConfig,
     allow_missing: bool,
@@ -108,7 +106,7 @@ impl Default for BatteryConfig {
         Self {
             device: None,
             driver: BatteryDriver::Sysfs,
-            interval: Duration::from_secs(10),
+            interval: Seconds::new(10),
             format: Default::default(),
             full_format: Default::default(),
             allow_missing: false,
@@ -163,7 +161,9 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
 
     let dbus_conn;
     let mut device: Box<dyn BatteryDevice + Send + Sync> = match config.driver {
-        BatteryDriver::Sysfs => Box::new(PowerSupplyDevice::from_device(&device, config.interval)),
+        BatteryDriver::Sysfs => {
+            Box::new(PowerSupplyDevice::from_device(&device, config.interval.0))
+        }
         BatteryDriver::Upower => {
             dbus_conn = api.get_system_dbus_connection().await?;
             Box::new(UPowerDevice::from_device(&device, &dbus_conn).await?)

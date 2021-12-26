@@ -28,19 +28,15 @@
 //! # Icons Used
 //! - `cogs`
 
-use std::path::Path;
-
 use super::prelude::*;
-use crate::de::deserialize_duration;
-
 use crate::util;
+use std::path::Path;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct LoadConfig {
     format: FormatConfig,
-    #[serde(deserialize_with = "deserialize_duration")]
-    interval: Duration,
+    interval: Seconds,
     info: f64,
     warning: f64,
     critical: f64,
@@ -50,7 +46,7 @@ impl Default for LoadConfig {
     fn default() -> Self {
         Self {
             format: Default::default(),
-            interval: Duration::from_secs(3),
+            interval: Seconds::new(3),
             info: 0.3,
             warning: 0.6,
             critical: 0.9,
@@ -60,7 +56,7 @@ impl Default for LoadConfig {
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let config = LoadConfig::deserialize(config).config_error()?;
-    let mut interval = tokio::time::interval(config.interval);
+    let mut interval = tokio::time::interval(config.interval.0);
     api.set_format(config.format.with_default("$1m")?);
     api.set_icon("cogs")?;
 

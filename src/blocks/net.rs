@@ -148,7 +148,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         api.flush().await?;
 
         tokio::select! {
-            _ = tokio::time::sleep(interval) =>(),
+            _ = sleep(interval) =>(),
             Some(BlockEvent::Click(click)) = events.recv() => {
                 if click.button == MouseButton::Left {
                     if let Some(ref mut format_alt) = format_alt {

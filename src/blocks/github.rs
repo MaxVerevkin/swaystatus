@@ -77,7 +77,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         }
         api.flush().await?;
 
-        tokio::time::sleep(interval).await;
+        sleep(interval).await;
     }
 }
 

@@ -51,7 +51,6 @@
 //! - Support Fahrenheit scale
 
 use super::prelude::*;
-use crate::de::deserialize_duration;
 
 use sensors::FeatureType::SENSORS_FEATURE_TEMP;
 use sensors::Sensors;
@@ -61,8 +60,7 @@ use sensors::SubfeatureType::SENSORS_SUBFEATURE_TEMP_INPUT;
 #[serde(deny_unknown_fields, default)]
 struct TemperatureConfig {
     format: FormatConfig,
-    #[serde(deserialize_with = "deserialize_duration")]
-    interval: Duration,
+    interval: Seconds,
     collapsed: bool,
     good: f64,
     idle: f64,
@@ -76,7 +74,7 @@ impl Default for TemperatureConfig {
     fn default() -> Self {
         Self {
             format: Default::default(),
-            interval: Duration::from_secs(5),
+            interval: Seconds::new(5),
             collapsed: false,
             good: 20.0,
             idle: 45.0,
@@ -170,7 +168,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         api.flush().await?;
 
         tokio::select! {
-            _ = tokio::time::sleep(config.interval) => (),
+            _ = sleep(config.interval.0) => (),
             Some(BlockEvent::Click(click)) = events.recv() => {
                 if click.button == MouseButton::Left {
                     collapsed = !collapsed;

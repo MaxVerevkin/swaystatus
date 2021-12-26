@@ -40,7 +40,6 @@ use std::path::Path;
 use nix::sys::statvfs::statvfs;
 
 use super::prelude::*;
-use crate::de::deserialize_duration;
 use crate::formatting::prefix::Prefix;
 
 #[derive(Copy, Clone, Debug, Deserialize)]
@@ -58,8 +57,7 @@ struct DiskSpaceConfig {
     info_type: InfoType,
     format: FormatConfig,
     alert_unit: Option<String>,
-    #[serde(deserialize_with = "deserialize_duration")]
-    interval: Duration,
+    interval: Seconds,
     warning: f64,
     alert: f64,
 }
@@ -71,7 +69,7 @@ impl Default for DiskSpaceConfig {
             info_type: InfoType::Available,
             format: Default::default(),
             alert_unit: None,
-            interval: Duration::from_secs(20),
+            interval: Seconds::new(20),
             warning: 20.,
             alert: 10.,
         }
@@ -96,7 +94,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     };
 
     let path = Path::new(config.path.as_str());
-    let mut interval = tokio::time::interval(config.interval);
+    let mut interval = tokio::time::interval(config.interval.0);
 
     loop {
         let statvfs = statvfs(path).error("failed to retrieve statvfs")?;

@@ -171,7 +171,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         api.flush().await?;
 
         tokio::select! {
-            _ = tokio::time::sleep(interval) =>(),
+            _ = sleep(interval) =>(),
             event = events.recv() => {
                 if let BlockEvent::Click(click) = event.unwrap() {
                     if click.button == MouseButton::Left && clickable {

@@ -143,7 +143,7 @@ impl Block {
                 };
                 self.set_text(text.into()).await?;
                 tokio::select! {
-                    _ = tokio::time::sleep(Duration::from_secs(10)) => (),
+                    _ = sleep(Duration::from_secs(10)) => (),
                     Some(BlockEvent::Click(click)) = self.events_receiver.recv() => {
                         if click.button == MouseButton::Middle {
                             return Ok(());
@@ -185,7 +185,7 @@ impl Block {
                 self.set_text(format!("Break: {} min", (left.as_secs() + 59) / 60,).into())
                     .await?;
                 tokio::select! {
-                    _ = tokio::time::sleep(Duration::from_secs(10)) => (),
+                    _ = sleep(Duration::from_secs(10)) => (),
                     Some(BlockEvent::Click(click)) = self.events_receiver.recv() => {
                         if click.button == MouseButton::Middle {
                             return Ok(());

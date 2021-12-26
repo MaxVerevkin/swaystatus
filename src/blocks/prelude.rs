@@ -1,7 +1,7 @@
 pub use super::{BlockEvent, CommonApi};
 
 pub use crate::click::MouseButton;
-pub use crate::de::OnceDuration;
+pub use crate::de::{OnceDuration, Seconds};
 pub use crate::errors::{Error, OptionExt, Result, ResultExt, StdError, StdResult};
 pub use crate::formatting::{config::Config as FormatConfig, value::Value};
 pub use crate::widget::{Spacing, State, Widget};
@@ -15,3 +15,5 @@ pub use smartstring::alias::String;
 pub use std::fmt::Write;
 pub use std::string::String as StdString;
 pub use std::time::Duration;
+
+pub use tokio::time::sleep;
