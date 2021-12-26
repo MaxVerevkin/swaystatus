@@ -68,7 +68,7 @@ define_blocks!(
     pomodoro,
     sound,
     speedtest,
-    sway_kbd,
+    keyboard_layout,
     taskwarrior,
     temperature,
     time,
