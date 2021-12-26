@@ -375,7 +375,7 @@
             <span class="kw">for</span> <span class="ident">file</span> <span class="kw">in</span> <span class="ident">files</span> {
                 <span class="ident">notify</span>
                     .<span class="ident">add_watch</span>(<span class="ident">file</span>, <span class="ident">WatchMask::MODIFY</span> <span class="op">|</span> <span class="ident">WatchMask::CLOSE_WRITE</span>)
-                    .<span class="ident">error</span>(<span class="string">&quot;Failed to watch brightness file&quot;</span>)<span class="question-mark">?</span>;
+                    .<span class="ident">error</span>(<span class="string">&quot;Failed to file&quot;</span>)<span class="question-mark">?</span>;
             }
             <span class="ident">Box::pin</span>(
                 <span class="ident">notify</span>
