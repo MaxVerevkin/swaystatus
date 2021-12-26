@@ -388,7 +388,7 @@
                 };
                 <span class="self">self</span>.<span class="ident">set_text</span>(<span class="ident">text</span>.<span class="ident">into</span>()).<span class="kw">await</span><span class="question-mark">?</span>;
                 <span class="macro">tokio::select!</span> {
-                    <span class="kw">_</span> <span class="op">=</span> <span class="ident">tokio::time::sleep</span>(<span class="ident">Duration::from_secs</span>(<span class="number">10</span>)) =&gt; (),
+                    <span class="kw">_</span> <span class="op">=</span> <span class="ident">sleep</span>(<span class="ident">Duration::from_secs</span>(<span class="number">10</span>)) =&gt; (),
                     <span class="prelude-val">Some</span>(<span class="ident">BlockEvent::Click</span>(<span class="ident">click</span>)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">events_receiver</span>.<span class="ident">recv</span>() =&gt; {
                         <span class="kw">if</span> <span class="ident">click</span>.<span class="ident">button</span> <span class="op">==</span> <span class="ident">MouseButton::Middle</span> {
                             <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
@@ -430,7 +430,7 @@
                 <span class="self">self</span>.<span class="ident">set_text</span>(<span class="macro">format!</span>(<span class="string">&quot;Break: {} min&quot;</span>, (<span class="ident">left</span>.<span class="ident">as_secs</span>() <span class="op">+</span> <span class="number">59</span>) <span class="op">/</span> <span class="number">60</span>,).<span class="ident">into</span>())
                     .<span class="kw">await</span><span class="question-mark">?</span>;
                 <span class="macro">tokio::select!</span> {
-                    <span class="kw">_</span> <span class="op">=</span> <span class="ident">tokio::time::sleep</span>(<span class="ident">Duration::from_secs</span>(<span class="number">10</span>)) =&gt; (),
+                    <span class="kw">_</span> <span class="op">=</span> <span class="ident">sleep</span>(<span class="ident">Duration::from_secs</span>(<span class="number">10</span>)) =&gt; (),
                     <span class="prelude-val">Some</span>(<span class="ident">BlockEvent::Click</span>(<span class="ident">click</span>)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">events_receiver</span>.<span class="ident">recv</span>() =&gt; {
                         <span class="kw">if</span> <span class="ident">click</span>.<span class="ident">button</span> <span class="op">==</span> <span class="ident">MouseButton::Middle</span> {
                             <span class="kw">return</span> <span class="prelude-val">Ok</span>(());

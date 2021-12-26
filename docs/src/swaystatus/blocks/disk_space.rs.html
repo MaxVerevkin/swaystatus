@@ -159,8 +159,6 @@
 <span id="158">158</span>
 <span id="159">159</span>
 <span id="160">160</span>
-<span id="161">161</span>
-<span id="162">162</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Disk usage statistics</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Configuration</span>
@@ -203,7 +201,6 @@
 <span class="kw">use</span> <span class="ident">nix::sys::statvfs::statvfs</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::de::deserialize_duration</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::formatting::prefix::Prefix</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Deserialize</span>)]</span>
@@ -221,8 +218,7 @@
     <span class="ident">info_type</span>: <span class="ident">InfoType</span>,
     <span class="ident">format</span>: <span class="ident">FormatConfig</span>,
     <span class="ident">alert_unit</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_duration&quot;</span>)]</span>
-    <span class="ident">interval</span>: <span class="ident">Duration</span>,
+    <span class="ident">interval</span>: <span class="ident">Seconds</span>,
     <span class="ident">warning</span>: <span class="ident">f64</span>,
     <span class="ident">alert</span>: <span class="ident">f64</span>,
 }
@@ -234,7 +230,7 @@
             <span class="ident">info_type</span>: <span class="ident">InfoType::Available</span>,
             <span class="ident">format</span>: <span class="ident">Default::default</span>(),
             <span class="ident">alert_unit</span>: <span class="prelude-val">None</span>,
-            <span class="ident">interval</span>: <span class="ident">Duration::from_secs</span>(<span class="number">20</span>),
+            <span class="ident">interval</span>: <span class="ident">Seconds::new</span>(<span class="number">20</span>),
             <span class="ident">warning</span>: <span class="number">20.</span>,
             <span class="ident">alert</span>: <span class="number">10.</span>,
         }
@@ -259,7 +255,7 @@
     };
 
     <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">Path::new</span>(<span class="ident">config</span>.<span class="ident">path</span>.<span class="ident">as_str</span>());
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">interval</span> <span class="op">=</span> <span class="ident">tokio::time::interval</span>(<span class="ident">config</span>.<span class="ident">interval</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">interval</span> <span class="op">=</span> <span class="ident">tokio::time::interval</span>(<span class="ident">config</span>.<span class="ident">interval</span>.<span class="number">0</span>);
 
     <span class="kw">loop</span> {
         <span class="kw">let</span> <span class="ident">statvfs</span> <span class="op">=</span> <span class="ident">statvfs</span>(<span class="ident">path</span>).<span class="ident">error</span>(<span class="string">&quot;failed to retrieve statvfs&quot;</span>)<span class="question-mark">?</span>;

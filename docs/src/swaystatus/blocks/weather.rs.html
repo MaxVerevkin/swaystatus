@@ -282,14 +282,7 @@
 <span id="281">281</span>
 <span id="282">282</span>
 <span id="283">283</span>
-<span id="284">284</span>
-<span id="285">285</span>
-<span id="286">286</span>
-<span id="287">287</span>
-<span id="288">288</span>
-<span id="289">289</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::de::deserialize_duration</span>;
 
 <span class="kw">const</span> <span class="ident">IP_API_URL</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;https://ipapi.co/json&quot;</span>;
 
@@ -301,11 +294,8 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">deny_unknown_fields</span>)]</span>
 <span class="kw">struct</span> <span class="ident">WeatherConfig</span> {
-    <span class="attribute">#[<span class="ident">serde</span>(
-        <span class="ident">default</span> <span class="op">=</span> <span class="string">&quot;WeatherConfig::default_interval&quot;</span>,
-        <span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_duration&quot;</span>
-    )]</span>
-    <span class="ident">interval</span>: <span class="ident">Duration</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span> <span class="op">=</span> <span class="string">&quot;default_interval&quot;</span>)]</span>
+    <span class="ident">interval</span>: <span class="ident">Seconds</span>,
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
     <span class="ident">format</span>: <span class="ident">FormatConfig</span>,
     <span class="ident">service</span>: <span class="ident">WeatherService</span>,
@@ -313,10 +303,8 @@
     <span class="ident">autolocate</span>: <span class="ident">bool</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">WeatherConfig</span> {
-    <span class="kw">fn</span> <span class="ident">default_interval</span>() -&gt; <span class="ident">Duration</span> {
-        <span class="ident">Duration::from_secs</span>(<span class="number">600</span>)
-    }
+<span class="kw">fn</span> <span class="ident">default_interval</span>() -&gt; <span class="ident">Seconds</span> {
+    <span class="ident">Seconds::new</span>(<span class="number">600</span>)
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
@@ -407,7 +395,7 @@
 
         <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="ident">tokio::time::sleep</span>(<span class="ident">config</span>.<span class="ident">interval</span>).<span class="kw">await</span>;
+        <span class="ident">sleep</span>(<span class="ident">config</span>.<span class="ident">interval</span>.<span class="number">0</span>).<span class="kw">await</span>;
     }
 }
 

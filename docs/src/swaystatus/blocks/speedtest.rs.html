@@ -92,12 +92,6 @@
 <span id="91">91</span>
 <span id="92">92</span>
 <span id="93">93</span>
-<span id="94">94</span>
-<span id="95">95</span>
-<span id="96">96</span>
-<span id="97">97</span>
-<span id="98">98</span>
-<span id="99">99</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Ping, download, and upload speeds</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This block which requires [`speedtest-cli`](https://github.com/sivel/speedtest-cli).</span>
@@ -132,33 +126,27 @@
 <span class="doccomment">//! - `net_up`</span>
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::de::deserialize_duration</span>;
 <span class="kw">use</span> <span class="ident">tokio::process::Command</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">deny_unknown_fields</span>, <span class="ident">default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">SpeedtestConfig</span> {
     <span class="ident">format</span>: <span class="ident">FormatConfig</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">deserialize_with</span> <span class="op">=</span> <span class="string">&quot;deserialize_duration&quot;</span>)]</span>
-    <span class="ident">interval</span>: <span class="ident">Duration</span>,
+    <span class="ident">interval</span>: <span class="ident">Seconds</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">SpeedtestConfig</span> {
     <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">format</span>: <span class="ident">Default::default</span>(),
-            <span class="ident">interval</span>: <span class="ident">Duration::from_secs</span>(<span class="number">1800</span>),
+            <span class="ident">interval</span>: <span class="ident">Seconds::new</span>(<span class="number">1800</span>),
         }
     }
 }
 
-<span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">block_config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">block_config</span> <span class="op">=</span> <span class="ident">SpeedtestConfig::deserialize</span>(<span class="ident">block_config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
-    <span class="ident">api</span>.<span class="ident">set_format</span>(
-        <span class="ident">block_config</span>
-            .<span class="ident">format</span>
-            .<span class="ident">with_default</span>(<span class="string">&quot;$ping$speed_down$speed_up&quot;</span>)<span class="question-mark">?</span>,
-    );
+<span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">SpeedtestConfig::deserialize</span>(<span class="ident">config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
+    <span class="ident">api</span>.<span class="ident">set_format</span>(<span class="ident">config</span>.<span class="ident">format</span>.<span class="ident">with_default</span>(<span class="string">&quot;$ping$speed_down$speed_up&quot;</span>)<span class="question-mark">?</span>);
 
     <span class="kw">let</span> <span class="ident">icon_ping</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_icon</span>(<span class="string">&quot;ping&quot;</span>)<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">icon_down</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_icon</span>(<span class="string">&quot;net_down&quot;</span>)<span class="question-mark">?</span>;
@@ -184,7 +172,7 @@
             <span class="string">&quot;speed_up&quot;</span> =&gt; <span class="ident">Value::bits</span>(<span class="ident">output</span>.<span class="ident">upload</span>).<span class="ident">icon</span>(<span class="ident">icon_up</span>.<span class="ident">clone</span>()),
         });
         <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
-        <span class="ident">tokio::time::sleep</span>(<span class="ident">block_config</span>.<span class="ident">interval</span>).<span class="kw">await</span>;
+        <span class="ident">sleep</span>(<span class="ident">config</span>.<span class="ident">interval</span>.<span class="number">0</span>).<span class="kw">await</span>;
     }
 }
 

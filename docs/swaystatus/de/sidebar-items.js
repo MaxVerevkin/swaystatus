@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["OnceDuration",""]],"fn":[["deserialize_duration",""]]});
+initSidebarItems({"enum":[["OnceDuration",""]],"struct":[["Seconds",""]]});
