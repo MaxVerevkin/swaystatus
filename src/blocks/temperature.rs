@@ -29,11 +29,11 @@
 //! `chip` | Narrows the results to a given chip name. `*` may be used as a wildcard. | No | None
 //! `inputs` | Narrows the results to individual inputs reported by each chip. | No | None
 //!
-//! Placeholder  | Value                                | Type   | Unit
-//! -------------|--------------------------------------|--------|--------
-//! `{min}`      | Minimum temperature among all inputs | Number | Degrees
-//! `{average}`  | Average temperature among all inputs | Number | Degrees
-//! `{max}`      | Maximum temperature among all inputs | Number | Degrees
+//! Placeholder | Value                                | Type   | Unit
+//! ------------|--------------------------------------|--------|--------
+//! `min`       | Minimum temperature among all inputs | Number | Degrees
+//! `average`   | Average temperature among all inputs | Number | Degrees
+//! `max`       | Maximum temperature among all inputs | Number | Degrees
 //!
 //! # Example
 //!
