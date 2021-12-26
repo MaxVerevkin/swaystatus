@@ -1,11 +1,15 @@
 //! The system temperature
 //!
-//! This block simply reads temperatures form `/sys/class/hwmon` direcory.
+//! This block displays the system temperature, based on `libsensors` library.
 //!
 //! This block has two modes: "collapsed", which uses only color as an indicator, and "expanded",
 //! which shows the content of a `format` string. The average, minimum, and maximum temperatures
 //! are computed using all sensors displayed by `sensors`, or optionally filtered by `chip` and
 //! `inputs`.
+//!
+//! Requires `libsensors` and appropriate kernel modules for your hardware.
+//!
+//! Run `sensors` command to list available chips and inputs.
 //!
 //! Note that the colour of the block is always determined by the maximum temperature across all
 //! sensors, not the average. You may need to keep this in mind if you have a misbehaving sensor.
@@ -21,7 +25,8 @@
 //! `idle` | Maximum temperature to set state to idle | No | `45` °C (`113` °F)
 //! `info` | Maximum temperature to set state to info | No | `60` °C (`140` °F)
 //! `warning` | Maximum temperature to set state to warning. Beyond this temperature, state is set to critical | No | `80` °C (`176` °F)
-//! `chip` | Chip name as shown by `cat /sys/class/hwmon/*/name` | No | `"coretemp"`
+//! `chip` | Narrows the results to a given chip name. `*` may be used as a wildcard. | No | None
+//! `inputs` | Narrows the results to individual inputs reported by each chip. | No | None
 //!
 //! Placeholder  | Value                                | Type   | Unit
 //! -------------|--------------------------------------|--------|--------
@@ -34,8 +39,9 @@
 //! ```toml
 //! [[block]]
 //! block = "temperature"
-//! interval = 10
 //! format = "{min} min, {max} max, {average} avg"
+//! interval = 10
+//! chip = "*-isa-*"
 //! ```
 //!
 //! # Icons Used
@@ -46,7 +52,10 @@
 
 use super::prelude::*;
 use crate::de::deserialize_duration;
-use tokio::fs::{read_dir, read_to_string};
+
+use sensors::FeatureType::SENSORS_FEATURE_TEMP;
+use sensors::Sensors;
+use sensors::SubfeatureType::SENSORS_SUBFEATURE_TEMP_INPUT;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
@@ -55,11 +64,12 @@ struct TemperatureConfig {
     #[serde(deserialize_with = "deserialize_duration")]
     interval: Duration,
     collapsed: bool,
-    good: i32,
-    idle: i32,
-    info: i32,
-    warning: i32,
-    chip: String,
+    good: f64,
+    idle: f64,
+    info: f64,
+    warning: f64,
+    chip: Option<String>,
+    inputs: Option<Vec<StdString>>,
 }
 
 impl Default for TemperatureConfig {
@@ -68,34 +78,81 @@ impl Default for TemperatureConfig {
             format: Default::default(),
             interval: Duration::from_secs(5),
             collapsed: false,
-            good: 20,
-            idle: 45,
-            info: 60,
-            warning: 80,
-            chip: "coretemp".into(),
+            good: 20.0,
+            idle: 45.0,
+            info: 60.0,
+            warning: 80.0,
+            chip: None,
+            inputs: None,
         }
     }
 }
 
-pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
-    let block_config = TemperatureConfig::deserialize(block_config).config_error()?;
-    let mut collapsed = block_config.collapsed;
-    api.set_format(block_config.format.with_default("$average avg, $max max")?);
+    let config = TemperatureConfig::deserialize(config).config_error()?;
+    let mut collapsed = config.collapsed;
+    api.set_format(config.format.with_default("$average avg, $max max")?);
     api.set_icon("thermometer")?;
 
     loop {
-        // Get chip info
-        let temp = ChipInfo::new(&block_config.chip).await?.temp;
-        let min_temp = temp.iter().min().cloned().unwrap_or(0);
-        let max_temp = temp.iter().max().cloned().unwrap_or(0);
-        let avg_temp = (temp.iter().sum::<i32>() as f64) / (temp.len() as f64);
+        // Perhaps it's better to just Box::leak() once and don't clone() every time?
+        let chip = config.chip.clone();
+        let inputs = config.inputs.clone();
+        let temp = tokio::task::spawn_blocking(move || {
+            let mut vals = Vec::new();
+            let sensors = Sensors::new();
+            let chips = match &chip {
+                Some(chip) => sensors
+                    .detected_chips(chip)
+                    .error("Failed to create chip iterator")?,
+                None => sensors.into_iter(),
+            };
+            for chip in chips {
+                for feat in chip {
+                    if *feat.feature_type() != SENSORS_FEATURE_TEMP {
+                        continue;
+                    }
+                    if let Some(inputs) = &inputs {
+                        let label = feat.get_label().error("Failed to get input label")?;
+                        if !inputs.contains(&label) {
+                            continue;
+                        }
+                    }
+                    for subfeat in feat {
+                        if *subfeat.subfeature_type() == SENSORS_SUBFEATURE_TEMP_INPUT {
+                            let value = subfeat.get_value().error("Failed to get input value")?;
+                            if (-100.0..=150.0).contains(&value) {
+                                vals.push(value);
+                            } else {
+                                eprintln!("Temperature ({}) outside of range ([-100, 150])", value);
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(vals)
+        })
+        .await
+        .error("Failed to join tokio task")??;
+
+        let min_temp = temp
+            .iter()
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .cloned()
+            .unwrap_or(0.0);
+        let max_temp = temp
+            .iter()
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .cloned()
+            .unwrap_or(0.0);
+        let avg_temp = temp.iter().sum::<f64>() / temp.len() as f64;
 
         api.set_state(match max_temp {
-            x if x <= block_config.good => State::Good,
-            x if x <= block_config.idle => State::Idle,
-            x if x <= block_config.info => State::Info,
-            x if x <= block_config.warning => State::Warning,
+            x if x <= config.good => State::Good,
+            x if x <= config.idle => State::Idle,
+            x if x <= config.info => State::Info,
+            x if x <= config.warning => State::Warning,
             _ => State::Critical,
         });
 
@@ -113,7 +170,7 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
         api.flush().await?;
 
         tokio::select! {
-            _ = tokio::time::sleep(block_config.interval) => (),
+            _ = tokio::time::sleep(config.interval) => (),
             Some(BlockEvent::Click(click)) = events.recv() => {
                 if click.button == MouseButton::Left {
                     collapsed = !collapsed;
@@ -123,6 +180,7 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
     }
 }
 
+/*
 #[derive(Debug, Clone)]
 struct ChipInfo {
     temp: Vec<i32>,
@@ -169,3 +227,4 @@ impl ChipInfo {
         Err(Error::new(format!("chip '{}' not found", name)))
     }
 }
+*/
