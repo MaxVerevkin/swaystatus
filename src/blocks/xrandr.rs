@@ -141,7 +141,8 @@ impl Monitor {
     fn set_brightness(&mut self, brightness: u32) {
         let _ = spawn_shell(&format!(
             "xrandr --output {} --brightness  {}",
-            self.name, brightness
+            self.name,
+            brightness as f64 / 100.0
         ));
         self.brightness = brightness;
     }
@@ -199,13 +200,14 @@ async fn get_monitors() -> Result<Vec<Monitor>> {
             .and_then(|x| x.split('+').next())
             .error("Failed to parse xrandr output")?
             .into();
-        let brightness = line2
+        let brightness = (line2
             .split(':')
             .nth(1)
             .error("Failed to parse xrandr output")?
             .trim()
             .parse::<f64>()
-            .error("Failed to parse xrandr output")? as u32;
+            .error("Failed to parse xrandr output")?
+            * 100.0) as u32;
 
         monitors.push(Monitor {
             name,
