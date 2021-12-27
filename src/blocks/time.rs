@@ -35,7 +35,7 @@ use super::prelude::*;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
-pub struct TimeConfig {
+struct TimeConfig {
     format: FormatConfig,
     interval: u64,
     timezone: Option<Tz>,

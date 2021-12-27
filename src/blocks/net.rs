@@ -47,18 +47,11 @@ use std::time::Instant;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
-pub struct NetConfig {
-    /// Format string for `Net` block.
-    pub format: FormatConfig,
-
-    /// Format string that is applied afted a click
-    pub format_alt: Option<FormatConfig>,
-
-    /// Format string for `Net` block.
-    pub device: Option<String>,
-
-    /// The delay in seconds between updates.
-    pub interval: u64,
+struct NetConfig {
+    format: FormatConfig,
+    format_alt: Option<FormatConfig>,
+    device: Option<String>,
+    interval: u64,
 }
 
 impl Default for NetConfig {

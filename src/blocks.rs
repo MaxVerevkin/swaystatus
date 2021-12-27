@@ -75,6 +75,7 @@ define_blocks!(
     toggle,
     uptime,
     weather,
+    xrandr,
 );
 
 pub type EventsRx = mpsc::Receiver<BlockEvent>;
