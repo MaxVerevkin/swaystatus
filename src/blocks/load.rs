@@ -56,7 +56,6 @@ impl Default for LoadConfig {
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let config = LoadConfig::deserialize(config).config_error()?;
-    let mut interval = tokio::time::interval(config.interval.0);
     api.set_format(config.format.with_default("$1m")?);
     api.set_icon("cogs")?;
 
@@ -67,6 +66,8 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         .lines()
         .filter(|l| l.starts_with("processor"))
         .count() as f64;
+
+    let mut timer = config.interval.timer();
 
     let loadavg_path = Path::new("/proc/loadavg");
     loop {
@@ -103,6 +104,6 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         });
 
         api.flush().await?;
-        interval.tick().await;
+        timer.tick().await;
     }
 }

@@ -94,7 +94,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     };
 
     let path = Path::new(config.path.as_str());
-    let mut interval = tokio::time::interval(config.interval.0);
+    let mut timer = config.interval.timer();
 
     loop {
         let statvfs = statvfs(path).error("failed to retrieve statvfs")?;
@@ -155,6 +155,6 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
 
         api.flush().await?;
 
-        interval.tick().await;
+        timer.tick().await;
     }
 }

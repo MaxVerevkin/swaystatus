@@ -111,7 +111,7 @@ impl Default for CustomConfig {
         Self {
             command: None,
             cycle: None,
-            interval: OnceDuration::Duration(Duration::from_secs(10)),
+            interval: OnceDuration::Duration(Seconds::new(10)),
             json: false,
             hide_when_empty: false,
             shell: None,
@@ -130,7 +130,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     type TimerStream = Pin<Box<dyn Stream<Item = Instant> + Send + Sync>>;
     let mut timer: TimerStream = match config.interval {
         OnceDuration::Once => Box::pin(futures::stream::pending()),
-        OnceDuration::Duration(dur) => Box::pin(IntervalStream::new(tokio::time::interval(dur))),
+        OnceDuration::Duration(dur) => Box::pin(IntervalStream::new(dur.timer())),
     };
 
     type FileStream = Pin<Box<dyn Stream<Item = io::Result<inotify::EventOwned>> + Send + Sync>>;

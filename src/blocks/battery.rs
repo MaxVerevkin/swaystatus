@@ -68,7 +68,7 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use futures::StreamExt;
 use tokio::fs::{read_dir, read_to_string};
-use tokio::time::{Instant, Interval};
+use tokio::time::Interval;
 use zbus::fdo::DBusProxy;
 use zbus::MessageStream;
 
@@ -161,9 +161,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
 
     let dbus_conn;
     let mut device: Box<dyn BatteryDevice + Send + Sync> = match config.driver {
-        BatteryDriver::Sysfs => {
-            Box::new(PowerSupplyDevice::from_device(&device, config.interval.0))
-        }
+        BatteryDriver::Sysfs => Box::new(PowerSupplyDevice::from_device(&device, config.interval)),
         BatteryDriver::Upower => {
             dbus_conn = api.get_system_dbus_connection().await?;
             Box::new(UPowerDevice::from_device(&device, &dbus_conn).await?)
@@ -300,10 +298,10 @@ struct PowerSupplyDevice {
 }
 
 impl PowerSupplyDevice {
-    fn from_device(device: &str, interval: Duration) -> Self {
+    fn from_device(device: &str, interval: Seconds) -> Self {
         Self {
             device_path: Path::new(POWER_SUPPLY_DEVICES_PATH).join(device),
-            interval: tokio::time::interval_at(Instant::now() + interval, interval),
+            interval: interval.timer(),
         }
     }
 

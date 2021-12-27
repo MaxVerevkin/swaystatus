@@ -216,7 +216,9 @@ impl Formatter for RotStrFormatter {
         }
 
         let tx = tx.clone();
-        let mut interval = tokio::time::interval(Duration::from_secs_f64(self.interval));
+        let dur = Duration::from_secs_f64(self.interval);
+        let mut interval = tokio::time::interval_at(tokio::time::Instant::now() + dur, dur);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
         handles.0.push(tokio::spawn(async move {
             loop {

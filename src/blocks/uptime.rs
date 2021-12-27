@@ -29,19 +29,22 @@ use tokio::fs::read_to_string;
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
 struct UptimeConfig {
-    interval: u64,
+    interval: Seconds,
 }
 
 impl Default for UptimeConfig {
     fn default() -> Self {
-        Self { interval: 60 }
+        Self {
+            interval: Seconds::new(60),
+        }
     }
 }
 
-pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
-    let block_config = UptimeConfig::deserialize(block_config).config_error()?;
-    let mut interval = tokio::time::interval(Duration::from_secs(block_config.interval));
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let config = UptimeConfig::deserialize(config).config_error()?;
     api.set_icon("uptime")?;
+
+    let mut timer = config.interval.timer();
 
     loop {
         let uptime = read_to_string("/proc/uptime")
@@ -74,6 +77,7 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
 
         api.set_text(text.into());
         api.flush().await?;
-        interval.tick().await;
+
+        timer.tick().await;
     }
 }

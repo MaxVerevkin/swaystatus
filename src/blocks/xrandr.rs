@@ -87,7 +87,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     };
 
     let mut cur_indx = 0;
-    let mut timer = tokio::time::interval(config.interval.0);
+    let mut timer = config.interval.timer();
 
     loop {
         let mut monitors = get_monitors().await?;

@@ -5,7 +5,7 @@ use serde::de::{self, Deserialize, Deserializer};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OnceDuration {
     Once,
-    Duration(Duration),
+    Duration(Seconds),
 }
 
 impl<'de> Deserialize<'de> for OnceDuration {
@@ -26,14 +26,16 @@ impl<'de> Deserialize<'de> for OnceDuration {
             where
                 E: de::Error,
             {
-                Ok(OnceDuration::Duration(Duration::from_secs(v as u64)))
+                Ok(OnceDuration::Duration(Seconds(Duration::from_secs(
+                    v as u64,
+                ))))
             }
 
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(OnceDuration::Duration(Duration::from_secs_f64(v)))
+                Ok(OnceDuration::Duration(Seconds(Duration::from_secs_f64(v))))
             }
 
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
@@ -58,6 +60,12 @@ pub struct Seconds(pub Duration);
 impl Seconds {
     pub fn new(value: u64) -> Self {
         Self(Duration::from_secs(value))
+    }
+
+    pub fn timer(self) -> tokio::time::Interval {
+        let mut timer = tokio::time::interval_at(tokio::time::Instant::now() + self.0, self.0);
+        timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        timer
     }
 }
 
