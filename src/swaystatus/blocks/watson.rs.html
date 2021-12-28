@@ -215,8 +215,11 @@
 <span id="215">215</span>
 <span id="216">216</span>
 <span id="217">217</span>
-</pre><pre class="rust"><code><span class="doccomment">//! [Watson](http://tailordev.github.io/Watson/) is a simple CLI time tracking application. This block will show the name of your current active project, tags and optionally recorded time. Clicking the widget will toggle the `show_time` variable dynamically.</span>
+<span id="218">218</span>
+<span id="219">219</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Watson statistics</span>
 <span class="doccomment">//!</span>
+<span class="doccomment">//! [Watson](http://tailordev.github.io/Watson/) is a simple CLI time tracking application. This block will show the name of your current active project, tags and optionally recorded time. Clicking the widget will toggle the `show_time` variable dynamically.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Configuration</span>
 <span class="doccomment">//!</span>
@@ -237,6 +240,7 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # TODO</span>
 <span class="doccomment">//! - Extend functionality: start / stop watson using this block</span>
+<span class="doccomment">//! - Use `shellexpand` for `state_path`</span>
 
 <span class="kw">use</span> <span class="ident">std::path::PathBuf</span>;
 <span class="kw">use</span> <span class="ident">tokio::fs::read_to_string</span>;
