@@ -14,10 +14,12 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
+//! `text` | A label next to the icon | No | `""`
 //! `command_on` | Shell command to enable the toggle | Yes | N/A
 //! `command_off` | Shell command to disable the toggle | Yes | N/A
-//! `command_state | Shell command to determine the state. Empty output => No, otherwise => Yes. | Yes | N/A
-//! `text` | A label next to the icon | No | `""`
+//! `command_state` | Shell command to determine the state. Empty output => No, otherwise => Yes. | Yes | N/A
+//! `icon_on` | Icon override for the toggle button while on | No | `"toggle_on"`
+//! `icon_off` | Icon override for the toggle button while off | No | `"toggle_off"`
 //! `interval` | Update interval in seconds. If not set, `command_state` will run only on click. | No | None
 //!
 //! # Examples
@@ -45,23 +47,30 @@ use tokio::process::Command;
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct ToggleConfig {
+    #[serde(default)]
+    text: Option<String>,
     command_on: String,
     command_off: String,
     command_state: String,
     #[serde(default)]
-    text: Option<String>,
+    icon_on: Option<String>,
+    #[serde(default)]
+    icon_off: Option<String>,
     #[serde(default)]
     interval: Option<u64>,
 }
 
-pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
-    let block_config = ToggleConfig::deserialize(block_config).config_error()?;
-    let interval = block_config.interval.map(Duration::from_secs);
+    let config = ToggleConfig::deserialize(config).config_error()?;
+    let interval = config.interval.map(Duration::from_secs);
 
-    if let Some(text) = block_config.text {
+    if let Some(text) = config.text {
         api.set_text(text);
     }
+
+    let icon_on = config.icon_on.unwrap_or_else(|| "toggle_on".into());
+    let icon_off = config.icon_off.unwrap_or_else(|| "toggle_off".into());
 
     // Choose the shell in this priority:
     // 1) `SHELL` environment varialble
@@ -71,7 +80,7 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
     loop {
         // Check state
         let output = Command::new(&shell)
-            .args(&["-c", &block_config.command_state])
+            .args(&["-c", &config.command_state])
             .output()
             .await
             .error("Failed to run command_state")?;
@@ -81,11 +90,7 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
             .is_empty();
 
         // Update widget
-        api.set_icon(if is_toggled {
-            "toggle_on"
-        } else {
-            "toggle_off"
-        })?;
+        api.set_icon(if is_toggled { &icon_on } else { &icon_off })?;
         api.flush().await?;
 
         // TODO: try not to duplicate code
@@ -97,9 +102,9 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
                         Some(BlockEvent::Click(click)) = events.recv() => {
                             if click.button == MouseButton::Left {
                                 let cmd = if is_toggled {
-                                    &block_config.command_off
+                                    &config.command_off
                                 } else {
-                                    &block_config.command_on
+                                    &config.command_on
                                 };
                                 let output = Command::new(&shell)
                                     .args(&["-c", cmd])
@@ -120,9 +125,9 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
                     if let Some(BlockEvent::Click(click)) = events.recv().await {
                         if click.button == MouseButton::Left {
                             let cmd = if is_toggled {
-                                &block_config.command_off
+                                &config.command_off
                             } else {
-                                &block_config.command_on
+                                &config.command_on
                             };
                             let output = Command::new(&shell)
                                 .args(&["-c", cmd])
