@@ -403,8 +403,6 @@
         <span class="kw">let</span> <span class="ident">player</span> <span class="op">=</span> <span class="ident">cur_player</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">players</span>.<span class="ident">get_mut</span>(<span class="ident">c</span>).<span class="ident">unwrap</span>());
         <span class="kw">match</span> <span class="ident">player</span> {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">player</span>) =&gt; {
-                <span class="ident">api</span>.<span class="ident">show</span>();
-
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">values</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
                 <span class="ident">player</span>
                     .<span class="ident">title</span>
@@ -432,6 +430,7 @@
                     <span class="ident">values</span>.<span class="ident">insert</span>(<span class="string">&quot;title_artist&quot;</span>.<span class="ident">into</span>(), <span class="ident">Value::text</span>(<span class="ident">t</span>));
                 }
                 <span class="ident">api</span>.<span class="ident">set_values</span>(<span class="ident">values</span>);
+                <span class="ident">api</span>.<span class="ident">show_buttons</span>();
 
                 <span class="kw">let</span> (<span class="ident">state</span>, <span class="ident">play_icon</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">player</span>.<span class="ident">status</span> {
                     <span class="prelude-val">Some</span>(<span class="ident">PlaybackStatus::Playing</span>) =&gt; (<span class="ident">State::Info</span>, <span class="string">&quot;music_pause&quot;</span>),
@@ -441,7 +440,8 @@
                 <span class="ident">api</span>.<span class="ident">set_button</span>(<span class="ident">PLAY_PAUSE_BTN</span>, <span class="ident">play_icon</span>)<span class="question-mark">?</span>;
             }
             <span class="prelude-val">None</span> =&gt; {
-                <span class="ident">api</span>.<span class="ident">collapse</span>();
+                <span class="ident">api</span>.<span class="ident">set_values</span>(<span class="ident">HashMap::new</span>());
+                <span class="ident">api</span>.<span class="ident">hide_buttons</span>();
                 <span class="ident">api</span>.<span class="ident">set_state</span>(<span class="ident">State::Idle</span>);
             }
         }
@@ -457,7 +457,7 @@
                         <span class="kw">let</span> <span class="ident">header</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">header</span>().<span class="ident">unwrap</span>();
                         <span class="kw">let</span> <span class="ident">sender</span> <span class="op">=</span> <span class="ident">header</span>.<span class="ident">sender</span>().<span class="ident">unwrap</span>().<span class="ident">unwrap</span>();
                         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">player</span>) <span class="op">=</span> <span class="ident">players</span>.<span class="ident">iter_mut</span>().<span class="ident">find</span>(<span class="op">|</span><span class="ident">p</span><span class="op">|</span> <span class="ident">p</span>.<span class="ident">owner</span> <span class="op">==</span> <span class="ident">sender</span>.<span class="ident">to_string</span>()) {
-                            <span class="kw">let</span> <span class="ident">body</span>: <span class="ident">PropChange</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">body_unchecked</span>().<span class="ident">unwrap</span>();
+                            <span class="kw">let</span> <span class="ident">body</span>: <span class="ident">PropChange</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">body</span>().<span class="ident">unwrap</span>();
                             <span class="kw">let</span> <span class="ident">props</span> <span class="op">=</span> <span class="ident">body</span>.<span class="ident">changed_properties</span>;
 
                             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">status</span>) <span class="op">=</span> <span class="ident">props</span>.<span class="ident">get</span>(<span class="string">&quot;PlaybackStatus&quot;</span>) {
@@ -472,7 +472,7 @@
                         }
                     }
                     <span class="prelude-val">Some</span>(<span class="string">&quot;NameOwnerChanged&quot;</span>) =&gt; {
-                        <span class="kw">let</span> <span class="ident">body</span>: <span class="ident">OwnerChange</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">body_unchecked</span>().<span class="ident">unwrap</span>();
+                        <span class="kw">let</span> <span class="ident">body</span>: <span class="ident">OwnerChange</span> <span class="op">=</span> <span class="ident">msg</span>.<span class="ident">body</span>().<span class="ident">unwrap</span>();
                         <span class="kw">let</span> <span class="ident">old</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StdString</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">body</span>.<span class="ident">old_owner</span>.<span class="ident">into</span>();
                         <span class="kw">let</span> <span class="ident">new</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StdString</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">body</span>.<span class="ident">new_owner</span>.<span class="ident">into</span>();
                         <span class="kw">match</span> (<span class="ident">old</span>, <span class="ident">new</span>) {

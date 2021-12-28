@@ -261,6 +261,14 @@
 <span id="261">261</span>
 <span id="262">262</span>
 <span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The system temperature</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This block displays the system temperature, based on `libsensors` library.</span>
@@ -281,7 +289,7 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Key | Values | Required | Default</span>
 <span class="doccomment">//! ----|--------|----------|--------</span>
-<span class="doccomment">//! `format` | A string to customise the output of this block. See below for available placeholders | No | `&quot;$average avg, $max max&quot;`</span>
+<span class="doccomment">//! `format` | A string to customise the output of this block. See below for available placeholders | No | `&quot;$average avg, $max max|&quot;`</span>
 <span class="doccomment">//! `interval` | Update interval in seconds | No | `5`</span>
 <span class="doccomment">//! `collapsed` | Whether the block will be collapsed by default | No | `false`</span>
 <span class="doccomment">//! `scale` | Either `&quot;celsius&quot;` or `&quot;fahrenheit&quot;` | No | `&quot;celsius&quot;`</span>
@@ -298,18 +306,22 @@
 <span class="doccomment">//! `average`   | Average temperature among all inputs | Number | Degrees</span>
 <span class="doccomment">//! `max`       | Maximum temperature among all inputs | Number | Degrees</span>
 <span class="doccomment">//!</span>
+<span class="doccomment">//! Note that when block is collapsed, no placeholders are provided.</span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//! # Example</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```toml</span>
 <span class="doccomment">//! [[block]]</span>
 <span class="doccomment">//! block = &quot;temperature&quot;</span>
-<span class="doccomment">//! format = &quot;{min} min, {max} max, {average} avg&quot;</span>
+<span class="doccomment">//! format = &quot;{min} min, {max} max, {average} avg|&quot;</span>
 <span class="doccomment">//! interval = 10</span>
 <span class="doccomment">//! chip = &quot;*-isa-*&quot;</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Icons Used</span>
 <span class="doccomment">//! - `thermometer`</span>
+
+<span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prelude</span>::<span class="kw-2">*</span>;
 
@@ -452,24 +464,28 @@
             <span class="kw">_</span> =&gt; <span class="ident">State::Critical</span>,
         });
 
-        <span class="kw">if</span> <span class="ident">collapsed</span> {
-            <span class="ident">api</span>.<span class="ident">collapse</span>();
-        } <span class="kw">else</span> {
-            <span class="ident">api</span>.<span class="ident">set_values</span>(<span class="macro">map!</span> {
-                <span class="string">&quot;average&quot;</span> =&gt; <span class="ident">Value::degrees</span>(<span class="ident">avg_temp</span>),
-                <span class="string">&quot;min&quot;</span> =&gt; <span class="ident">Value::degrees</span>(<span class="ident">min_temp</span>),
-                <span class="string">&quot;max&quot;</span> =&gt; <span class="ident">Value::degrees</span>(<span class="ident">max_temp</span>),
-            });
-            <span class="ident">api</span>.<span class="ident">show</span>();
-        }
+        <span class="lifetime">&#39;outer</span>: <span class="kw">loop</span> {
+            <span class="kw">if</span> <span class="ident">collapsed</span> {
+                <span class="ident">api</span>.<span class="ident">set_values</span>(<span class="ident">HashMap::new</span>());
+            } <span class="kw">else</span> {
+                <span class="ident">api</span>.<span class="ident">set_values</span>(<span class="macro">map!</span> {
+                    <span class="string">&quot;average&quot;</span> =&gt; <span class="ident">Value::degrees</span>(<span class="ident">avg_temp</span>),
+                    <span class="string">&quot;min&quot;</span> =&gt; <span class="ident">Value::degrees</span>(<span class="ident">min_temp</span>),
+                    <span class="string">&quot;max&quot;</span> =&gt; <span class="ident">Value::degrees</span>(<span class="ident">max_temp</span>),
+                });
+            }
 
-        <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="ident">api</span>.<span class="ident">flush</span>().<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="macro">tokio::select!</span> {
-            <span class="kw">_</span> <span class="op">=</span> <span class="ident">sleep</span>(<span class="ident">config</span>.<span class="ident">interval</span>.<span class="number">0</span>) =&gt; (),
-            <span class="prelude-val">Some</span>(<span class="ident">BlockEvent::Click</span>(<span class="ident">click</span>)) <span class="op">=</span> <span class="ident">events</span>.<span class="ident">recv</span>() =&gt; {
-                <span class="kw">if</span> <span class="ident">click</span>.<span class="ident">button</span> <span class="op">==</span> <span class="ident">MouseButton::Left</span> {
-                    <span class="ident">collapsed</span> <span class="op">=</span> <span class="op">!</span><span class="ident">collapsed</span>;
+            <span class="kw">loop</span> {
+                <span class="macro">tokio::select!</span> {
+                    <span class="kw">_</span> <span class="op">=</span> <span class="ident">sleep</span>(<span class="ident">config</span>.<span class="ident">interval</span>.<span class="number">0</span>) =&gt; <span class="kw">break</span> <span class="lifetime">&#39;outer</span>,
+                    <span class="prelude-val">Some</span>(<span class="ident">BlockEvent::Click</span>(<span class="ident">click</span>)) <span class="op">=</span> <span class="ident">events</span>.<span class="ident">recv</span>() =&gt; {
+                        <span class="kw">if</span> <span class="ident">click</span>.<span class="ident">button</span> <span class="op">==</span> <span class="ident">MouseButton::Left</span>  {
+                            <span class="ident">collapsed</span> <span class="op">=</span> <span class="op">!</span><span class="ident">collapsed</span>;
+                            <span class="kw">break</span>;
+                        }
+                    }
                 }
             }
         }

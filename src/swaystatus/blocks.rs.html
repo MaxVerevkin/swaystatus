@@ -308,6 +308,10 @@
 <span id="308">308</span>
 <span id="309">309</span>
 <span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The collection of blocks</span>
 
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">prelude</span>;
@@ -413,8 +417,12 @@
         <span class="self">self</span>.<span class="ident">cmd_buf</span>.<span class="ident">push</span>(<span class="ident">RequestCmd::Hide</span>);
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">collapse</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="self">self</span>.<span class="ident">cmd_buf</span>.<span class="ident">push</span>(<span class="ident">RequestCmd::Collapse</span>);
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">hide_buttons</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">cmd_buf</span>.<span class="ident">push</span>(<span class="ident">RequestCmd::HideButtons</span>);
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">show_buttons</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">cmd_buf</span>.<span class="ident">push</span>(<span class="ident">RequestCmd::ShowButtons</span>);
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">show</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
