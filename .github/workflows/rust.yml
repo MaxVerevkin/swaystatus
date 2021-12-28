@@ -16,7 +16,7 @@ jobs:
     - name: Version information
       run: rustc --version; cargo --version
     - name: Get required packages
-      run: sudo apt-get install libsensors-dev
+      run: sudo apt-get install libsensors-dev libssl-dev
     - uses: actions/checkout@v2
     - name: Check formatting
       run: cargo fmt -- --check

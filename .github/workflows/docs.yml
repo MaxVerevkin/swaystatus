@@ -16,6 +16,8 @@ jobs:
     steps:
     - name: Version information
       run: rustc --version; cargo --version
+    - name: Get required packages
+      run: sudo apt-get install libsensors-dev libssl-dev
     - uses: actions/checkout@v2
     - name: Generate docs
       run: cargo doc --no-deps
