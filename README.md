@@ -2,9 +2,9 @@
 
 Status command for i3bar/swaybar written in async rust. Based on i3status-rust. 
 
-[Blocks documentation](https://maxverevkin.github.io/swaystatus/docs/swaystatus/blocks/index.html)
+[Blocks documentation](https://maxverevkin.github.io/swaystatus/swaystatus/blocks/index.html)
 
-[Formatting documentation](https://maxverevkin.github.io/swaystatus/docs/swaystatus/formatting/index.html)
+[Formatting documentation](https://maxverevkin.github.io/swaystatus/swaystatus/formatting/index.html)
 
 # Compatibility
 
