@@ -14,7 +14,7 @@
 //! ----|--------|----------|--------
 //! `driver` | One of `"setxkbmap"`, `"localebus"`, `"kbddbus"` or `"sway"`, depending on your system. | No | `"setxkbmap"`
 //! `interval` | Update interval, in seconds. Only used by the `"setxkbmap"` driver. | No | `60`
-//! `format` | A string to customise the output of this block. See below for available placeholders. Text may need to be escaped, refer to [Escaping Text](#escaping-text). | No | `"{layout}"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$layout"`
 //! `sway_kb_identifier` | Identifier of the device you want to monitor, as found in the output of `swaymsg -t get_inputs`. | No | Defaults to first input found
 //! `mappings` | Map `layout (variant)` to custom short name. | No | None
 //!
@@ -74,7 +74,6 @@ use std::collections::HashMap;
 
 use swayipc_async::{Connection, Event, EventType};
 
-use futures::stream::StreamExt;
 use tokio::process::Command;
 
 use zbus::dbus_proxy;

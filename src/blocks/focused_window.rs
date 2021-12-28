@@ -30,7 +30,6 @@
 
 use super::prelude::*;
 use swayipc_async::{Connection, Event, EventType, WindowChange, WorkspaceChange};
-use tokio_stream::StreamExt;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]

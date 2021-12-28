@@ -53,7 +53,6 @@
 //! - `phone`
 //! - `phone_disconnected`
 
-use futures::StreamExt;
 use tokio::sync::mpsc;
 use zbus::dbus_proxy;
 

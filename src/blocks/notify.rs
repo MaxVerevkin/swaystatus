@@ -29,15 +29,11 @@
 //! - `bell`
 //! - `bell-slash`
 
-use std::collections::HashMap;
-
+use super::prelude::*;
 use async_trait::async_trait;
-use futures::StreamExt;
-
+use std::collections::HashMap;
 use zbus::dbus_proxy;
 use zbus::PropertyStream;
-
-use super::prelude::*;
 
 const ICON_ON: &str = "bell";
 const ICON_OFF: &str = "bell-slash";

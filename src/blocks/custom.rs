@@ -86,7 +86,7 @@
 
 use super::prelude::*;
 use crate::signals::Signal;
-use futures::{Stream, StreamExt};
+use futures::Stream;
 use inotify::{Inotify, WatchMask};
 use std::io;
 use std::pin::Pin;

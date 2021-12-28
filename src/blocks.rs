@@ -74,6 +74,7 @@ define_blocks!(
     time,
     toggle,
     uptime,
+    watson,
     weather,
     xrandr,
 );

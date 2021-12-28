@@ -57,7 +57,6 @@ use std::path::{Path, PathBuf};
 
 use inotify::{Inotify, WatchMask};
 use tokio::fs::read_dir;
-use tokio_stream::StreamExt;
 
 use super::prelude::*;
 use crate::util::read_file;

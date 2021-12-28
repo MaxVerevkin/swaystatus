@@ -1,5 +1,3 @@
-use futures::StreamExt;
-
 use zbus::fdo::DBusProxy;
 use zbus::names::{OwnedBusName, OwnedInterfaceName};
 use zbus::zvariant::{Optional, OwnedValue, Type};

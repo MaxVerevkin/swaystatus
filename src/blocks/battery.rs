@@ -66,7 +66,6 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use async_trait::async_trait;
-use futures::StreamExt;
 use tokio::fs::{read_dir, read_to_string};
 use tokio::time::Interval;
 use zbus::fdo::DBusProxy;

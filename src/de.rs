@@ -1,6 +1,6 @@
-use std::time::Duration;
-
+use chrono::{DateTime, Local};
 use serde::de::{self, Deserialize, Deserializer};
+use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OnceDuration {
@@ -100,4 +100,12 @@ impl<'de> Deserialize<'de> for Seconds {
 
         deserializer.deserialize_any(SecondsVisitor)
     }
+}
+
+pub fn deserialize_local_timestamp<'de, D>(deserializer: D) -> Result<DateTime<Local>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use chrono::TimeZone;
+    i64::deserialize(deserializer).map(|seconds| Local.timestamp(seconds, 0))
 }
