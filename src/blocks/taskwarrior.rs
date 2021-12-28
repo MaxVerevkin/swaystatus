@@ -12,6 +12,7 @@
 //! `hide_when_zero` | Whethere to hide the block when the number of tasks is zero | No | `false`
 //! `filters` | A list of tables with the keys `name` and `filter`. `filter` specifies the criteria that must be met for a task to be counted towards this filter. | No | ```[{name = "pending", filter = "-COMPLETED -DELETED"}]```
 //! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$count.eng(1)"`
+//! `data_location`| Directory in which taskwarrior stores its data files. | No | "~/.task"`
 //!
 //! Placeholder   | Value                                       | Type   | Unit
 //! --------------|---------------------------------------------|--------|-----
@@ -44,6 +45,7 @@
 //! - `tasks`
 
 use super::prelude::*;
+use inotify::{Inotify, WatchMask};
 use tokio::process::Command;
 
 #[derive(Deserialize, Debug)]
@@ -55,6 +57,7 @@ struct TaskwarriorConfig {
     hide_when_zero: bool,
     filters: Vec<Filter>,
     format: FormatConfig,
+    data_location: ShellString,
 }
 
 impl Default for TaskwarriorConfig {
@@ -69,23 +72,33 @@ impl Default for TaskwarriorConfig {
                 filter: "-COMPLETED -DELETED".into(),
             }],
             format: FormatConfig::default(),
+            data_location: ShellString::new("~/.task"),
         }
     }
 }
 
-pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
+pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
-    let block_config = TaskwarriorConfig::deserialize(block_config).config_error()?;
-    api.set_format(block_config.format.with_default("$count.eng(1)")?);
+    let config = TaskwarriorConfig::deserialize(config).config_error()?;
+    api.set_format(config.format.with_default("$count.eng(1)")?);
     api.set_icon("tasks")?;
 
-    let mut filters = block_config.filters.iter().cycle();
+    let mut filters = config.filters.iter().cycle();
     let mut filter = filters.next().error("failed to get next filter")?;
+
+    let mut notify = Inotify::init().error("Failed to start inotify")?;
+    let mut buffer = [0; 1024];
+    notify
+        .add_watch(&*config.data_location.expand()?, WatchMask::MODIFY)
+        .error("Failed to watch data location")?;
+    let mut updates = notify
+        .event_stream(&mut buffer)
+        .error("Failed to create event stream")?;
 
     loop {
         let number_of_tasks = get_number_of_tasks(&filter.filter).await?;
 
-        if number_of_tasks != 0 || !block_config.hide_when_zero {
+        if number_of_tasks != 0 || !config.hide_when_zero {
             let mut values = map!(
                 "count" => Value::number(number_of_tasks),
                 "filter_name" => Value::text(filter.name.clone()),
@@ -97,9 +110,9 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
             }
             api.set_values(values);
 
-            api.set_state(if number_of_tasks >= block_config.critical_threshold {
+            api.set_state(if number_of_tasks >= config.critical_threshold {
                 State::Critical
-            } else if number_of_tasks >= block_config.warning_threshold {
+            } else if number_of_tasks >= config.warning_threshold {
                 State::Warning
             } else {
                 State::Idle
@@ -113,7 +126,8 @@ pub async fn run(block_config: toml::Value, mut api: CommonApi) -> Result<()> {
         api.flush().await?;
 
         tokio::select! {
-            _ = sleep(block_config.interval.0) =>(),
+            _ = sleep(config.interval.0) =>(),
+            _ = updates.next() => (),
             Some(BlockEvent::Click(click)) = events.recv() => {
                 if click.button == MouseButton::Right {
                     filter = filters.next().error("failed to get next filter")?;

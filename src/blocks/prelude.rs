@@ -1,10 +1,10 @@
 pub use super::{BlockEvent, CommonApi};
 
 pub use crate::click::MouseButton;
-pub use crate::de::{OnceDuration, Seconds};
 pub use crate::errors::{Error, OptionExt, Result, ResultExt, StdError, StdResult};
 pub use crate::formatting::{config::Config as FormatConfig, value::Value};
 pub use crate::widget::{Spacing, State, Widget};
+pub use crate::wrappers::{OnceDuration, Seconds, ShellString};
 pub use crate::REQWEST_CLIENT;
 
 pub use serde::de::Deserialize;

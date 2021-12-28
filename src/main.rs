@@ -14,6 +14,7 @@ mod signals;
 mod subprocess;
 mod themes;
 mod widget;
+mod wrappers;
 
 use clap::Parser;
 use futures::stream::futures_unordered::FuturesUnordered;

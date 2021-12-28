@@ -21,7 +21,6 @@
 //!
 //! # TODO
 //! - Extend functionality: start / stop watson using this block
-//! - Use `shellexpand` for `state_path`
 
 use std::path::PathBuf;
 use tokio::fs::read_to_string;
@@ -38,7 +37,7 @@ use crate::util::xdg_config_home;
 #[derive(Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields, default)]
 struct WatsonConfig {
-    state_path: Option<PathBuf>,
+    state_path: Option<ShellString>,
     interval: Seconds,
     show_time: bool,
 }
@@ -60,7 +59,8 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut show_time = config.show_time;
 
     let (state_dir, state_file, state_path) = match config.state_path {
-        Some(mut p) => {
+        Some(p) => {
+            let mut p: PathBuf = (&*p.expand()?).into();
             let path = p.clone();
             let file = p.file_name().error("Failed to parse state_dir")?.to_owned();
             p.pop();

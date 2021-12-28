@@ -376,7 +376,9 @@ impl BatteryDevice for PowerSupplyDevice {
         // Ah * V = Wh
         // Wh / W = h
         let time_remaining = match status {
-            BatteryStatus::Charging => {
+            BatteryStatus::Charging =>
+            {
+                #[allow(clippy::unnecessary_lazy_evaluations)]
                 time_to_full.or_else(|| match (energy_now, energy_full, power) {
                     (Some(en), Some(ef), Some(p)) => Some((ef - en) / p * 3600.0),
                     _ => match (charge_now, charge_full, voltage_now, power) {
@@ -385,13 +387,17 @@ impl BatteryDevice for PowerSupplyDevice {
                     },
                 })
             }
-            BatteryStatus::Discharging => time_to_empty.or_else(|| match (energy_now, power) {
-                (Some(en), Some(p)) => Some(en / p * 3600.0),
-                _ => match (charge_now, voltage_now, power) {
-                    (Some(cn), Some(v), Some(p)) => Some(cn * v / p * 3600.0),
-                    _ => None,
-                },
-            }),
+            BatteryStatus::Discharging =>
+            {
+                #[allow(clippy::unnecessary_lazy_evaluations)]
+                time_to_empty.or_else(|| match (energy_now, power) {
+                    (Some(en), Some(p)) => Some(en / p * 3600.0),
+                    _ => match (charge_now, voltage_now, power) {
+                        (Some(cn), Some(v), Some(p)) => Some(cn * v / p * 3600.0),
+                        _ => None,
+                    },
+                })
+            }
             _ => None,
         };
 
