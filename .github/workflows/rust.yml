@@ -13,9 +13,11 @@ jobs:
   build:
     runs-on: ubuntu-20.04
     steps:
-    - uses: actions/checkout@v2
+    - name: Version information
+      run: rustc --version; cargo --version
     - name: Get required packages
-      run: sudo apt-get update && sudo apt-get install libdbus-1-dev
+      run: sudo apt-get install libsensors-dev
+    - uses: actions/checkout@v2
     - name: Check formatting
       run: cargo fmt -- --check
     - name: Clippy lints
