@@ -529,7 +529,6 @@
 <span id="529">529</span>
 <span id="530">530</span>
 <span id="531">531</span>
-<span id="532">532</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Information about the internal power supply</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This block can display the current battery state (Full, Charging or Discharging), percentage</span>
@@ -598,7 +597,6 @@
 <span class="kw">use</span> <span class="ident">std::str::FromStr</span>;
 
 <span class="kw">use</span> <span class="ident">async_trait::async_trait</span>;
-<span class="kw">use</span> <span class="ident">futures::StreamExt</span>;
 <span class="kw">use</span> <span class="ident">tokio::fs</span>::{<span class="ident">read_dir</span>, <span class="ident">read_to_string</span>};
 <span class="kw">use</span> <span class="ident">tokio::time::Interval</span>;
 <span class="kw">use</span> <span class="ident">zbus::fdo::DBusProxy</span>;

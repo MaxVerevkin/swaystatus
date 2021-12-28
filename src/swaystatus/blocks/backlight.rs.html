@@ -311,7 +311,6 @@
 <span id="311">311</span>
 <span id="312">312</span>
 <span id="313">313</span>
-<span id="314">314</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The brightness of a backlight device</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This block reads brightness information directly from the filesystem, so it works under both</span>
@@ -371,7 +370,6 @@
 
 <span class="kw">use</span> <span class="ident">inotify</span>::{<span class="ident">Inotify</span>, <span class="ident">WatchMask</span>};
 <span class="kw">use</span> <span class="ident">tokio::fs::read_dir</span>;
-<span class="kw">use</span> <span class="ident">tokio_stream::StreamExt</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::util::read_file</span>;

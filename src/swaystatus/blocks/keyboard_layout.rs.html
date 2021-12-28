@@ -249,7 +249,6 @@
 <span id="249">249</span>
 <span id="250">250</span>
 <span id="251">251</span>
-<span id="252">252</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Keyboard layout indicator</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Four drivers are available:</span>
@@ -266,7 +265,7 @@
 <span class="doccomment">//! ----|--------|----------|--------</span>
 <span class="doccomment">//! `driver` | One of `&quot;setxkbmap&quot;`, `&quot;localebus&quot;`, `&quot;kbddbus&quot;` or `&quot;sway&quot;`, depending on your system. | No | `&quot;setxkbmap&quot;`</span>
 <span class="doccomment">//! `interval` | Update interval, in seconds. Only used by the `&quot;setxkbmap&quot;` driver. | No | `60`</span>
-<span class="doccomment">//! `format` | A string to customise the output of this block. See below for available placeholders. Text may need to be escaped, refer to [Escaping Text](#escaping-text). | No | `&quot;{layout}&quot;`</span>
+<span class="doccomment">//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `&quot;$layout&quot;`</span>
 <span class="doccomment">//! `sway_kb_identifier` | Identifier of the device you want to monitor, as found in the output of `swaymsg -t get_inputs`. | No | Defaults to first input found</span>
 <span class="doccomment">//! `mappings` | Map `layout (variant)` to custom short name. | No | None</span>
 <span class="doccomment">//!</span>
@@ -326,7 +325,6 @@
 
 <span class="kw">use</span> <span class="ident">swayipc_async</span>::{<span class="ident">Connection</span>, <span class="ident">Event</span>, <span class="ident">EventType</span>};
 
-<span class="kw">use</span> <span class="ident">futures::stream::StreamExt</span>;
 <span class="kw">use</span> <span class="ident">tokio::process::Command</span>;
 
 <span class="kw">use</span> <span class="ident">zbus::dbus_proxy</span>;

@@ -153,10 +153,6 @@
 <span id="153">153</span>
 <span id="154">154</span>
 <span id="155">155</span>
-<span id="156">156</span>
-<span id="157">157</span>
-<span id="158">158</span>
-<span id="159">159</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Display and toggle the state of notifications daemon</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Right now only `dunst` is supported.</span>
@@ -188,15 +184,11 @@
 <span class="doccomment">//! - `bell`</span>
 <span class="doccomment">//! - `bell-slash`</span>
 
-<span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
-
+<span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">async_trait::async_trait</span>;
-<span class="kw">use</span> <span class="ident">futures::StreamExt</span>;
-
+<span class="kw">use</span> <span class="ident">std::collections::HashMap</span>;
 <span class="kw">use</span> <span class="ident">zbus::dbus_proxy</span>;
 <span class="kw">use</span> <span class="ident">zbus::PropertyStream</span>;
-
-<span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prelude</span>::<span class="kw-2">*</span>;
 
 <span class="kw">const</span> <span class="ident">ICON_ON</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;bell&quot;</span>;
 <span class="kw">const</span> <span class="ident">ICON_OFF</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;bell-slash&quot;</span>;
