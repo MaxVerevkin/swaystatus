@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["OnceDuration",""]],"fn":[["deserialize_local_timestamp",""]],"struct":[["Seconds",""]]});
+initSidebarItems({"fn":[["deserialize_local_timestamp",""]]});

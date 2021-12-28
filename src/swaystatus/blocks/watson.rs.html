@@ -240,7 +240,6 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # TODO</span>
 <span class="doccomment">//! - Extend functionality: start / stop watson using this block</span>
-<span class="doccomment">//! - Use `shellexpand` for `state_path`</span>
 
 <span class="kw">use</span> <span class="ident">std::path::PathBuf</span>;
 <span class="kw">use</span> <span class="ident">tokio::fs::read_to_string</span>;
@@ -257,7 +256,7 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">deny_unknown_fields</span>, <span class="ident">default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">WatsonConfig</span> {
-    <span class="ident">state_path</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span>,
+    <span class="ident">state_path</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ShellString</span><span class="op">&gt;</span>,
     <span class="ident">interval</span>: <span class="ident">Seconds</span>,
     <span class="ident">show_time</span>: <span class="ident">bool</span>,
 }
@@ -279,7 +278,8 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">show_time</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">show_time</span>;
 
     <span class="kw">let</span> (<span class="ident">state_dir</span>, <span class="ident">state_file</span>, <span class="ident">state_path</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">state_path</span> {
-        <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">p</span>) =&gt; {
+        <span class="prelude-val">Some</span>(<span class="ident">p</span>) =&gt; {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">p</span>: <span class="ident">PathBuf</span> <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">p</span>.<span class="ident">expand</span>()<span class="question-mark">?</span>).<span class="ident">into</span>();
             <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">p</span>.<span class="ident">clone</span>();
             <span class="kw">let</span> <span class="ident">file</span> <span class="op">=</span> <span class="ident">p</span>.<span class="ident">file_name</span>().<span class="ident">error</span>(<span class="string">&quot;Failed to parse state_dir&quot;</span>)<span class="question-mark">?</span>.<span class="ident">to_owned</span>();
             <span class="ident">p</span>.<span class="ident">pop</span>();
