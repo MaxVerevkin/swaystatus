@@ -93,11 +93,11 @@ impl FromStr for Color {
         } else if color.starts_with("hsv:") {
             let err_msg = || format!("'{}' is not a vaild HSVA color", color);
             let color = color.split_at(4).1;
-            let mut components = color.split(':').map(|x| x.parse::<f64>()).flatten();
-            let h = components.next().or_error(err_msg)?;
-            let s = components.next().or_error(err_msg)?;
-            let v = components.next().or_error(err_msg)?;
-            let a = components.next().unwrap_or(100.);
+            let mut components = color.split(':').map(|x| x.parse::<f64>().or_error(err_msg));
+            let h = components.next().or_error(err_msg)??;
+            let s = components.next().or_error(err_msg)??;
+            let v = components.next().or_error(err_msg)??;
+            let a = components.next().unwrap_or(Ok(100.))?;
             Color::Hsva(Hsv::new(h, s / 100., v / 100.), (a / 100. * 255.) as u8)
         } else {
             let err_msg = || format!("'{}' is not a vaild RGBA color", color);

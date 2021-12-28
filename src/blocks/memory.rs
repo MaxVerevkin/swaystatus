@@ -254,8 +254,7 @@ impl Memstate {
             };
             let val = words
                 .next()
-                .map(|x| u64::from_str(x).ok())
-                .flatten()
+                .and_then(|x| u64::from_str(x).ok())
                 .error("failed to parse /proc/meminfo")?;
 
             match name {

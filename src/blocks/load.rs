@@ -77,18 +77,15 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         let mut values = loadavg.split(' ');
         let m1: f64 = values
             .next()
-            .map(|x| x.parse().ok())
-            .flatten()
+            .and_then(|x| x.parse().ok())
             .error("bad /proc/loadavg file")?;
         let m5: f64 = values
             .next()
-            .map(|x| x.parse().ok())
-            .flatten()
+            .and_then(|x| x.parse().ok())
             .error("bad /proc/loadavg file")?;
         let m15: f64 = values
             .next()
-            .map(|x| x.parse().ok())
-            .flatten()
+            .and_then(|x| x.parse().ok())
             .error("bad /proc/loadavg file")?;
 
         api.set_state(match m1 / logical_cores {
