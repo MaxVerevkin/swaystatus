@@ -104,9 +104,6 @@
 <span id="104">104</span>
 <span id="105">105</span>
 <span id="106">106</span>
-<span id="107">107</span>
-<span id="108">108</span>
-<span id="109">109</span>
 </pre><pre class="rust"><code><span class="doccomment">//! System load average</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Configuration</span>
@@ -186,18 +183,15 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">values</span> <span class="op">=</span> <span class="ident">loadavg</span>.<span class="ident">split</span>(<span class="string">&#39; &#39;</span>);
         <span class="kw">let</span> <span class="ident">m1</span>: <span class="ident">f64</span> <span class="op">=</span> <span class="ident">values</span>
             .<span class="ident">next</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())
-            .<span class="ident">flatten</span>()
+            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())
             .<span class="ident">error</span>(<span class="string">&quot;bad /proc/loadavg file&quot;</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">m5</span>: <span class="ident">f64</span> <span class="op">=</span> <span class="ident">values</span>
             .<span class="ident">next</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())
-            .<span class="ident">flatten</span>()
+            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())
             .<span class="ident">error</span>(<span class="string">&quot;bad /proc/loadavg file&quot;</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">m15</span>: <span class="ident">f64</span> <span class="op">=</span> <span class="ident">values</span>
             .<span class="ident">next</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())
-            .<span class="ident">flatten</span>()
+            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">parse</span>().<span class="ident">ok</span>())
             .<span class="ident">error</span>(<span class="string">&quot;bad /proc/loadavg file&quot;</span>)<span class="question-mark">?</span>;
 
         <span class="ident">api</span>.<span class="ident">set_state</span>(<span class="kw">match</span> <span class="ident">m1</span> <span class="op">/</span> <span class="ident">logical_cores</span> {
