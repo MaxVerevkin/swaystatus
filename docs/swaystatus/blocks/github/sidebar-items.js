@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["default_hide",""],["default_interval",""],["get_total",""],["run",""]],"struct":[["GithubConfig",""]]});

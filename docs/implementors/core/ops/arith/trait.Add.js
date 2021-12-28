@@ -1,3 +1,0 @@
-(function() {var implementors = {};
-implementors["swaystatus"] = [{"text":"impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/arith/trait.Add.html\" title=\"trait core::ops::arith::Add\">Add</a>&lt;<a class=\"enum\" href=\"swaystatus/themes/enum.Color.html\" title=\"enum swaystatus::themes::Color\">Color</a>&gt; for <a class=\"enum\" href=\"swaystatus/themes/enum.Color.html\" title=\"enum swaystatus::themes::Color\">Color</a>","synthetic":false,"types":["swaystatus::themes::Color"]}];
-if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

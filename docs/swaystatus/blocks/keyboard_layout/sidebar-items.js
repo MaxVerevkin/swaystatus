@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["KeyboardLayoutDriver",""]],"fn":[["parse_sway_layout",""],["run",""]],"struct":[["KeyboardLayoutConfig",""],["LocaleBusProxy",""],["LocaleBusProxyBlocking",""]]});

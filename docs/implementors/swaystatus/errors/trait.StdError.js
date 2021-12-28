@@ -1,3 +1,0 @@
-(function() {var implementors = {};
-implementors["swaystatus"] = [{"text":"impl <a class=\"trait\" href=\"swaystatus/errors/trait.StdError.html\" title=\"trait swaystatus::errors::StdError\">Error</a> for <a class=\"struct\" href=\"swaystatus/errors/struct.Error.html\" title=\"struct swaystatus::errors::Error\">Error</a>","synthetic":false,"types":["swaystatus::errors::Error"]}];
-if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

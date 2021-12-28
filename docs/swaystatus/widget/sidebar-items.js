@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Source","The source of text for widget"],["Spacing","Spacing around the widget"],["State","State of the widget. Affects the theming."]],"struct":[["Widget",""]]});

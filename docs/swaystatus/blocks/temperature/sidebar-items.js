@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["DEFAULT_GOOD",""],["DEFAULT_IDLE",""],["DEFAULT_INFO",""],["DEFAULT_WARN",""]],"enum":[["TemperatureScale",""]],"fn":[["run",""]],"struct":[["TemperatureConfig",""]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Value",""]],"macro":[["impl_into_f64",""]],"trait":[["IntoF64",""]]});
