@@ -1,3 +1,77 @@
+//! Current weather
+//!
+//! This block displays local weather and temperature information. In order to use this block, you
+//! will need access to a supported weather API service. At the time of writing, OpenWeatherMap is
+//! the only supported service.
+//!
+//! Configuring this block requires configuring a weather service, which may require API keys and
+//! other parameters.
+//!
+//! If using the `autolocate` feature, set the block update interval such that you do not exceed ipapi.co's free daily limit of 1000 hits.
+//!
+//! # Configuration
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `format` | A string to customise the output of this block. See below for available placeholders. Text may need to be escaped, refer to [Escaping Text](#escaping-text). | No | `"$weather $temp"`
+//! `service` | The configuration of a weather service (see below). | Yes | None
+//! `interval` | Update interval, in seconds. | No | `600`
+//! `autolocate` | Gets your location using the ipapi.co IP location service (no API key required). If the API call fails then the block will fallback to `city_id` or `place`. | No | false
+//!
+//! # OpenWeatherMap Options
+//!
+//! To use the service you will need a (free) API key.
+//!
+//! Key | Values | Required | Default
+//! ----|--------|----------|--------
+//! `name` | `openweathermap`. | Yes | None
+//! `api_key` | Your OpenWeatherMap API key. | Yes | None
+//! `city_id` | OpenWeatherMap's ID for the city. | Yes* | None
+//! `place` | OpenWeatherMap 'By city name' search query. See [here](https://openweathermap.org/current) | Yes* | None
+//! `coordinates` | GPS latitude longitude coordinates as a tuple, example: `["39.236229089090216","9.331730718685696"]`
+//! `units` | Either `metric` or `imperial`. | Yes | `metric`
+//! `lang` | Language code. See [here](https://openweathermap.org/current#multi). Currently only affects `weather_verbose` key. | No | `en`
+//!
+//! One of `city_id`, `place` or `coordinates` is required. If more than one are supplied, `city_id` takes precedence over `place` which takes place over `coordinates`.
+//!
+//! The options `api_key`, `city_id`, `place` can be omitted from configuration,
+//! in which case they must be provided in the environment variables
+//! `OPENWEATHERMAP_API_KEY`, `OPENWEATHERMAP_CITY_ID`, `OPENWEATHERMAP_PLACE`.
+//!
+//! # Available Format Keys
+//!
+//!  Key              | Value                                                              | Type   | Unit
+//! ------------------|--------------------------------------------------------------------|--------|-----
+//! `location`        | Location name (exact format depends on the service)                | Text   | -
+//! `temp`            | Temperature                                                        | Number | degrees
+//! `apparent`        | Australian Apparent Temperature                                    | Number | degrees
+//! `humidity`        | Humidity                                                           | Number | %
+//! `weather`         | Textual brief description of the weather, e.g. "Raining"           | Text   | -
+//! `weather_verbose` | Textual verbose description of the weather, e.g. "overcast clouds" | Text   | -
+//! `wind`            | Wind speed                                                         | Number | -
+//! `wind_kmh`        | Wind speed. The wind speed in km/h                                 | Number | -
+//! `direction`       | Wind direction, e.g. "NE"                                          | Text   | -
+//!
+//! # Example
+//!
+//! Show detailed weather in San Francisco through the OpenWeatherMap service:
+//!
+//! ```toml
+//! [[block]]
+//! block = "weather"
+//! format = "$weather ($location) $temp, $wind m/s $direction"
+//! service = { name = "openweathermap", api_key = "XXX", city_id = "5398563", units = "metric" }
+//! ```
+//!
+//! # Used Icons
+//!
+//! - `weather_sun` (when weather is reported as "Clear")
+//! - `weather_rain` (when weather is reported as "Rain" or "Drizzle")
+//! - `weather_clouds` (when weather is reported as "Clouds", "Fog" or "Mist")
+//! - `weather_thunder` (when weather is reported as "Thunderstorm")
+//! - `weather_snow` (when weather is reported as "Snow")
+//! - `weather_default` (in all other cases)
+
 use super::prelude::*;
 
 const IP_API_URL: &str = "https://ipapi.co/json";
