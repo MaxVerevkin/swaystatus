@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["swaystatus"] = [{"text":"impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.57.0/core/convert/trait.TryFrom.html\" title=\"trait core::convert::TryFrom\">TryFrom</a>&lt;OwnedValue&gt; for <a class=\"struct\" href=\"swaystatus/blocks/music/zbus_mpris/struct.PlayerMetadata.html\" title=\"struct swaystatus::blocks::music::zbus_mpris::PlayerMetadata\">PlayerMetadata</a>","synthetic":false,"types":["swaystatus::blocks::music::zbus_mpris::PlayerMetadata"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
