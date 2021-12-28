@@ -6,7 +6,6 @@ use std::str::FromStr;
 use std::time::{Duration, Instant};
 
 use tokio::sync::mpsc::Sender;
-use tokio::task::JoinHandle;
 
 use super::prefix::Prefix;
 use super::unit::Unit;
@@ -115,7 +114,6 @@ pub fn new_formatter(name: &str, args: &[String]) -> Result<Box<dyn Formatter + 
                 width,
                 interval,
                 init_time: Instant::now(),
-                handle: None,
             }))
         }
         "bar" => {
@@ -169,7 +167,6 @@ pub struct RotStrFormatter {
     width: usize,
     interval: f64,
     init_time: Instant,
-    handle: Option<JoinHandle<()>>,
 }
 
 impl Formatter for RotStrFormatter {
@@ -211,10 +208,6 @@ impl Formatter for RotStrFormatter {
     }
 
     fn init(&self, tx: &Sender<Request>, block_id: usize, handles: &mut Handles) {
-        if self.handle.is_some() {
-            return;
-        }
-
         let tx = tx.clone();
         let dur = Duration::from_secs_f64(self.interval);
         let mut interval = tokio::time::interval_at(tokio::time::Instant::now() + dur, dur);

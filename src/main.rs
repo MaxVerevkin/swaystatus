@@ -130,7 +130,7 @@ pub struct RunningBlock {
     click_handler: ClickHandler,
 
     hidden: bool,
-    collapsed: bool,
+    buttons_hidden: bool,
     widget: Widget,
     buttons: Vec<Widget>,
 }
@@ -155,7 +155,6 @@ pub struct Request {
 #[derive(Debug)]
 pub enum RequestCmd {
     Hide,
-    Collapse,
     Show,
 
     GetEvents(OneshotSender<blocks::EventsRx>),
@@ -170,6 +169,8 @@ pub enum RequestCmd {
 
     AddButton(usize, String),
     SetButton(usize, String),
+    HideButtons,
+    ShowButtons,
 
     SetFullScreen(bool),
 
@@ -251,7 +252,7 @@ impl BarState {
             click_handler: common_config.click,
 
             hidden: false,
-            collapsed: false,
+            buttons_hidden: false,
             widget: Widget::new(api.id, api.shared_config.clone()),
             buttons: Vec::new(),
         });
@@ -278,10 +279,9 @@ impl BarState {
         for cmd in request.cmds {
             match cmd {
                 RequestCmd::Hide => block.hidden = true,
-                RequestCmd::Collapse => block.collapsed = true,
                 RequestCmd::Show => {
                     block.hidden = false;
-                    block.collapsed = false;
+                    block.buttons_hidden = false;
                 }
                 RequestCmd::GetEvents(tx) => {
                     let (sender, receiver) = mpsc::channel(64);
@@ -304,6 +304,8 @@ impl BarState {
                         .with_instance(instance)
                         .with_icon_str(icon),
                 ),
+                RequestCmd::HideButtons => block.buttons_hidden = true,
+                RequestCmd::ShowButtons => block.buttons_hidden = false,
                 RequestCmd::SetButton(instance, icon) => {
                     for b in &mut block.buttons {
                         if b.get_instance() == Some(instance) {
@@ -376,11 +378,8 @@ impl BarState {
         let data = &mut self.blocks_render_cache[block.id];
         data.clear();
         if !block.hidden {
-            if block.collapsed {
-                block.widget.set_text(String::new());
-                data.push(block.widget.get_data().in_block(*block_type, block.id)?);
-            } else {
-                data.push(block.widget.get_data().in_block(*block_type, block.id)?);
+            data.push(block.widget.get_data().in_block(*block_type, block.id)?);
+            if !block.buttons_hidden {
                 for button in &block.buttons {
                     data.push(button.get_data().in_block(*block_type, block.id)?);
                 }

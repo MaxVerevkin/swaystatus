@@ -99,7 +99,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
 
     let id = match config.device_id {
         Some(id) => id,
-        None => any_device_id(&dbus_conn).await?,
+        None => api.recoverable(|| any_device_id(&dbus_conn), "X").await?,
     };
 
     let (tx, mut rx) = mpsc::channel(8);

@@ -103,8 +103,12 @@ impl CommonApi {
         self.cmd_buf.push(RequestCmd::Hide);
     }
 
-    pub fn collapse(&mut self) {
-        self.cmd_buf.push(RequestCmd::Collapse);
+    pub fn hide_buttons(&mut self) {
+        self.cmd_buf.push(RequestCmd::HideButtons);
+    }
+
+    pub fn show_buttons(&mut self) {
+        self.cmd_buf.push(RequestCmd::ShowButtons);
     }
 
     pub fn show(&mut self) {

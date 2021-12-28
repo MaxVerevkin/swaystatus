@@ -85,8 +85,6 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         let player = cur_player.map(|c| players.get_mut(c).unwrap());
         match player {
             Some(ref player) => {
-                api.show();
-
                 let mut values = HashMap::new();
                 player
                     .title
@@ -114,6 +112,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                     values.insert("title_artist".into(), Value::text(t));
                 }
                 api.set_values(values);
+                api.show_buttons();
 
                 let (state, play_icon) = match player.status {
                     Some(PlaybackStatus::Playing) => (State::Info, "music_pause"),
@@ -123,7 +122,8 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                 api.set_button(PLAY_PAUSE_BTN, play_icon)?;
             }
             None => {
-                api.collapse();
+                api.set_values(HashMap::new());
+                api.hide_buttons();
                 api.set_state(State::Idle);
             }
         }
@@ -139,7 +139,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                         let header = msg.header().unwrap();
                         let sender = header.sender().unwrap().unwrap();
                         if let Some(player) = players.iter_mut().find(|p| p.owner == sender.to_string()) {
-                            let body: PropChange = msg.body_unchecked().unwrap();
+                            let body: PropChange = msg.body().unwrap();
                             let props = body.changed_properties;
 
                             if let Some(status) = props.get("PlaybackStatus") {
@@ -154,7 +154,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                         }
                     }
                     Some("NameOwnerChanged") => {
-                        let body: OwnerChange = msg.body_unchecked().unwrap();
+                        let body: OwnerChange = msg.body().unwrap();
                         let old: Option<StdString> = body.old_owner.into();
                         let new: Option<StdString> = body.new_owner.into();
                         match (old, new) {

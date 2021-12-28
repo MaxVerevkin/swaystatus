@@ -18,7 +18,7 @@
 //!
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
-//! `format` | A string to customise the output of this block. See below for available placeholders | No | `"$average avg, $max max"`
+//! `format` | A string to customise the output of this block. See below for available placeholders | No | `"$average avg, $max max|"`
 //! `interval` | Update interval in seconds | No | `5`
 //! `collapsed` | Whether the block will be collapsed by default | No | `false`
 //! `scale` | Either `"celsius"` or `"fahrenheit"` | No | `"celsius"`
@@ -35,18 +35,22 @@
 //! `average`   | Average temperature among all inputs | Number | Degrees
 //! `max`       | Maximum temperature among all inputs | Number | Degrees
 //!
+//! Note that when block is collapsed, no placeholders are provided.
+//!
 //! # Example
 //!
 //! ```toml
 //! [[block]]
 //! block = "temperature"
-//! format = "{min} min, {max} max, {average} avg"
+//! format = "{min} min, {max} max, {average} avg|"
 //! interval = 10
 //! chip = "*-isa-*"
 //! ```
 //!
 //! # Icons Used
 //! - `thermometer`
+
+use std::collections::HashMap;
 
 use super::prelude::*;
 
@@ -189,24 +193,28 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
             _ => State::Critical,
         });
 
-        if collapsed {
-            api.collapse();
-        } else {
-            api.set_values(map! {
-                "average" => Value::degrees(avg_temp),
-                "min" => Value::degrees(min_temp),
-                "max" => Value::degrees(max_temp),
-            });
-            api.show();
-        }
+        'outer: loop {
+            if collapsed {
+                api.set_values(HashMap::new());
+            } else {
+                api.set_values(map! {
+                    "average" => Value::degrees(avg_temp),
+                    "min" => Value::degrees(min_temp),
+                    "max" => Value::degrees(max_temp),
+                });
+            }
 
-        api.flush().await?;
+            api.flush().await?;
 
-        tokio::select! {
-            _ = sleep(config.interval.0) => (),
-            Some(BlockEvent::Click(click)) = events.recv() => {
-                if click.button == MouseButton::Left {
-                    collapsed = !collapsed;
+            loop {
+                tokio::select! {
+                    _ = sleep(config.interval.0) => break 'outer,
+                    Some(BlockEvent::Click(click)) = events.recv() => {
+                        if click.button == MouseButton::Left  {
+                            collapsed = !collapsed;
+                            break;
+                        }
+                    }
                 }
             }
         }
