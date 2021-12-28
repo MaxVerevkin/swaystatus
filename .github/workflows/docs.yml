@@ -20,7 +20,9 @@ jobs:
       run: sudo apt-get install libsensors-dev libssl-dev
     - uses: actions/checkout@v2
     - name: Generate docs
-      run: cargo doc --no-deps --verbose
+      run: cargo doc --no-deps
+    - name: Create index.html
+      run: echo "<meta http-equiv=\"Refresh\" content=\"0; url='/swaystatus/swaystatus'\" />" > target/doc/index.html
     - name: Deploy 🚀
       uses: JamesIves/github-pages-deploy-action@4.1.3
       with:
