@@ -28,8 +28,8 @@ sensors = { git = "https://github.com/ishitatsuyuki/sensors.git", branch = "fix-
 neli = "0.6"
 nl80211 = { git = "https://github.com/MaxVerevkin/nl80211" }
 
-zbus = { git = "https://gitlab.freedesktop.org/dbus/zbus/" }
-zvariant = { git = "https://gitlab.freedesktop.org/dbus/zbus/" }
+zbus = "2.0.0-beta.8"
+zvariant = "3"
 
 # TODO: remove
 color_space = "0.5"
