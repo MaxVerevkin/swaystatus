@@ -412,7 +412,7 @@
 <span class="doccomment">//! Key | Values | Required | Default</span>
 <span class="doccomment">//! ----|--------|----------|--------</span>
 <span class="doccomment">//! `interval` | Update interval, in seconds. | No | `600`</span>
-<span class="doccomment">//! `format` | A string to customise the output of this block. See below for available placeholders. Text may need to be escaped, refer to [Escaping Text](#escaping-text). | No | `&quot;$pacman&quot;`</span>
+<span class="doccomment">//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `&quot;$pacman&quot;`</span>
 <span class="doccomment">//! `format_singular` | Same as `format` but for when exactly one update is available. | No | `&quot;$pacman&quot;`</span>
 <span class="doccomment">//! `format_up_to_date` | Same as `format` but for when no updates are available. | No | `&quot;$pacman&quot;`</span>
 <span class="doccomment">//! `warning_updates_regex` | Display block as warning if updates matching regex are available. | No | `None`</span>
@@ -438,8 +438,8 @@
 <span class="doccomment">//! [[block]]</span>
 <span class="doccomment">//! block = &quot;pacman&quot;</span>
 <span class="doccomment">//! interval = 600</span>
-<span class="doccomment">//! format = &quot;{pacman} updates available&quot;</span>
-<span class="doccomment">//! format_singular = &quot;{pacman} update available&quot;</span>
+<span class="doccomment">//! format = &quot;$pacman updates available&quot;</span>
+<span class="doccomment">//! format_singular = &quot;$pacman update available&quot;</span>
 <span class="doccomment">//! format_up_to_date = &quot;system up to date&quot;</span>
 <span class="doccomment">//! critical_updates_regex = &quot;(linux|linux-lts|linux-zen)&quot;</span>
 <span class="doccomment">//! # pop-up a menu showing the available updates. Replace wofi with your favourite menu command.</span>
@@ -452,8 +452,8 @@
 <span class="doccomment">//! [[block]]</span>
 <span class="doccomment">//! block = &quot;pacman&quot;</span>
 <span class="doccomment">//! interval = 600</span>
-<span class="doccomment">//! format = &quot;{pacman} updates available&quot;</span>
-<span class="doccomment">//! format_singular = &quot;{pacman} update available&quot;</span>
+<span class="doccomment">//! format = &quot;$pacman updates available&quot;</span>
+<span class="doccomment">//! format_singular = &quot;$pacman update available&quot;</span>
 <span class="doccomment">//! format_up_to_date = &quot;system up to date&quot;</span>
 <span class="doccomment">//! # If a linux update is availble, but no ZFS package, it won&#39;t be possible to</span>
 <span class="doccomment">//! # actually perform a system upgrade, so we show a warning.</span>
@@ -469,8 +469,8 @@
 <span class="doccomment">//! [[block]]</span>
 <span class="doccomment">//! block = &quot;pacman&quot;</span>
 <span class="doccomment">//! interval = 600</span>
-<span class="doccomment">//! format = &quot;{pacman} + {aur} = {both} updates available&quot;</span>
-<span class="doccomment">//! format_singular = &quot;{both} update available&quot;</span>
+<span class="doccomment">//! format = &quot;$pacman + $aur = $both updates available&quot;</span>
+<span class="doccomment">//! format_singular = &quot;$both update available&quot;</span>
 <span class="doccomment">//! format_up_to_date = &quot;system up to date&quot;</span>
 <span class="doccomment">//! critical_updates_regex = &quot;(linux|linux-lts|linux-zen)&quot;</span>
 <span class="doccomment">//! # aur_command should output available updates to stdout (ie behave as echo -ne &quot;update\n&quot;)</span>

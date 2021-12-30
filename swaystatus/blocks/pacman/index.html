@@ -12,7 +12,7 @@ Target = *
 When = PostTransaction
 Exec = /usr/bin/pkill -SIGUSR1 i3status-rs</code></pre></div><h2 id="configuration" class="section-header"><a href="#configuration">Configuration</a></h2><div><table><thead><tr><th>Key</th><th>Values</th><th>Required</th><th>Default</th></tr></thead><tbody>
 <tr><td><code>interval</code></td><td>Update interval, in seconds.</td><td>No</td><td><code>600</code></td></tr>
-<tr><td><code>format</code></td><td>A string to customise the output of this block. See below for available placeholders. Text may need to be escaped, refer to <a href="#escaping-text">Escaping Text</a>.</td><td>No</td><td><code>&quot;$pacman&quot;</code></td></tr>
+<tr><td><code>format</code></td><td>A string to customise the output of this block. See below for available placeholders.</td><td>No</td><td><code>&quot;$pacman&quot;</code></td></tr>
 <tr><td><code>format_singular</code></td><td>Same as <code>format</code> but for when exactly one update is available.</td><td>No</td><td><code>&quot;$pacman&quot;</code></td></tr>
 <tr><td><code>format_up_to_date</code></td><td>Same as <code>format</code> but for when no updates are available.</td><td>No</td><td><code>&quot;$pacman&quot;</code></td></tr>
 <tr><td><code>warning_updates_regex</code></td><td>Display block as warning if updates matching regex are available.</td><td>No</td><td><code>None</code></td></tr>
@@ -32,8 +32,8 @@ Exec = /usr/bin/pkill -SIGUSR1 i3status-rs</code></pre></div><h2 id="configurati
 <div class="example-wrap"><pre class="language-toml"><code>[[block]]
 block = &quot;pacman&quot;
 interval = 600
-format = &quot;{pacman} updates available&quot;
-format_singular = &quot;{pacman} update available&quot;
+format = &quot;$pacman updates available&quot;
+format_singular = &quot;$pacman update available&quot;
 format_up_to_date = &quot;system up to date&quot;
 critical_updates_regex = &quot;(linux|linux-lts|linux-zen)&quot;
 on_click = &quot;fakeroot pacman -Qu --dbpath /tmp/checkup-db-yourusername/ | wofi --show dmenu&quot;</code></pre></div>
@@ -41,8 +41,8 @@ on_click = &quot;fakeroot pacman -Qu --dbpath /tmp/checkup-db-yourusername/ | wo
 <div class="example-wrap"><pre class="language-toml"><code>[[block]]
 block = &quot;pacman&quot;
 interval = 600
-format = &quot;{pacman} updates available&quot;
-format_singular = &quot;{pacman} update available&quot;
+format = &quot;$pacman updates available&quot;
+format_singular = &quot;$pacman update available&quot;
 format_up_to_date = &quot;system up to date&quot;
 warning_updates_regex = &quot;(linux|linux-lts|linux-zen)&quot;
 critical_updates_regex = &quot;(zfs|zfs-lts)&quot;</code></pre></div>
@@ -50,8 +50,8 @@ critical_updates_regex = &quot;(zfs|zfs-lts)&quot;</code></pre></div>
 <div class="example-wrap"><pre class="language-toml"><code>[[block]]
 block = &quot;pacman&quot;
 interval = 600
-format = &quot;{pacman} + {aur} = {both} updates available&quot;
-format_singular = &quot;{both} update available&quot;
+format = &quot;$pacman + $aur = $both updates available&quot;
+format_singular = &quot;$both update available&quot;
 format_up_to_date = &quot;system up to date&quot;
 critical_updates_regex = &quot;(linux|linux-lts|linux-zen)&quot;
 aur_command = &quot;yay -Qua&quot;</code></pre></div><h2 id="icons-used" class="section-header"><a href="#icons-used">Icons Used</a></h2>
