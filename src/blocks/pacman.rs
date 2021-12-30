@@ -192,7 +192,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     loop {
         let (values, warning, critical, total) = match &watched {
             Watched::Pacman => {
-                let updates = get_pacman_available_updates().await?;
+                let updates = api.recoverable(get_pacman_available_updates, "X").await?;
                 let count = get_update_count(&updates);
                 let values = map!("pacman" => Value::number(count));
                 let warning = warning_updates_regex
@@ -204,7 +204,9 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                 (values, warning, critical, count)
             }
             Watched::Aur(aur_command) => {
-                let updates = get_aur_available_updates(aur_command).await?;
+                let updates = api
+                    .recoverable(|| get_aur_available_updates(aur_command), "X")
+                    .await?;
                 let count = get_update_count(&updates);
                 let values = map!(
                     "aur" => Value::number(count)
@@ -218,10 +220,17 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                 (values, warning, critical, count)
             }
             Watched::Both(aur_command) => {
-                let (pacman_updates, aur_updates) = tokio::try_join!(
-                    get_pacman_available_updates(),
-                    get_aur_available_updates(aur_command)
-                )?;
+                let (pacman_updates, aur_updates) = api
+                    .recoverable(
+                        || async {
+                            tokio::try_join!(
+                                get_pacman_available_updates(),
+                                get_aur_available_updates(aur_command)
+                            )
+                        },
+                        "X",
+                    )
+                    .await?;
                 let pacman_count = get_update_count(&pacman_updates);
                 let aur_count = get_update_count(&aur_updates);
                 let values = map! {
@@ -349,7 +358,7 @@ async fn get_pacman_available_updates() -> Result<StdString> {
         .await
         .error("Failed to run command")?;
     if !status.success() {
-        return Err(Error::new("Failed to run command"));
+        return Err(Error::new("pacman -Sy exited with non zero exit status"));
     }
 
     let stdout = Command::new("sh")
