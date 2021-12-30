@@ -59,6 +59,7 @@ define_blocks!(
     disk_space,
     dnf,
     docker,
+    external_ip,
     focused_window,
     github,
     kdeconnect,
@@ -175,7 +176,7 @@ impl CommonApi {
     }
 
     pub fn preserve(&mut self) {
-        self.cmd_buf.push(RequestCmd::Restore);
+        self.cmd_buf.push(RequestCmd::Preserve);
     }
 
     pub fn restore(&mut self) {

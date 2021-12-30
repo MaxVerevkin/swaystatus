@@ -86,10 +86,8 @@
 
 use super::prelude::*;
 use crate::signals::Signal;
-use futures::Stream;
 use inotify::{Inotify, WatchMask};
 use std::io;
-use std::pin::Pin;
 use tokio::{process::Command, time::Instant};
 use tokio_stream::wrappers::IntervalStream;
 

@@ -168,6 +168,24 @@ pub fn format_vec_to_bar_graph(content: &[f64]) -> smartstring::alias::String {
         .collect()
 }
 
+/// Convert 2 letter country code to Unicode
+pub fn country_flag_from_iso_code(country_code: &str) -> String {
+    if country_code.len() != 2 || !country_code.chars().all(|c| c.is_ascii_uppercase()) {
+        return country_code.to_string();
+    }
+    let bytes = country_code.as_bytes(); // Sane as we verified before that it's ASCII
+
+    // Each char is encoded as 1F1E6 to 1F1FF for A-Z
+    let c1 = bytes[0] + 0xa5;
+    let c2 = bytes[1] + 0xa5;
+    // The last byte will always start with 101 (0xa0) and then the 5 least
+    // significant bits from the previous result
+    let b1 = 0xa0 | (c1 & 0x1f);
+    let b2 = 0xa0 | (c2 & 0x1f);
+    // Get the flag string from the UTF-8 representation of our Unicode characters.
+    String::from_utf8(vec![0xf0, 0x9f, 0x87, b1, 0xf0, 0x9f, 0x87, b2]).unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,5 +200,12 @@ mod tests {
     fn test_has_command_err() {
         // we assume thequickbrownfoxjumpsoverthelazydog command does not exist
         assert!(!tokio_test::block_on(has_command("thequickbrownfoxjumpsoverthelazydog")).unwrap());
+    }
+
+    #[test]
+    fn test_flags() {
+        assert!(country_flag_from_iso_code("ES") == "🇪🇸");
+        assert!(country_flag_from_iso_code("US") == "🇺🇸");
+        assert!(country_flag_from_iso_code("USA") == "USA");
     }
 }

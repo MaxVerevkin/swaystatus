@@ -13,11 +13,12 @@ pub use serde_derive::Deserialize;
 pub use smartstring::alias::String;
 
 pub use std::fmt::Write;
+pub use std::pin::Pin;
 pub use std::string::String as StdString;
 pub use std::time::Duration;
 
 pub use tokio::time::sleep;
 
-pub use futures::StreamExt;
+pub use futures::{Stream, StreamExt};
 
 pub use once_cell::sync::Lazy;
