@@ -23,7 +23,7 @@
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
 //! `interval` | Update interval, in seconds. | No | `600`
-//! `format` | A string to customise the output of this block. See below for available placeholders. Text may need to be escaped, refer to [Escaping Text](#escaping-text). | No | `"$pacman"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$pacman"`
 //! `format_singular` | Same as `format` but for when exactly one update is available. | No | `"$pacman"`
 //! `format_up_to_date` | Same as `format` but for when no updates are available. | No | `"$pacman"`
 //! `warning_updates_regex` | Display block as warning if updates matching regex are available. | No | `None`
@@ -49,8 +49,8 @@
 //! [[block]]
 //! block = "pacman"
 //! interval = 600
-//! format = "{pacman} updates available"
-//! format_singular = "{pacman} update available"
+//! format = "$pacman updates available"
+//! format_singular = "$pacman update available"
 //! format_up_to_date = "system up to date"
 //! critical_updates_regex = "(linux|linux-lts|linux-zen)"
 //! # pop-up a menu showing the available updates. Replace wofi with your favourite menu command.
@@ -63,8 +63,8 @@
 //! [[block]]
 //! block = "pacman"
 //! interval = 600
-//! format = "{pacman} updates available"
-//! format_singular = "{pacman} update available"
+//! format = "$pacman updates available"
+//! format_singular = "$pacman update available"
 //! format_up_to_date = "system up to date"
 //! # If a linux update is availble, but no ZFS package, it won't be possible to
 //! # actually perform a system upgrade, so we show a warning.
@@ -80,8 +80,8 @@
 //! [[block]]
 //! block = "pacman"
 //! interval = 600
-//! format = "{pacman} + {aur} = {both} updates available"
-//! format_singular = "{both} update available"
+//! format = "$pacman + $aur = $both updates available"
+//! format_singular = "$both update available"
 //! format_up_to_date = "system up to date"
 //! critical_updates_regex = "(linux|linux-lts|linux-zen)"
 //! # aur_command should output available updates to stdout (ie behave as echo -ne "update\n")
