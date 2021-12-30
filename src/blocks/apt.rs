@@ -1,5 +1,8 @@
-//! Pending updates available for your Fedora system
+//! Pending updates available for your Debian/Ubuntu based system
 //!
+//! Behind the scenes this uses `apt`, and in order to run it without root privileges i3status-rust will create its own package database in `/tmp/i3rs-apt/` which may take up several MB or more. If you have a custom apt config then this block may not work as expected - in that case please open an issue.
+//!
+//! Tip: You can grab the list of available updates using `APT_CONFIG=/tmp/i3rs-apt/apt.conf apt list --upgradable`
 //!
 //! # Configuration
 //!
@@ -14,7 +17,7 @@
 //! `hide_when_uptodate` | Hides the block when there are no updates available | `false`
 //!
 //! Key | Value | Type | Unit
-//! ----|-------|------|-----
+//! ----|-------|------|------
 //! `count` | Number of updates available | Number | -
 //!
 //! # Example
@@ -23,27 +26,33 @@
 //!
 //! ```toml
 //! [[block]]
-//! block = "dnf"
+//! block = "apt"
 //! interval = 1800
-//! format = "$count.eng(1) updates available"
+//! format = "$count updates available"
 //! format_singular = "One update available"
 //! format_up_to_date = "system up to date"
 //! critical_updates_regex = "(linux|linux-lts|linux-zen)"
 //! # shows dmenu with cached available updates. Any dmenu alternative should also work.
-//! on_click = "dnf list -q --upgrades | tail -n +2 | rofi -dmenu"
+//! on_click = "APT_CONFIG=/tmp/i3rs-apt/apt.conf apt list --upgradable | tail -n +2 | rofi -dmenu"
 //! ```
 //!
 //! # Icons Used
 //!
 //! - `update`
 
-use super::prelude::*;
+use std::env;
+
 use regex::Regex;
+
+use tokio::fs::{create_dir_all, File};
+use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
+
+use super::prelude::*;
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
-struct DnfConfig {
+struct AptConfig {
     interval: Seconds,
     format: FormatConfig,
     format_singular: FormatConfig,
@@ -53,7 +62,7 @@ struct DnfConfig {
     hide_when_uptodate: bool,
 }
 
-impl Default for DnfConfig {
+impl Default for AptConfig {
     fn default() -> Self {
         Self {
             interval: Seconds::new(600),
@@ -68,7 +77,7 @@ impl Default for DnfConfig {
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
-    let config = DnfConfig::deserialize(config).config_error()?;
+    let config = AptConfig::deserialize(config).config_error()?;
     let mut events = api.get_events().await?;
     api.set_icon("update")?;
 
@@ -91,8 +100,35 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         }
     };
 
+    let mut cache_dir = env::temp_dir();
+    cache_dir.push("i3rs-apt");
+    if !cache_dir.exists() {
+        create_dir_all(&cache_dir)
+            .await
+            .error("Failed to create temp dir")?;
+    }
+
+    let apt_config = format!(
+        "Dir::State \"{}\";\n
+             Dir::State::lists \"lists\";\n
+             Dir::Cache \"{}\";\n
+             Dir::Cache::srcpkgcache \"srcpkgcache.bin\";\n
+             Dir::Cache::pkgcache \"pkgcache.bin\";",
+        cache_dir.display(),
+        cache_dir.display(),
+    );
+
+    let mut config_file = cache_dir;
+    config_file.push("apt.conf");
+    let mut file = File::create(&config_file)
+        .await
+        .error("Failed to create config file")?;
+    file.write_all(apt_config.as_bytes())
+        .await
+        .error("Failed to write to config file")?;
+
     loop {
-        let updates = get_updates_list().await?;
+        let updates = get_updates_list(config_file.to_str().unwrap()).await?;
         let count = get_update_count(&updates);
 
         if count == 0 && config.hide_when_uptodate {
@@ -142,19 +178,30 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     }
 }
 
-async fn get_updates_list() -> Result<StdString> {
+async fn get_updates_list(config_path: &str) -> Result<StdString> {
+    Command::new("sh")
+        .env("APT_CONFIG", config_path)
+        .args(["-c", "apt update"])
+        .spawn()
+        .error("Failed to ren `apt update` command")?
+        .wait()
+        .await
+        .error("Failed to run `apt update` command")?;
     let stdout = Command::new("sh")
-        .env("LC_LANG", "C")
-        .args(&["-c", "dnf check-update -q --skip-broken"])
+        .env("APT_CONFIG", config_path)
+        .args(&["-c", "apt list --upgradable"])
         .output()
         .await
-        .error("Failed to run dnf check-update")?
+        .error("Problem running apt command")?
         .stdout;
-    StdString::from_utf8(stdout).error("dnf produced non-UTF8 output")
+    StdString::from_utf8(stdout).error("apt produced non-UTF8 output")
 }
 
 fn get_update_count(updates: &str) -> usize {
-    updates.lines().filter(|line| line.len() > 1).count()
+    updates
+        .lines()
+        .filter(|line| line.contains("[upgradable"))
+        .count()
 }
 
 fn has_matching_update(updates: &str, regex: &Regex) -> bool {

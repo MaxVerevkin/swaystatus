@@ -49,6 +49,7 @@ macro_rules! define_blocks {
 }
 
 define_blocks!(
+    apt,
     backlight,
     battery,
     bluetooth,
