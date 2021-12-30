@@ -23,9 +23,9 @@
 //! Key | Values | Required | Default
 //! ----|--------|----------|--------
 //! `interval` | Update interval, in seconds. | No | `600`
-//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$pacman"`
-//! `format_singular` | Same as `format` but for when exactly one update is available. | No | `"$pacman"`
-//! `format_up_to_date` | Same as `format` but for when no updates are available. | No | `"$pacman"`
+//! `format` | A string to customise the output of this block. See below for available placeholders. | No | `"$pacman.eng(1)"`
+//! `format_singular` | Same as `format` but for when exactly one update is available. | No | `"$pacman.eng(1)"`
+//! `format_up_to_date` | Same as `format` but for when no updates are available. | No | `"$pacman.eng(1)"`
 //! `warning_updates_regex` | Display block as warning if updates matching regex are available. | No | `None`
 //! `critical_updates_regex` | Display block as critical if updates matching regex are available. | No | `None`
 //! `aur_command` | AUR command to check available updates, which outputs in the same format as pacman. e.g. `yay -Qua` | if `{both}` or `{aur}` are used. | `None`
@@ -138,9 +138,9 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
     api.set_icon("update")?;
 
-    let format = config.format.with_default("$pacman")?;
-    let format_singular = config.format_singular.with_default("$pacman")?;
-    let format_up_to_date = config.format_up_to_date.with_default("$pacman")?;
+    let format = config.format.with_default("$pacman.eng(1)")?;
+    let format_singular = config.format_singular.with_default("$pacman.eng(1)")?;
+    let format_up_to_date = config.format_up_to_date.with_default("$pacman.eng(1)")?;
 
     macro_rules! any_format_contains {
         ($name:expr) => {

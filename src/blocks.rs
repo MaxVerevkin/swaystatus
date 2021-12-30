@@ -56,6 +56,7 @@ define_blocks!(
     custom,
     custom_dbus,
     disk_space,
+    dnf,
     focused_window,
     github,
     kdeconnect,
