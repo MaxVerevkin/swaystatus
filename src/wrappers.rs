@@ -103,7 +103,7 @@ impl<'de> Deserialize<'de> for Seconds {
 }
 
 #[derive(Debug, Clone)]
-pub struct ShellString(pub String);
+pub struct ShellString(pub Cow<'static, str>);
 
 impl<'de> Deserialize<'de> for ShellString {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -123,7 +123,7 @@ impl<'de> Deserialize<'de> for ShellString {
             where
                 E: de::Error,
             {
-                Ok(ShellString(v.into()))
+                Ok(ShellString(v.to_string().into()))
             }
         }
 
@@ -132,7 +132,7 @@ impl<'de> Deserialize<'de> for ShellString {
 }
 
 impl ShellString {
-    pub fn new<T: Into<String>>(value: T) -> Self {
+    pub fn new<T: Into<Cow<'static, str>>>(value: T) -> Self {
         Self(value.into())
     }
 

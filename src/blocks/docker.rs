@@ -1,4 +1,4 @@
-//! Local docker daemon status (containers running, paused, stopped, total and image count).
+//! Local docker daemon status
 //!
 //! # Configuration
 //!
@@ -53,9 +53,10 @@ impl Default for DockerConfig {
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let config = DockerConfig::deserialize(config).config_error()?;
-    api.set_format(config.format.with_default("$running.eng(1)")?);
     let mut timer = config.interval.timer();
     let socket_path = config.socket_path.expand()?;
+
+    api.set_format(config.format.with_default("$running.eng(1)")?);
     api.set_icon("docker")?;
 
     loop {
