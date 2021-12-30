@@ -178,6 +178,12 @@
 <span id="178">178</span>
 <span id="179">179</span>
 <span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fs::File</span>;
 <span class="kw">use</span> <span class="ident">std::io::prelude</span>::<span class="kw-2">*</span>;
@@ -295,7 +301,6 @@
     <span class="prelude-val">Ok</span>(<span class="ident">content</span>.<span class="ident">trim_end</span>().<span class="ident">to_string</span>())
 }
 
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">has_command</span>(<span class="ident">command</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> {
     <span class="ident">Command::new</span>(<span class="string">&quot;sh&quot;</span>)
         .<span class="ident">args</span>(<span class="kw-2">&amp;</span>[
@@ -304,7 +309,7 @@
         ])
         .<span class="ident">status</span>()
         .<span class="kw">await</span>
-        .<span class="ident">error</span>(<span class="macro">format!</span>(<span class="string">&quot;failed to start command to check for {}&quot;</span>, <span class="ident">command</span>))
+        .<span class="ident">or_error</span>(<span class="op">|</span><span class="op">|</span> <span class="macro">format!</span>(<span class="string">&quot;Failed to check {} presence&quot;</span>, <span class="ident">command</span>))
         .<span class="ident">map</span>(<span class="op">|</span><span class="ident">status</span><span class="op">|</span> <span class="ident">status</span>.<span class="ident">success</span>())
 }
 
@@ -315,6 +320,13 @@
         <span class="ident">m</span>
     }};
 }
+
+<span class="comment">// macro_rules! regex {</span>
+<span class="comment">//     ($re:literal $(,)?) =&gt; {{</span>
+<span class="comment">//         static RE: once_cell::sync::OnceCell&lt;regex::Regex&gt; = once_cell::sync::OnceCell::new();</span>
+<span class="comment">//         RE.get_or_init(|| regex::Regex::new($re).unwrap())</span>
+<span class="comment">//     }};</span>
+<span class="comment">// }</span>
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">format_vec_to_bar_graph</span>(<span class="ident">content</span>: <span class="kw-2">&amp;</span>[<span class="ident">f64</span>]) -&gt; <span class="ident">smartstring::alias::String</span> {
     <span class="comment">// (x * one eighth block) https://en.wikipedia.org/wiki/Block_Elements</span>

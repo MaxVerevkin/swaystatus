@@ -94,9 +94,6 @@
 <span id="94">94</span>
 <span id="95">95</span>
 <span id="96">96</span>
-<span id="97">97</span>
-<span id="98">98</span>
-<span id="99">99</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">template::FormatTemplate</span>, <span class="ident">Format</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::errors::ToSerdeError</span>;
 <span class="kw">use</span> <span class="ident">serde::de</span>::{<span class="ident">MapAccess</span>, <span class="ident">Visitor</span>};
@@ -117,10 +114,7 @@
             <span class="prelude-val">Some</span>(<span class="ident">full</span>) =&gt; <span class="ident">full</span>,
             <span class="prelude-val">None</span> =&gt; <span class="ident">default_full</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
         };
-        <span class="prelude-val">Ok</span>(<span class="ident">Format</span> {
-            <span class="ident">full</span>: <span class="ident">Arc::new</span>(<span class="ident">full</span>),
-            <span class="ident">short</span>: <span class="self">self</span>.<span class="ident">short</span>.<span class="ident">map</span>(<span class="ident">Arc::new</span>),
-        })
+        <span class="prelude-val">Ok</span>(<span class="ident">Format</span>(<span class="ident">Arc::new</span>((<span class="ident">full</span>, <span class="self">self</span>.<span class="ident">short</span>))))
     }
 }
 

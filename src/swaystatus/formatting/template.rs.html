@@ -244,7 +244,6 @@
 <span id="244">244</span>
 <span id="245">245</span>
 <span id="246">246</span>
-<span id="247">247</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">super</span>::formatter</span>::{
     <span class="ident">new_formatter</span>, <span class="ident">Formatter</span>, <span class="ident">DEFAULT_FLAG_FORMATTER</span>, <span class="ident">DEFAULT_NUMBER_FORMATTER</span>,
     <span class="ident">DEFAULT_STRING_FORMATTER</span>,
@@ -278,7 +277,6 @@
 }
 
 <span class="kw">impl</span> <span class="ident">FormatTemplate</span> {
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">contains_key</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">token_list</span><span class="op">|</span> {
             <span class="ident">token_list</span>.<span class="number">0</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">token</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">token</span> {
