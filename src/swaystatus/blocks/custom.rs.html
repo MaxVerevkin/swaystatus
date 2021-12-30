@@ -226,8 +226,6 @@
 <span id="226">226</span>
 <span id="227">227</span>
 <span id="228">228</span>
-<span id="229">229</span>
-<span id="230">230</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The output of a custom shell command</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! For further customisation, use the `json` option and have the shell command output valid JSON in the schema below:  </span>
@@ -316,10 +314,8 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::signals::Signal</span>;
-<span class="kw">use</span> <span class="ident">futures::Stream</span>;
 <span class="kw">use</span> <span class="ident">inotify</span>::{<span class="ident">Inotify</span>, <span class="ident">WatchMask</span>};
 <span class="kw">use</span> <span class="ident">std::io</span>;
-<span class="kw">use</span> <span class="ident">std::pin::Pin</span>;
 <span class="kw">use</span> <span class="ident">tokio</span>::{<span class="ident">process::Command</span>, <span class="ident">time::Instant</span>};
 <span class="kw">use</span> <span class="ident">tokio_stream::wrappers::IntervalStream</span>;
 

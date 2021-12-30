@@ -316,6 +316,7 @@
 <span id="316">316</span>
 <span id="317">317</span>
 <span id="318">318</span>
+<span id="319">319</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The collection of blocks</span>
 
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">prelude</span>;
@@ -377,6 +378,7 @@
     <span class="ident">disk_space</span>,
     <span class="ident">dnf</span>,
     <span class="ident">docker</span>,
+    <span class="ident">external_ip</span>,
     <span class="ident">focused_window</span>,
     <span class="ident">github</span>,
     <span class="ident">kdeconnect</span>,
@@ -493,7 +495,7 @@
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">preserve</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="self">self</span>.<span class="ident">cmd_buf</span>.<span class="ident">push</span>(<span class="ident">RequestCmd::Restore</span>);
+        <span class="self">self</span>.<span class="ident">cmd_buf</span>.<span class="ident">push</span>(<span class="ident">RequestCmd::Preserve</span>);
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">restore</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {

@@ -21,6 +21,7 @@
 <span id="21">21</span>
 <span id="22">22</span>
 <span id="23">23</span>
+<span id="24">24</span>
 </pre><pre class="rust"><code><span class="kw">pub</span> <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">BlockEvent</span>, <span class="ident">CommonApi</span>};
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::click::MouseButton</span>;
@@ -36,12 +37,13 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">smartstring::alias::String</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">std::fmt::Write</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">std::pin::Pin</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">std::string::String</span> <span class="kw">as</span> <span class="ident">StdString</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">std::time::Duration</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">tokio::time::sleep</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">futures::StreamExt</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">futures</span>::{<span class="ident">Stream</span>, <span class="ident">StreamExt</span>};
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">once_cell::sync::Lazy</span>;
 </code></pre></div>

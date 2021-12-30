@@ -560,7 +560,7 @@
     <span class="kw">const</span> <span class="ident">APP_USER_AGENT</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="macro">concat!</span>(<span class="macro">env!</span>(<span class="string">&quot;CARGO_PKG_NAME&quot;</span>), <span class="string">&quot;/&quot;</span>, <span class="macro">env!</span>(<span class="string">&quot;CARGO_PKG_VERSION&quot;</span>),);
     <span class="ident">reqwest::Client::builder</span>()
         .<span class="ident">user_agent</span>(<span class="ident">APP_USER_AGENT</span>)
-        <span class="comment">// .timeout(std::time::Duration::from_secs(1))</span>
+        .<span class="ident">timeout</span>(<span class="ident">Duration::from_secs</span>(<span class="number">1</span>))
         .<span class="ident">build</span>()
         .<span class="ident">unwrap</span>()
 });

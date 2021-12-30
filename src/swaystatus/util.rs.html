@@ -184,6 +184,31 @@
 <span id="184">184</span>
 <span id="185">185</span>
 <span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fs::File</span>;
 <span class="kw">use</span> <span class="ident">std::io::prelude</span>::<span class="kw-2">*</span>;
@@ -354,6 +379,24 @@
         .<span class="ident">collect</span>()
 }
 
+<span class="doccomment">/// Convert 2 letter country code to Unicode</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">country_flag_from_iso_code</span>(<span class="ident">country_code</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">String</span> {
+    <span class="kw">if</span> <span class="ident">country_code</span>.<span class="ident">len</span>() <span class="op">!</span><span class="op">=</span> <span class="number">2</span> <span class="op">|</span><span class="op">|</span> <span class="op">!</span><span class="ident">country_code</span>.<span class="ident">chars</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">is_ascii_uppercase</span>()) {
+        <span class="kw">return</span> <span class="ident">country_code</span>.<span class="ident">to_string</span>();
+    }
+    <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="ident">country_code</span>.<span class="ident">as_bytes</span>(); <span class="comment">// Sane as we verified before that it&#39;s ASCII</span>
+
+    <span class="comment">// Each char is encoded as 1F1E6 to 1F1FF for A-Z</span>
+    <span class="kw">let</span> <span class="ident">c1</span> <span class="op">=</span> <span class="ident">bytes</span>[<span class="number">0</span>] <span class="op">+</span> <span class="number">0xa5</span>;
+    <span class="kw">let</span> <span class="ident">c2</span> <span class="op">=</span> <span class="ident">bytes</span>[<span class="number">1</span>] <span class="op">+</span> <span class="number">0xa5</span>;
+    <span class="comment">// The last byte will always start with 101 (0xa0) and then the 5 least</span>
+    <span class="comment">// significant bits from the previous result</span>
+    <span class="kw">let</span> <span class="ident">b1</span> <span class="op">=</span> <span class="number">0xa0</span> <span class="op">|</span> (<span class="ident">c1</span> <span class="op">&amp;</span> <span class="number">0x1f</span>);
+    <span class="kw">let</span> <span class="ident">b2</span> <span class="op">=</span> <span class="number">0xa0</span> <span class="op">|</span> (<span class="ident">c2</span> <span class="op">&amp;</span> <span class="number">0x1f</span>);
+    <span class="comment">// Get the flag string from the UTF-8 representation of our Unicode characters.</span>
+    <span class="ident">String::from_utf8</span>(<span class="macro">vec!</span>[<span class="number">0xf0</span>, <span class="number">0x9f</span>, <span class="number">0x87</span>, <span class="ident">b1</span>, <span class="number">0xf0</span>, <span class="number">0x9f</span>, <span class="number">0x87</span>, <span class="ident">b2</span>]).<span class="ident">unwrap</span>()
+}
+
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
@@ -368,6 +411,13 @@
     <span class="kw">fn</span> <span class="ident">test_has_command_err</span>() {
         <span class="comment">// we assume thequickbrownfoxjumpsoverthelazydog command does not exist</span>
         <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">tokio_test::block_on</span>(<span class="ident">has_command</span>(<span class="string">&quot;thequickbrownfoxjumpsoverthelazydog&quot;</span>)).<span class="ident">unwrap</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_flags</span>() {
+        <span class="macro">assert!</span>(<span class="ident">country_flag_from_iso_code</span>(<span class="string">&quot;ES&quot;</span>) <span class="op">==</span> <span class="string">&quot;🇪🇸&quot;</span>);
+        <span class="macro">assert!</span>(<span class="ident">country_flag_from_iso_code</span>(<span class="string">&quot;US&quot;</span>) <span class="op">==</span> <span class="string">&quot;🇺🇸&quot;</span>);
+        <span class="macro">assert!</span>(<span class="ident">country_flag_from_iso_code</span>(<span class="string">&quot;USA&quot;</span>) <span class="op">==</span> <span class="string">&quot;USA&quot;</span>);
     }
 }
 </code></pre></div>
