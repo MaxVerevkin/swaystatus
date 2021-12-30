@@ -31,7 +31,6 @@ pub enum Token {
 }
 
 impl FormatTemplate {
-    #[allow(dead_code)]
     pub fn contains_key(&self, key: &str) -> bool {
         self.0.iter().any(|token_list| {
             token_list.0.iter().any(|token| match token {

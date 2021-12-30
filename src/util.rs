@@ -115,7 +115,6 @@ pub async fn read_file(path: &Path) -> StdResult<String, std::io::Error> {
     Ok(content.trim_end().to_string())
 }
 
-#[allow(dead_code)]
 pub async fn has_command(command: &str) -> Result<bool> {
     Command::new("sh")
         .args(&[
@@ -124,7 +123,7 @@ pub async fn has_command(command: &str) -> Result<bool> {
         ])
         .status()
         .await
-        .error(format!("failed to start command to check for {}", command))
+        .or_error(|| format!("Failed to check {} presence", command))
         .map(|status| status.success())
 }
 
@@ -135,6 +134,13 @@ macro_rules! map {
         m
     }};
 }
+
+// macro_rules! regex {
+//     ($re:literal $(,)?) => {{
+//         static RE: once_cell::sync::OnceCell<regex::Regex> = once_cell::sync::OnceCell::new();
+//         RE.get_or_init(|| regex::Regex::new($re).unwrap())
+//     }};
+// }
 
 pub fn format_vec_to_bar_graph(content: &[f64]) -> smartstring::alias::String {
     // (x * one eighth block) https://en.wikipedia.org/wiki/Block_Elements

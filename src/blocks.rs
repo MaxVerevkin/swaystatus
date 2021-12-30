@@ -65,6 +65,7 @@ define_blocks!(
     music,
     net,
     notify,
+    pacman,
     pomodoro,
     sound,
     speedtest,

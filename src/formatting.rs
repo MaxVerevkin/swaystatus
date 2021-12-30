@@ -88,16 +88,13 @@ use value::Value;
 pub type Values = HashMap<String, Value>;
 
 #[derive(Debug, Clone)]
-pub struct Format {
-    full: Arc<FormatTemplate>,
-    short: Option<Arc<FormatTemplate>>,
-}
+pub struct Format(Arc<(FormatTemplate, Option<FormatTemplate>)>);
 
 impl Format {
     pub fn run(self, tx: &Sender<Request>, block_id: usize) -> RunningFormat {
         let mut handles = Handles(Vec::new());
-        self.full.init(tx, block_id, &mut handles);
-        if let Some(short) = &self.short {
+        self.0 .0.init(tx, block_id, &mut handles);
+        if let Some(short) = &self.0 .1 {
             short.init(tx, block_id, &mut handles);
         }
         RunningFormat(self, handles)
@@ -105,6 +102,10 @@ impl Format {
 
     pub fn run_no_init(self) -> RunningFormat {
         RunningFormat(self, Handles::default())
+    }
+
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.0 .0.contains_key(key) || self.0 .1.as_ref().map_or(false, |x| x.contains_key(key))
     }
 }
 
@@ -124,12 +125,9 @@ pub struct RunningFormat(Format, Handles);
 
 impl RunningFormat {
     pub fn render(&self, vars: &Values) -> Result<(String, Option<String>)> {
-        let full = self
-            .0
-            .full
-            .render(vars)
-            .error("Failed to render full text")?;
-        let short = match &self.0.short {
+        let (full, short) = self.0 .0.as_ref();
+        let full = full.render(vars).error("Failed to render full text")?;
+        let short = match short {
             Some(short) => Some(short.render(vars).error("Failed to render short text")?),
             None => None,
         };

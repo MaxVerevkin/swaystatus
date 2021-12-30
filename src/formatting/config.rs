@@ -18,10 +18,7 @@ impl Config {
             Some(full) => full,
             None => default_full.parse()?,
         };
-        Ok(Format {
-            full: Arc::new(full),
-            short: self.short.map(Arc::new),
-        })
+        Ok(Format(Arc::new((full, self.short))))
     }
 }
 
