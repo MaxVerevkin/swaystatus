@@ -1457,6 +1457,7 @@ dependencies = [
  "color_space",
  "crossbeam-channel",
  "futures",
+ "hyper",
  "inotify",
  "libc",
  "libpulse-binding",
