@@ -44,7 +44,7 @@ zvariant = { git = "https://gitlab.freedesktop.org/dbus/zbus.git" }
 color_space = "0.5"
 
 [dependencies.clap]
-version = "3.0.0-rc.7"
+version = "3.0"
 default-features = false
 features = ["std", "derive"]
 
