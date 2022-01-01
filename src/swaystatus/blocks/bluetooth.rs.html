@@ -417,7 +417,7 @@
 <span class="doccomment">//! Key | Values | Required | Default</span>
 <span class="doccomment">//! ----|--------|----------|--------</span>
 <span class="doccomment">//! `mac` | MAC address of the Bluetooth device | Yes | -</span>
-<span class="doccomment">//! `adapter_mac` | MAC Address of the Bluetooth adapter (in case your device was connected to multiple currently available adapters) | No | -</span>
+<span class="doccomment">//! `adapter_mac` | MAC Address of the Bluetooth adapter (in case your device was connected to multiple currently available adapters) | No | None</span>
 <span class="doccomment">//! `format` | A string to customise the output of this block. See below for available placeholders. | No | &lt;code&gt;&quot;$name{ $percentage&amp;vert;}&amp;vert;Unavailable&quot;&lt;/code&gt;</span>
 <span class="doccomment">//! `hide_disconnected` | Whether to hide the block when disconnected | No | `false`</span>
 <span class="doccomment">//!</span>
@@ -565,7 +565,7 @@
         <span class="ident">mac</span>: <span class="ident">String</span>,
         <span class="ident">adapter_mac</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">manager_proxy</span> <span class="op">=</span> <span class="ident">ObjectManagerProxy::builder</span>(<span class="kw-2">&amp;</span><span class="ident">dbus_conn</span>)
+        <span class="kw">let</span> <span class="ident">manager_proxy</span> <span class="op">=</span> <span class="ident">ObjectManagerProxy::builder</span>(<span class="ident">dbus_conn</span>)
             .<span class="ident">destination</span>(<span class="string">&quot;org.bluez&quot;</span>)
             .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">path</span>(<span class="string">&quot;/&quot;</span>))
             .<span class="ident">unwrap</span>()
