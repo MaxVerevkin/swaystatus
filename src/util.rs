@@ -67,6 +67,42 @@ pub fn find_file(file: &str, subdir: Option<&str>, extension: Option<&str>) -> O
     None
 }
 
+pub async fn new_dbus_connection() -> Result<zbus::Connection> {
+    let conn = zbus::ConnectionBuilder::session()
+        .unwrap()
+        .internal_executor(false)
+        .build()
+        .await
+        .error("Failed to open DBus connection")?;
+    {
+        let conn = conn.clone();
+        tokio::spawn(async move {
+            loop {
+                conn.executor().tick().await;
+            }
+        });
+    }
+    Ok(conn)
+}
+
+pub async fn new_system_dbus_connection() -> Result<zbus::Connection> {
+    let conn = zbus::ConnectionBuilder::system()
+        .unwrap()
+        .internal_executor(false)
+        .build()
+        .await
+        .error("Failed to open DBus connection")?;
+    {
+        let conn = conn.clone();
+        tokio::spawn(async move {
+            loop {
+                conn.executor().tick().await;
+            }
+        });
+    }
+    Ok(conn)
+}
+
 pub fn battery_level_icon(level: u8, charging: bool) -> &'static str {
     match (level, charging) {
         // TODO: use different charging icons

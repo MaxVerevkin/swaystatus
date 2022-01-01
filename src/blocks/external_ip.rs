@@ -60,7 +60,7 @@
 //! includes them. Tested with: https://www.babelstone.co.uk/Fonts/Flags.html
 
 use super::prelude::*;
-use crate::util::country_flag_from_iso_code;
+use crate::util::{country_flag_from_iso_code, new_system_dbus_connection};
 
 const API_ENDPOINT: &str = "https://ipapi.co/json/";
 
@@ -88,7 +88,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
 
     type UpdatesStream = Pin<Box<dyn Stream<Item = ()>>>;
     let mut stream: UpdatesStream = if config.with_network_manager {
-        let dbus = api.get_system_dbus_connection().await?;
+        let dbus = new_system_dbus_connection().await?;
         let proxy = zbus::fdo::DBusProxy::new(&dbus)
             .await
             .error("Failed to create DBusProxy")?;

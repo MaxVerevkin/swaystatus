@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use super::prelude::*;
 mod zbus_mpris;
+use crate::util::new_dbus_connection;
 
 const PLAY_PAUSE_BTN: usize = 1;
 const NEXT_BTN: usize = 2;
@@ -45,9 +46,9 @@ struct OwnerChange {
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
+    let dbus_conn = new_dbus_connection().await?;
     let mut events = api.get_events().await?;
     let config = MusicConfig::deserialize(config).config_error()?;
-    let dbus_conn = api.get_dbus_connection().await?;
     api.set_format(config.format.with_default("$title_artist.rot-str()|")?);
     api.set_icon("music")?;
 

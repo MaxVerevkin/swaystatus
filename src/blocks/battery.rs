@@ -72,7 +72,7 @@ use zbus::fdo::DBusProxy;
 use zbus::MessageStream;
 
 use super::prelude::*;
-use crate::util::{battery_level_icon, read_file};
+use crate::util::{battery_level_icon, new_system_dbus_connection, read_file};
 
 mod zbus_upower;
 
@@ -162,7 +162,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut device: Box<dyn BatteryDevice + Send + Sync> = match config.driver {
         BatteryDriver::Sysfs => Box::new(PowerSupplyDevice::from_device(&device, config.interval)),
         BatteryDriver::Upower => {
-            dbus_conn = api.get_system_dbus_connection().await?;
+            dbus_conn = new_system_dbus_connection().await?;
             Box::new(UPowerDevice::from_device(&device, &dbus_conn).await?)
         }
     };
