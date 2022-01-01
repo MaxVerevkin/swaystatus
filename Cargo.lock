@@ -76,20 +76,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-process"
-version = "1.3.0"
+name = "async-pidfd"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83137067e3a2a6a06d67168e49e68a0957d215410473a740cea95a2425c0b7c6"
+checksum = "12177058299bb8e3507695941b6d0d7dc0e4e6515b8bc1bf4609d9e32ef51799"
 dependencies = [
  "async-io",
- "blocking",
- "cfg-if",
- "event-listener",
- "futures-lite",
  "libc",
- "once_cell",
- "signal-hook",
- "winapi",
 ]
 
 [[package]]
@@ -142,12 +135,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "atomic-waker"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "065374052e7df7ee4047b1160cca5e1467a12351a40b3da123c870ba0b8eda2a"
-
-[[package]]
 name = "autocfg"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -164,20 +151,6 @@ name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
-
-[[package]]
-name = "blocking"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "046e47d4b2d391b1f6f8b407b1deb8dee56c1852ccd868becf2710f601b5f427"
-dependencies = [
- "async-channel",
- "async-task",
- "atomic-waker",
- "fastrand",
- "futures-lite",
- "once_cell",
-]
 
 [[package]]
 name = "bumpalo"
@@ -241,9 +214,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.0.0-rc.8"
+version = "3.0.0-rc.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "484f17839417b695a6f4a75c20e49820ba0a1d00aa41ebd8ba0e5dfe0fbc3b74"
+checksum = "e6f243c7279f09ffed852a0a564c72091331651484cdbb32b7287f16df8611a7"
 dependencies = [
  "bitflags",
  "clap_derive",
@@ -255,9 +228,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "3.0.0-rc.8"
+version = "3.0.0-rc.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a86d4ec799f94ddc4a4a4edf652f89b360219905f86edcb8abe5974dfef135b8"
+checksum = "8cd9992739777a4a23535089a8d235eac43044ba8b431d9f54fe334dfa779930"
 dependencies = [
  "heck",
  "proc-macro-error",
@@ -351,9 +324,9 @@ dependencies = [
 
 [[package]]
 name = "easy-parallel"
-version = "3.1.0"
+version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1dd4afd79212583ff429b913ad6605242ed7eec277e950b1438f300748f948f4"
+checksum = "6907e25393cdcc1f4f3f513d9aac1e840eb1cc341a0fccb01171f7d14d10b946"
 
 [[package]]
 name = "either"
@@ -372,9 +345,9 @@ dependencies = [
 
 [[package]]
 name = "enumflags2"
-version = "0.7.2"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ff9afdda4e54e2e711c7c729318e0948f427058dfdf3d27084b2d1cd6e2d8fe"
+checksum = "a25c90b056b3f84111cf183cbeddef0d3a0bbe9a674f057e1a1533c315f24def"
 dependencies = [
  "enumflags2_derive",
  "serde",
@@ -382,9 +355,9 @@ dependencies = [
 
 [[package]]
 name = "enumflags2_derive"
-version = "0.7.2"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c17e972efecc5eaf9eeac61e004039e47926685409735ea4d0d7ba353e19acd"
+checksum = "144ec79496cbab6f84fa125dc67be9264aef22eb8a28da8454d9c33f15108da4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -576,13 +549,13 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "http"
-version = "0.2.5"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1323096b05d41827dadeaee54c9981958c0f94e670bc94ed80037d1a7b8b186b"
+checksum = "31f4c6746584866f0feabcc69893c5b51beef3831656a968ed7ae254cdc4fd03"
 dependencies = [
  "bytes",
  "fnv",
- "itoa 0.4.8",
+ "itoa 1.0.1",
 ]
 
 [[package]]
@@ -1053,9 +1026,9 @@ dependencies = [
 
 [[package]]
 name = "ppv-lite86"
-version = "0.2.15"
+version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed0cfbc8191465bed66e1718596ee0b0b35d5ee1f41c5df2189d0fe8bde535ba"
+checksum = "eb9f9e6e233e5c4a35559a617bf40a4ec447db2e84c20b55a6f83167b7e57872"
 
 [[package]]
 name = "proc-macro-crate"
@@ -1093,9 +1066,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.34"
+version = "1.0.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f84e92c0f7c9d58328b85a78557813e4bd845130db68d7184635344399423b1"
+checksum = "c7342d5883fbccae1cc37a2353b09c87c9b0f3afd73f5fb9bba687a1f733b029"
 dependencies = [
  "unicode-xid",
 ]
@@ -1108,9 +1081,9 @@ checksum = "b45c49fc4f91f35bae654f85ebb3a44d60ac64f11b3166ffa609def390c732d8"
 
 [[package]]
 name = "quote"
-version = "1.0.10"
+version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38bc8cc6a5f2e3655e0899c1b848643b2562f853f114bfec7be120678e3ace05"
+checksum = "47aa80447ce4daf1717500037052af176af5d38cc3e571d9ec1c7353fc10c87d"
 dependencies = [
  "proc-macro2",
 ]
@@ -1423,12 +1396,12 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "swayipc-async"
-version = "2.0.0-alpha.3"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a6e72db4db4262e6ade21d76a48aeb80c3c77e061920bd19c9b45a5c2ec7052"
+checksum = "f828f9cc0fe796ec7fc62264450592a65d1fac34fff1559b4fec22cc6074bcdd"
 dependencies = [
  "async-io",
- "async-process",
+ "async-pidfd",
  "futures-lite",
  "serde",
  "serde_json",
@@ -1437,9 +1410,9 @@ dependencies = [
 
 [[package]]
 name = "swayipc-types"
-version = "1.0.0-alpha.3"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e125745767953fbbea5ba38caede26c89e4aeaf741afff7eb655967611b695d6"
+checksum = "6d63c88513504fd598a6c2218bd83d19e1f8cc6dd1a9892f2f982b223f01a803"
 dependencies = [
  "serde",
  "serde_json",
@@ -1716,9 +1689,9 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "version_check"
-version = "0.9.3"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fecdca9a5291cc2b8dcf7dc02453fee791a280f3743cb0905f8822ae463b3fe"
+checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "waker-fn"
@@ -1861,8 +1834,7 @@ dependencies = [
 [[package]]
 name = "zbus"
 version = "2.0.0-beta.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2422a0f87e8307730a734dc6c59af0dcd680db1b9944ab1a2fb5061194e47233"
+source = "git+https://gitlab.freedesktop.org/dbus/zbus.git#b411cf4738a1e288ed32fe483a66b4f14327b1f2"
 dependencies = [
  "async-broadcast",
  "async-channel",
@@ -1896,8 +1868,7 @@ dependencies = [
 [[package]]
 name = "zbus_macros"
 version = "2.0.0-beta.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b229592c7b16f37d82a9a83fc7c20dd4979efca70c714edec5847ac5c168e744"
+source = "git+https://gitlab.freedesktop.org/dbus/zbus.git#b411cf4738a1e288ed32fe483a66b4f14327b1f2"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -1909,8 +1880,7 @@ dependencies = [
 [[package]]
 name = "zbus_names"
 version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae1f142d242d6854815a8c5c2aea83d9508f72f5757d0a137c21ef4b07bfee66"
+source = "git+https://gitlab.freedesktop.org/dbus/zbus.git#b411cf4738a1e288ed32fe483a66b4f14327b1f2"
 dependencies = [
  "serde",
  "static_assertions",
@@ -1920,8 +1890,7 @@ dependencies = [
 [[package]]
 name = "zvariant"
 version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a946c049b2eac1a253f98e9267a8ce7a3d93be274ea146e6dd7a0965232a911"
+source = "git+https://gitlab.freedesktop.org/dbus/zbus.git#b411cf4738a1e288ed32fe483a66b4f14327b1f2"
 dependencies = [
  "byteorder",
  "enumflags2",
@@ -1934,8 +1903,7 @@ dependencies = [
 [[package]]
 name = "zvariant_derive"
 version = "3.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28fce5afb8d639bff79b1e8cdb258a3ca22d458f4603b23d794b4cb4e878c990"
+source = "git+https://gitlab.freedesktop.org/dbus/zbus.git#b411cf4738a1e288ed32fe483a66b4f14327b1f2"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",

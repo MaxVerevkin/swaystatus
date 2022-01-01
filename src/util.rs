@@ -128,9 +128,10 @@ pub async fn has_command(command: &str) -> Result<bool> {
 }
 
 macro_rules! map {
-    ($($key:expr => $value:expr),+ $(,)*) => {{
+    ($($key:expr => $value:expr),* $(,)*) => {{
+        #[allow(unused_mut)]
         let mut m = ::std::collections::HashMap::new();
-        $(m.insert($key.into(), $value.into());)+
+        $(m.insert($key.into(), $value.into());)*
         m
     }};
 }
