@@ -7,8 +7,11 @@ edition = "2021"
 [features]
 # Make widgets' borders visible. (for debugging purposes)
 debug_borders = []
+# console = ["console-subscriber"]
 
 [dependencies]
+# console-subscriber = { version = "*", optional = true }
+
 signal-hook = "0.3"
 swayipc-async = "2.0"
 nix = "0.23"

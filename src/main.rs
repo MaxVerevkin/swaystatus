@@ -72,6 +72,11 @@ struct CliArgs {
 }
 
 fn main() {
+    // #[cfg(feature = "console")]
+    // {
+        // console_subscriber::init();
+    // }
+
     let args = CliArgs::parse();
     let blocking_threads = args.blocking_threads;
 
