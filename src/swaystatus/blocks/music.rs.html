@@ -316,6 +316,7 @@
 <span id="316">316</span>
 <span id="317">317</span>
 <span id="318">318</span>
+<span id="319">319</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">zbus::fdo::DBusProxy</span>;
 <span class="kw">use</span> <span class="ident">zbus::names</span>::{<span class="ident">OwnedBusName</span>, <span class="ident">OwnedInterfaceName</span>};
 <span class="kw">use</span> <span class="ident">zbus::zvariant</span>::{<span class="ident">Optional</span>, <span class="ident">OwnedValue</span>, <span class="ident">Type</span>};
@@ -325,6 +326,7 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">mod</span> <span class="ident">zbus_mpris</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::util::new_dbus_connection</span>;
 
 <span class="kw">const</span> <span class="ident">PLAY_PAUSE_BTN</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">1</span>;
 <span class="kw">const</span> <span class="ident">NEXT_BTN</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">2</span>;
@@ -363,9 +365,9 @@
 }
 
 <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">dbus_conn</span> <span class="op">=</span> <span class="ident">new_dbus_connection</span>().<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">events</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_events</span>().<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">MusicConfig::deserialize</span>(<span class="ident">config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">dbus_conn</span> <span class="op">=</span> <span class="ident">api</span>.<span class="ident">get_dbus_connection</span>().<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="ident">api</span>.<span class="ident">set_format</span>(<span class="ident">config</span>.<span class="ident">format</span>.<span class="ident">with_default</span>(<span class="string">&quot;$title_artist.rot-str()|&quot;</span>)<span class="question-mark">?</span>);
     <span class="ident">api</span>.<span class="ident">set_icon</span>(<span class="string">&quot;music&quot;</span>)<span class="question-mark">?</span>;
 

@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["default_hide",""],["default_interval",""],["get_total",""],["run",""]],"struct":[["GithubConfig",""]]});
+initSidebarItems({"fn":[["get_on_page",""],["get_stats",""],["run",""]],"struct":[["GithubConfig",""],["Notification",""]]});
