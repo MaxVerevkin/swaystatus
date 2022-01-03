@@ -62,6 +62,7 @@ define_blocks!(
     external_ip,
     focused_window,
     github,
+    hueshift,
     kdeconnect,
     load,
     maildir,
