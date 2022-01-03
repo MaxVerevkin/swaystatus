@@ -206,7 +206,6 @@
 <span id="206">206</span>
 <span id="207">207</span>
 <span id="208">208</span>
-<span id="209">209</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Pending updates available for your Debian/Ubuntu based system</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Behind the scenes this uses `apt`, and in order to run it without root privileges i3status-rust will create its own package database in `/tmp/i3rs-apt/` which may take up several MB or more. If you have a custom apt config then this block may not work as expected - in that case please open an issue.</span>
@@ -254,7 +253,6 @@
 <span class="kw">use</span> <span class="ident">regex::Regex</span>;
 
 <span class="kw">use</span> <span class="ident">tokio::fs</span>::{<span class="ident">create_dir_all</span>, <span class="ident">File</span>};
-<span class="kw">use</span> <span class="ident">tokio::io::AsyncWriteExt</span>;
 <span class="kw">use</span> <span class="ident">tokio::process::Command</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prelude</span>::<span class="kw-2">*</span>;

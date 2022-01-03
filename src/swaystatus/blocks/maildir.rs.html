@@ -127,9 +127,9 @@
 <span class="kw">use</span> <span class="ident">maildir::Maildir</span>;
 
 <span class="comment">//TODO add `format`</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">deny_unknown_fields</span>, <span class="ident">default</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MaildirConfig</span> {
+<span class="kw">struct</span> <span class="ident">MaildirConfig</span> {
     <span class="ident">interval</span>: <span class="ident">Seconds</span>,
     <span class="ident">inboxes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="ident">threshold_warning</span>: <span class="ident">usize</span>,
@@ -187,7 +187,7 @@
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Deserialize</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;lowercase&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">MailType</span> {
+<span class="kw">enum</span> <span class="ident">MailType</span> {
     <span class="ident">New</span>,
     <span class="ident">Cur</span>,
     <span class="ident">All</span>,
