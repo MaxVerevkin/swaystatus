@@ -70,6 +70,7 @@ define_blocks!(
     memory,
     music,
     net,
+    // networkmanager,
     notify,
     notmuch,
     pacman,
