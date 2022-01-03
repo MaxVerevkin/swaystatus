@@ -17,6 +17,7 @@ pub use std::pin::Pin;
 pub use std::string::String as StdString;
 pub use std::time::Duration;
 
+pub use tokio::io::{AsyncReadExt, AsyncWriteExt};
 pub use tokio::time::sleep;
 
 pub use futures::{Stream, StreamExt};

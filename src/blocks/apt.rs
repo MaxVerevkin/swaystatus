@@ -45,7 +45,6 @@ use std::env;
 use regex::Regex;
 
 use tokio::fs::{create_dir_all, File};
-use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
 use super::prelude::*;

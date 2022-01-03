@@ -87,7 +87,6 @@ use std::rc::Rc;
 use std::sync::Mutex;
 use std::thread;
 
-use tokio::io::AsyncReadExt;
 use tokio::process::{ChildStdout, Command};
 
 use super::prelude::*;

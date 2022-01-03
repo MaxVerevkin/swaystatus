@@ -30,9 +30,9 @@ use super::prelude::*;
 use maildir::Maildir;
 
 //TODO add `format`
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields, default)]
-pub struct MaildirConfig {
+struct MaildirConfig {
     interval: Seconds,
     inboxes: Vec<String>,
     threshold_warning: usize,
@@ -90,7 +90,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum MailType {
+enum MailType {
     New,
     Cur,
     All,

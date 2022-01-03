@@ -72,6 +72,7 @@ define_blocks!(
     notify,
     pacman,
     pomodoro,
+    rofication,
     sound,
     speedtest,
     keyboard_layout,
