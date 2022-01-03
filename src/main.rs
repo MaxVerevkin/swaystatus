@@ -74,7 +74,7 @@ struct CliArgs {
 fn main() {
     // #[cfg(feature = "console")]
     // {
-        // console_subscriber::init();
+    // console_subscriber::init();
     // }
 
     let args = CliArgs::parse();
