@@ -9,7 +9,6 @@
 //! `threshold_critical` | Number of unread mails where state is set to critical. | No | `10`
 //! `interval` | Update interval, in seconds. | No | `5`
 //! `display_type` | Which part of the maildir to count: `"new"`, `"cur"`, or `"all"`. | No | `"new"`
-//! `icon` | Whether or not to prepend the output with the mail icon. | No | `true`
 //!
 //! # Examples
 //!
@@ -38,7 +37,6 @@ struct MaildirConfig {
     threshold_warning: usize,
     threshold_critical: usize,
     display_type: MailType,
-    icon: bool,
 }
 
 impl Default for MaildirConfig {
@@ -49,17 +47,13 @@ impl Default for MaildirConfig {
             threshold_warning: 1,
             threshold_critical: 10,
             display_type: MailType::New,
-            icon: true,
         }
     }
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let config = MaildirConfig::deserialize(config).config_error()?;
-
-    if config.icon {
-        api.set_icon("mail")?;
-    }
+    api.set_icon("mail")?;
 
     let mut timer = config.interval.timer();
 

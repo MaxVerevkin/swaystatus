@@ -70,6 +70,7 @@ define_blocks!(
     music,
     net,
     notify,
+    notmuch,
     pacman,
     pomodoro,
     rofication,
