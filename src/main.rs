@@ -46,7 +46,6 @@ pub static REQWEST_CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
     const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
     reqwest::Client::builder()
         .user_agent(APP_USER_AGENT)
-        .timeout(Duration::from_secs(5))
         .build()
         .unwrap()
 });
