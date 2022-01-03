@@ -27,6 +27,8 @@ once_cell = "1"
 shellexpand = "2.1"
 hyper = "0.14"
 
+maildir = "0.5"
+
 crossbeam-channel = "0.5"
 libpulse-binding = { version = "2.0", default-features = false }
 
