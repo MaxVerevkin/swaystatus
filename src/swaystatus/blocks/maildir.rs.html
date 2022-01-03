@@ -89,12 +89,6 @@
 <span id="89">89</span>
 <span id="90">90</span>
 <span id="91">91</span>
-<span id="92">92</span>
-<span id="93">93</span>
-<span id="94">94</span>
-<span id="95">95</span>
-<span id="96">96</span>
-<span id="97">97</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Unread mail. Only supports maildir format.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Configuration</span>
@@ -106,7 +100,6 @@
 <span class="doccomment">//! `threshold_critical` | Number of unread mails where state is set to critical. | No | `10`</span>
 <span class="doccomment">//! `interval` | Update interval, in seconds. | No | `5`</span>
 <span class="doccomment">//! `display_type` | Which part of the maildir to count: `&quot;new&quot;`, `&quot;cur&quot;`, or `&quot;all&quot;`. | No | `&quot;new&quot;`</span>
-<span class="doccomment">//! `icon` | Whether or not to prepend the output with the mail icon. | No | `true`</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Examples</span>
 <span class="doccomment">//!</span>
@@ -135,7 +128,6 @@
     <span class="ident">threshold_warning</span>: <span class="ident">usize</span>,
     <span class="ident">threshold_critical</span>: <span class="ident">usize</span>,
     <span class="ident">display_type</span>: <span class="ident">MailType</span>,
-    <span class="ident">icon</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">MaildirConfig</span> {
@@ -146,17 +138,13 @@
             <span class="ident">threshold_warning</span>: <span class="number">1</span>,
             <span class="ident">threshold_critical</span>: <span class="number">10</span>,
             <span class="ident">display_type</span>: <span class="ident">MailType::New</span>,
-            <span class="ident">icon</span>: <span class="bool-val">true</span>,
         }
     }
 }
 
 <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">MaildirConfig::deserialize</span>(<span class="ident">config</span>).<span class="ident">config_error</span>()<span class="question-mark">?</span>;
-
-    <span class="kw">if</span> <span class="ident">config</span>.<span class="ident">icon</span> {
-        <span class="ident">api</span>.<span class="ident">set_icon</span>(<span class="string">&quot;mail&quot;</span>)<span class="question-mark">?</span>;
-    }
+    <span class="ident">api</span>.<span class="ident">set_icon</span>(<span class="string">&quot;mail&quot;</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">timer</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">interval</span>.<span class="ident">timer</span>();
 
