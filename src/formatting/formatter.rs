@@ -12,7 +12,7 @@ use super::unit::Unit;
 use super::value::Value;
 use super::Handles;
 use crate::errors::*;
-use crate::escape::IterEscape;
+use crate::escape::CollectEscaped;
 use crate::{Request, RequestCmd};
 
 const DEFAULT_STR_MIN_WIDTH: usize = 0;
@@ -144,12 +144,11 @@ impl Formatter for StrFormatter {
         match val {
             Value::Text(text) => {
                 let width = text.chars().count();
-                let mut out = String::new();
-                text.chars()
+                Ok(text
+                    .chars()
                     .chain(repeat(' ').take(self.min_width.saturating_sub(width)))
                     .take(self.max_width.unwrap_or(usize::MAX))
-                    .collect_pango(&mut out);
-                Ok(out)
+                    .collect_pango())
             }
             Value::Icon(icon) => Ok(icon.clone()), // No escaping
             Value::Number { .. } => Err(Error::new_format(
@@ -174,26 +173,26 @@ impl Formatter for RotStrFormatter {
         match val {
             Value::Text(text) => {
                 let full_width = text.chars().count();
-                let mut out = String::new();
                 if full_width <= self.width {
-                    text.chars()
+                    Ok(text
+                        .chars()
                         .chain(repeat(' '))
                         .take(self.width)
-                        .collect_pango(&mut out);
+                        .collect_pango())
                 } else {
                     let full_width = full_width + 1; // Now we include '|' at the end
                     let step = (self.init_time.elapsed().as_secs_f64() / self.interval
                         % full_width as f64) as usize;
                     let w1 = self.width.min(full_width - step);
-                    text.chars()
+                    Ok(text
+                        .chars()
                         .chain(Some('|'))
                         .skip(step)
                         .take(w1)
                         .chain(text.chars())
                         .take(self.width)
-                        .collect_pango(&mut out);
+                        .collect_pango())
                 }
-                Ok(out)
             }
             Value::Icon(_) => Err(Error::new_format(
                 "An icon cannot be formatted with 'rot-str' formatter",
