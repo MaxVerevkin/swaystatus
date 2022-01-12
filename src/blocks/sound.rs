@@ -161,16 +161,16 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     type DeviceType = Box<dyn SoundDevice>;
     let mut device: DeviceType = match config.driver {
         SoundDriver::Alsa => Box::new(AlsaSoundDevice::new(
-            config.name.unwrap_or_else(|| "Master".into()),
+            config.name.clone().unwrap_or_else(|| "Master".into()),
             config.device.unwrap_or_else(|| "default".into()),
             config.natural_mapping,
         )?),
         SoundDriver::PulseAudio => {
-            Box::new(PulseAudioSoundDevice::new(config.device_kind)?.with_name(config.name))
+            Box::new(PulseAudioSoundDevice::new(config.device_kind, config.name)?)
         }
         SoundDriver::Auto => {
-            if let Ok(pulse) = PulseAudioSoundDevice::new(config.device_kind) {
-                Box::new(pulse.with_name(config.name))
+            if let Ok(pulse) = PulseAudioSoundDevice::new(config.device_kind, config.name.clone()) {
+                Box::new(pulse)
             } else {
                 Box::new(AlsaSoundDevice::new(
                     config.name.unwrap_or_else(|| "Master".into()),
@@ -591,8 +591,11 @@ impl PulseAudioClient {
 
                 loop {
                     // make sure mainloop dispatched everything
-                    for _ in 0..10 {
+                    loop {
                         connection.iterate(false).unwrap();
+                        if connection.context.borrow().get_state() == PulseState::Ready {
+                            break;
+                        }
                     }
 
                     match recv_req.recv() {
@@ -776,14 +779,14 @@ impl PulseAudioClient {
 }
 
 impl PulseAudioSoundDevice {
-    fn new(device_kind: DeviceKind) -> Result<Self> {
+    fn new(device_kind: DeviceKind, name: Option<String>) -> Result<Self> {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
         PULSEAUDIO_EVENT_LISTENER.lock().unwrap().push(tx);
 
         PulseAudioClient::send(PulseAudioClientRequest::GetDefaultDevice)?;
 
         let device = PulseAudioSoundDevice {
-            name: None,
+            name,
             description: None,
             active_port: None,
             device_kind,
@@ -799,11 +802,6 @@ impl PulseAudioSoundDevice {
         ))?;
 
         Ok(device)
-    }
-
-    fn with_name(mut self, name: Option<String>) -> Self {
-        self.name = name;
-        self
     }
 
     fn name(&self) -> String {
