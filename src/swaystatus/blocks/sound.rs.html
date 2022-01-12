@@ -899,8 +899,6 @@
 <span id="899">899</span>
 <span id="900">900</span>
 <span id="901">901</span>
-<span id="902">902</span>
-<span id="903">903</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Volume level</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This block displays the volume level (according to PulseAudio or ALSA). Right click to toggle mute, scroll to adjust volume.</span>
@@ -1064,16 +1062,16 @@
     <span class="kw">type</span> <span class="ident">DeviceType</span> <span class="op">=</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">SoundDevice</span><span class="op">&gt;</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">device</span>: <span class="ident">DeviceType</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">driver</span> {
         <span class="ident">SoundDriver::Alsa</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">AlsaSoundDevice::new</span>(
-            <span class="ident">config</span>.<span class="ident">name</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;Master&quot;</span>.<span class="ident">into</span>()),
+            <span class="ident">config</span>.<span class="ident">name</span>.<span class="ident">clone</span>().<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;Master&quot;</span>.<span class="ident">into</span>()),
             <span class="ident">config</span>.<span class="ident">device</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;default&quot;</span>.<span class="ident">into</span>()),
             <span class="ident">config</span>.<span class="ident">natural_mapping</span>,
         )<span class="question-mark">?</span>),
         <span class="ident">SoundDriver::PulseAudio</span> =&gt; {
-            <span class="ident">Box::new</span>(<span class="ident">PulseAudioSoundDevice::new</span>(<span class="ident">config</span>.<span class="ident">device_kind</span>)<span class="question-mark">?</span>.<span class="ident">with_name</span>(<span class="ident">config</span>.<span class="ident">name</span>))
+            <span class="ident">Box::new</span>(<span class="ident">PulseAudioSoundDevice::new</span>(<span class="ident">config</span>.<span class="ident">device_kind</span>, <span class="ident">config</span>.<span class="ident">name</span>)<span class="question-mark">?</span>)
         }
         <span class="ident">SoundDriver::Auto</span> =&gt; {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">pulse</span>) <span class="op">=</span> <span class="ident">PulseAudioSoundDevice::new</span>(<span class="ident">config</span>.<span class="ident">device_kind</span>) {
-                <span class="ident">Box::new</span>(<span class="ident">pulse</span>.<span class="ident">with_name</span>(<span class="ident">config</span>.<span class="ident">name</span>))
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">pulse</span>) <span class="op">=</span> <span class="ident">PulseAudioSoundDevice::new</span>(<span class="ident">config</span>.<span class="ident">device_kind</span>, <span class="ident">config</span>.<span class="ident">name</span>.<span class="ident">clone</span>()) {
+                <span class="ident">Box::new</span>(<span class="ident">pulse</span>)
             } <span class="kw">else</span> {
                 <span class="ident">Box::new</span>(<span class="ident">AlsaSoundDevice::new</span>(
                     <span class="ident">config</span>.<span class="ident">name</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;Master&quot;</span>.<span class="ident">into</span>()),
@@ -1494,8 +1492,11 @@
 
                 <span class="kw">loop</span> {
                     <span class="comment">// make sure mainloop dispatched everything</span>
-                    <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10</span> {
+                    <span class="kw">loop</span> {
                         <span class="ident">connection</span>.<span class="ident">iterate</span>(<span class="bool-val">false</span>).<span class="ident">unwrap</span>();
+                        <span class="kw">if</span> <span class="ident">connection</span>.<span class="ident">context</span>.<span class="ident">borrow</span>().<span class="ident">get_state</span>() <span class="op">==</span> <span class="ident">PulseState::Ready</span> {
+                            <span class="kw">break</span>;
+                        }
                     }
 
                     <span class="kw">match</span> <span class="ident">recv_req</span>.<span class="ident">recv</span>() {
@@ -1679,14 +1680,14 @@
 }
 
 <span class="kw">impl</span> <span class="ident">PulseAudioSoundDevice</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">device_kind</span>: <span class="ident">DeviceKind</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">device_kind</span>: <span class="ident">DeviceKind</span>, <span class="ident">name</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">tokio::sync::mpsc::channel</span>(<span class="number">32</span>);
         <span class="ident">PULSEAUDIO_EVENT_LISTENER</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>().<span class="ident">push</span>(<span class="ident">tx</span>);
 
         <span class="ident">PulseAudioClient::send</span>(<span class="ident">PulseAudioClientRequest::GetDefaultDevice</span>)<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="ident">device</span> <span class="op">=</span> <span class="ident">PulseAudioSoundDevice</span> {
-            <span class="ident">name</span>: <span class="prelude-val">None</span>,
+            <span class="ident">name</span>,
             <span class="ident">description</span>: <span class="prelude-val">None</span>,
             <span class="ident">active_port</span>: <span class="prelude-val">None</span>,
             <span class="ident">device_kind</span>,
@@ -1702,11 +1703,6 @@
         ))<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(<span class="ident">device</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">with_name</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
-        <span class="self">self</span>.<span class="ident">name</span> <span class="op">=</span> <span class="ident">name</span>;
-        <span class="self">self</span>
     }
 
     <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">String</span> {

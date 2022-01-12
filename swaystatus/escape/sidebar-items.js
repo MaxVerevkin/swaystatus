@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["JsonStr",""]],"trait":[["IterEscape",""]]});
+initSidebarItems({"struct":[["JsonStr",""]],"trait":[["CollectEscaped",""]]});

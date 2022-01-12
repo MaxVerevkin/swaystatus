@@ -464,7 +464,6 @@
 <span id="464">464</span>
 <span id="465">465</span>
 <span id="466">466</span>
-<span id="467">467</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">smallvec::SmallVec</span>;
 <span class="kw">use</span> <span class="ident">smartstring::alias::String</span>;
 <span class="kw">use</span> <span class="ident">std::fmt::Debug</span>;
@@ -479,7 +478,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::value::Value</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::Handles</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::errors</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::escape::IterEscape</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::escape::CollectEscaped</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">Request</span>, <span class="ident">RequestCmd</span>};
 
 <span class="kw">const</span> <span class="ident">DEFAULT_STR_MIN_WIDTH</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">0</span>;
@@ -611,12 +610,11 @@
         <span class="kw">match</span> <span class="ident">val</span> {
             <span class="ident">Value::Text</span>(<span class="ident">text</span>) =&gt; {
                 <span class="kw">let</span> <span class="ident">width</span> <span class="op">=</span> <span class="ident">text</span>.<span class="ident">chars</span>().<span class="ident">count</span>();
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">out</span> <span class="op">=</span> <span class="ident">String::new</span>();
-                <span class="ident">text</span>.<span class="ident">chars</span>()
+                <span class="prelude-val">Ok</span>(<span class="ident">text</span>
+                    .<span class="ident">chars</span>()
                     .<span class="ident">chain</span>(<span class="ident">repeat</span>(<span class="string">&#39; &#39;</span>).<span class="ident">take</span>(<span class="self">self</span>.<span class="ident">min_width</span>.<span class="ident">saturating_sub</span>(<span class="ident">width</span>)))
                     .<span class="ident">take</span>(<span class="self">self</span>.<span class="ident">max_width</span>.<span class="ident">unwrap_or</span>(<span class="ident">usize::MAX</span>))
-                    .<span class="ident">collect_pango</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">out</span>);
-                <span class="prelude-val">Ok</span>(<span class="ident">out</span>)
+                    .<span class="ident">collect_pango</span>())
             }
             <span class="ident">Value::Icon</span>(<span class="ident">icon</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="ident">icon</span>.<span class="ident">clone</span>()), <span class="comment">// No escaping</span>
             <span class="ident">Value::Number</span> { .. } =&gt; <span class="prelude-val">Err</span>(<span class="ident">Error::new_format</span>(
@@ -641,26 +639,26 @@
         <span class="kw">match</span> <span class="ident">val</span> {
             <span class="ident">Value::Text</span>(<span class="ident">text</span>) =&gt; {
                 <span class="kw">let</span> <span class="ident">full_width</span> <span class="op">=</span> <span class="ident">text</span>.<span class="ident">chars</span>().<span class="ident">count</span>();
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">out</span> <span class="op">=</span> <span class="ident">String::new</span>();
                 <span class="kw">if</span> <span class="ident">full_width</span> <span class="op">&lt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">width</span> {
-                    <span class="ident">text</span>.<span class="ident">chars</span>()
+                    <span class="prelude-val">Ok</span>(<span class="ident">text</span>
+                        .<span class="ident">chars</span>()
                         .<span class="ident">chain</span>(<span class="ident">repeat</span>(<span class="string">&#39; &#39;</span>))
                         .<span class="ident">take</span>(<span class="self">self</span>.<span class="ident">width</span>)
-                        .<span class="ident">collect_pango</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">out</span>);
+                        .<span class="ident">collect_pango</span>())
                 } <span class="kw">else</span> {
                     <span class="kw">let</span> <span class="ident">full_width</span> <span class="op">=</span> <span class="ident">full_width</span> <span class="op">+</span> <span class="number">1</span>; <span class="comment">// Now we include &#39;|&#39; at the end</span>
                     <span class="kw">let</span> <span class="ident">step</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">init_time</span>.<span class="ident">elapsed</span>().<span class="ident">as_secs_f64</span>() <span class="op">/</span> <span class="self">self</span>.<span class="ident">interval</span>
                         <span class="op">%</span> <span class="ident">full_width</span> <span class="kw">as</span> <span class="ident">f64</span>) <span class="kw">as</span> <span class="ident">usize</span>;
                     <span class="kw">let</span> <span class="ident">w1</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">width</span>.<span class="ident">min</span>(<span class="ident">full_width</span> <span class="op">-</span> <span class="ident">step</span>);
-                    <span class="ident">text</span>.<span class="ident">chars</span>()
+                    <span class="prelude-val">Ok</span>(<span class="ident">text</span>
+                        .<span class="ident">chars</span>()
                         .<span class="ident">chain</span>(<span class="prelude-val">Some</span>(<span class="string">&#39;|&#39;</span>))
                         .<span class="ident">skip</span>(<span class="ident">step</span>)
                         .<span class="ident">take</span>(<span class="ident">w1</span>)
                         .<span class="ident">chain</span>(<span class="ident">text</span>.<span class="ident">chars</span>())
                         .<span class="ident">take</span>(<span class="self">self</span>.<span class="ident">width</span>)
-                        .<span class="ident">collect_pango</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">out</span>);
+                        .<span class="ident">collect_pango</span>())
                 }
-                <span class="prelude-val">Ok</span>(<span class="ident">out</span>)
             }
             <span class="ident">Value::Icon</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(<span class="ident">Error::new_format</span>(
                 <span class="string">&quot;An icon cannot be formatted with &#39;rot-str&#39; formatter&quot;</span>,
