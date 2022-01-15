@@ -246,6 +246,14 @@
 <span id="246">246</span>
 <span id="247">247</span>
 <span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="kw">use</span> <span class="ident">std::fs::File</span>;
 <span class="kw">use</span> <span class="ident">std::io::prelude</span>::<span class="kw-2">*</span>;
@@ -316,12 +324,16 @@
 }
 
 <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">new_dbus_connection</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">zbus::Connection</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">conn</span> <span class="op">=</span> <span class="ident">zbus::ConnectionBuilder::session</span>()
-        .<span class="ident">unwrap</span>()
+    <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">zbus::Address::session</span>().<span class="ident">unwrap</span>() {
+        <span class="ident">zbus::Address::Unix</span>(<span class="ident">s</span>) =&gt; <span class="ident">tokio::net::UnixStream::connect</span>(<span class="ident">s</span>)
+            .<span class="kw">await</span>
+            .<span class="ident">error</span>(<span class="string">&quot;Failed to connet to DBus session socket&quot;</span>)<span class="question-mark">?</span>,
+    };
+    <span class="kw">let</span> <span class="ident">conn</span> <span class="op">=</span> <span class="ident">zbus::ConnectionBuilder::socket</span>(<span class="ident">stream</span>)
         .<span class="ident">internal_executor</span>(<span class="bool-val">false</span>)
         .<span class="ident">build</span>()
         .<span class="kw">await</span>
-        .<span class="ident">error</span>(<span class="string">&quot;Failed to open DBus connection&quot;</span>)<span class="question-mark">?</span>;
+        .<span class="ident">error</span>(<span class="string">&quot;Failed to open DBus session connection&quot;</span>)<span class="question-mark">?</span>;
     {
         <span class="kw">let</span> <span class="ident">conn</span> <span class="op">=</span> <span class="ident">conn</span>.<span class="ident">clone</span>();
         <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {
@@ -334,12 +346,16 @@
 }
 
 <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">new_system_dbus_connection</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">zbus::Connection</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">conn</span> <span class="op">=</span> <span class="ident">zbus::ConnectionBuilder::system</span>()
-        .<span class="ident">unwrap</span>()
+    <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">zbus::Address::system</span>().<span class="ident">unwrap</span>() {
+        <span class="ident">zbus::Address::Unix</span>(<span class="ident">s</span>) =&gt; <span class="ident">tokio::net::UnixStream::connect</span>(<span class="ident">s</span>)
+            .<span class="kw">await</span>
+            .<span class="ident">error</span>(<span class="string">&quot;Failed to connet to DBus system socket&quot;</span>)<span class="question-mark">?</span>,
+    };
+    <span class="kw">let</span> <span class="ident">conn</span> <span class="op">=</span> <span class="ident">zbus::ConnectionBuilder::socket</span>(<span class="ident">stream</span>)
         .<span class="ident">internal_executor</span>(<span class="bool-val">false</span>)
         .<span class="ident">build</span>()
         .<span class="kw">await</span>
-        .<span class="ident">error</span>(<span class="string">&quot;Failed to open DBus connection&quot;</span>)<span class="question-mark">?</span>;
+        .<span class="ident">error</span>(<span class="string">&quot;Failed to open DBus system connection&quot;</span>)<span class="question-mark">?</span>;
     {
         <span class="kw">let</span> <span class="ident">conn</span> <span class="op">=</span> <span class="ident">conn</span>.<span class="ident">clone</span>();
         <span class="ident">tokio::spawn</span>(<span class="kw">async</span> <span class="kw">move</span> {

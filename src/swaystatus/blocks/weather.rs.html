@@ -351,10 +351,6 @@
 <span id="351">351</span>
 <span id="352">352</span>
 <span id="353">353</span>
-<span id="354">354</span>
-<span id="355">355</span>
-<span id="356">356</span>
-<span id="357">357</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Current weather</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! This block displays local weather and temperature information. In order to use this block, you</span>
@@ -635,17 +631,13 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">PartialEq</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Derivative</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">PartialEq</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;lowercase&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">derivative</span>(<span class="ident">Default</span>)]</span>
 <span class="kw">enum</span> <span class="ident">UnitSystem</span> {
+    <span class="attribute">#[<span class="ident">derivative</span>(<span class="ident">Default</span>)]</span>
     <span class="ident">Metric</span>,
     <span class="ident">Imperial</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">UnitSystem</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="ident"><span class="self">Self</span>::Metric</span>
-    }
 }
 
 <span class="comment">// TODO: might be good to allow for different geolocation services to be used, similar to how we have `service` for the weather API</span>

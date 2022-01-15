@@ -141,6 +141,27 @@
 <span id="141">141</span>
 <span id="142">142</span>
 <span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">serde::de</span>::{<span class="self">self</span>, <span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>};
 <span class="kw">use</span> <span class="ident">std::borrow::Cow</span>;
 <span class="kw">use</span> <span class="ident">std::time::Duration</span>;
@@ -149,6 +170,12 @@
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">OnceDuration</span> {
     <span class="ident">Once</span>,
     <span class="ident">Duration</span>(<span class="ident">Seconds</span>),
+}
+
+<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">OnceDuration</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">v</span>: <span class="ident">u64</span>) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::Duration</span>(<span class="ident">v</span>.<span class="ident">into</span>())
+    }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">OnceDuration</span> {
@@ -200,6 +227,12 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Seconds</span>(<span class="kw">pub</span> <span class="ident">Duration</span>);
 
+<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Seconds</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">v</span>: <span class="ident">u64</span>) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::new</span>(<span class="ident">v</span>)
+    }
+}
+
 <span class="kw">impl</span> <span class="ident">Seconds</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">value</span>: <span class="ident">u64</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span>(<span class="ident">Duration::from_secs</span>(<span class="ident">value</span>))
@@ -247,6 +280,15 @@
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ShellString</span>(<span class="kw">pub</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">str</span><span class="op">&gt;</span>);
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ShellString</span>
+<span class="kw">where</span>
+    <span class="ident">T</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">str</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+{
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">v</span>: <span class="ident">T</span>) -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span>(<span class="ident">v</span>.<span class="ident">into</span>())
+    }
+}
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ShellString</span> {
     <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D::Error</span><span class="op">&gt;</span>

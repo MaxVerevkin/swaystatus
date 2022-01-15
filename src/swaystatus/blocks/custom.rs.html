@@ -213,19 +213,6 @@
 <span id="213">213</span>
 <span id="214">214</span>
 <span id="215">215</span>
-<span id="216">216</span>
-<span id="217">217</span>
-<span id="218">218</span>
-<span id="219">219</span>
-<span id="220">220</span>
-<span id="221">221</span>
-<span id="222">222</span>
-<span id="223">223</span>
-<span id="224">224</span>
-<span id="225">225</span>
-<span id="226">226</span>
-<span id="227">227</span>
-<span id="228">228</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The output of a custom shell command</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! For further customisation, use the `json` option and have the shell command output valid JSON in the schema below:  </span>
@@ -319,32 +306,19 @@
 <span class="kw">use</span> <span class="ident">tokio</span>::{<span class="ident">process::Command</span>, <span class="ident">time::Instant</span>};
 <span class="kw">use</span> <span class="ident">tokio_stream::wrappers::IntervalStream</span>;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Derivative</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">deny_unknown_fields</span>, <span class="ident">default</span>)]</span>
+<span class="attribute">#[<span class="ident">derivative</span>(<span class="ident">Default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">CustomConfig</span> {
     <span class="ident">command</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StdString</span><span class="op">&gt;</span>,
     <span class="ident">cycle</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">StdString</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="attribute">#[<span class="ident">derivative</span>(<span class="ident">Default</span>(<span class="ident">value</span> <span class="op">=</span> <span class="string">&quot;10.into()&quot;</span>))]</span>
     <span class="ident">interval</span>: <span class="ident">OnceDuration</span>,
     <span class="ident">json</span>: <span class="ident">bool</span>,
     <span class="ident">hide_when_empty</span>: <span class="ident">bool</span>,
     <span class="ident">shell</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StdString</span><span class="op">&gt;</span>,
     <span class="ident">signal</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>,
     <span class="ident">watch_files</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">StdString</span><span class="op">&gt;</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">CustomConfig</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">command</span>: <span class="prelude-val">None</span>,
-            <span class="ident">cycle</span>: <span class="prelude-val">None</span>,
-            <span class="ident">interval</span>: <span class="ident">OnceDuration::Duration</span>(<span class="ident">Seconds::new</span>(<span class="number">10</span>)),
-            <span class="ident">json</span>: <span class="bool-val">false</span>,
-            <span class="ident">hide_when_empty</span>: <span class="bool-val">false</span>,
-            <span class="ident">shell</span>: <span class="prelude-val">None</span>,
-            <span class="ident">signal</span>: <span class="prelude-val">None</span>,
-            <span class="ident">watch_files</span>: <span class="ident">Vec::new</span>(),
-        }
-    }
 }
 
 <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {

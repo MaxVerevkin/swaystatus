@@ -241,14 +241,6 @@
 <span id="241">241</span>
 <span id="242">242</span>
 <span id="243">243</span>
-<span id="244">244</span>
-<span id="245">245</span>
-<span id="246">246</span>
-<span id="247">247</span>
-<span id="248">248</span>
-<span id="249">249</span>
-<span id="250">250</span>
-<span id="251">251</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Keyboard layout indicator</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Four drivers are available:</span>
@@ -331,35 +323,27 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::prelude</span>::<span class="kw-2">*</span>;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Derivative</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">deny_unknown_fields</span>)]</span>
+<span class="attribute">#[<span class="ident">derivative</span>(<span class="ident">Default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">KeyboardLayoutConfig</span> {
     <span class="ident">format</span>: <span class="ident">FormatConfig</span>,
     <span class="ident">driver</span>: <span class="ident">KeyboardLayoutDriver</span>,
+    <span class="attribute">#[<span class="ident">derivative</span>(<span class="ident">Default</span>(<span class="ident">value</span> <span class="op">=</span> <span class="string">&quot;60.into()&quot;</span>))]</span>
     <span class="ident">interval</span>: <span class="ident">Seconds</span>,
     <span class="ident">sway_kb_identifier</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="ident">mappings</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">StdString</span>, <span class="ident">String</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Derivative</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
 <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename_all</span> <span class="op">=</span> <span class="string">&quot;lowercase&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">derivative</span>(<span class="ident">Default</span>)]</span>
 <span class="kw">enum</span> <span class="ident">KeyboardLayoutDriver</span> {
+    <span class="attribute">#[<span class="ident">derivative</span>(<span class="ident">Default</span>)]</span>
     <span class="ident">SetXkbMap</span>,
     <span class="ident">LocaleBus</span>,
     <span class="ident">KbddBus</span>,
     <span class="ident">Sway</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">KeyboardLayoutConfig</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">format</span>: <span class="ident">Default::default</span>(),
-            <span class="ident">driver</span>: <span class="ident">KeyboardLayoutDriver::SetXkbMap</span>,
-            <span class="ident">interval</span>: <span class="ident">Seconds::new</span>(<span class="number">60</span>),
-            <span class="ident">sway_kb_identifier</span>: <span class="prelude-val">None</span>,
-            <span class="ident">mappings</span>: <span class="prelude-val">None</span>,
-        }
-    }
 }
 
 <span class="kw">pub</span> <span class="kw">async</span> <span class="kw">fn</span> <span class="ident">run</span>(<span class="ident">config</span>: <span class="ident">toml::Value</span>, <span class="kw-2">mut</span> <span class="ident">api</span>: <span class="ident">CommonApi</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
