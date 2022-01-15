@@ -40,12 +40,12 @@ sensors = { git = "https://github.com/ishitatsuyuki/sensors.git", branch = "fix-
 neli = "0.6"
 nl80211 = { git = "https://github.com/MaxVerevkin/nl80211" }
 
-# zbus = "2.0.0-beta.8"
-# zvariant = "3"
-# zbus = { path = "../zbus/zbus" }
+# zbus = { path = "../zbus/zbus", default-features = false, features = ["tokio"] }
 # zvariant = { path = "../zbus/zvariant" }
-zbus = { git = "https://gitlab.freedesktop.org/dbus/zbus.git" }
-zvariant = { git = "https://gitlab.freedesktop.org/dbus/zbus.git" }
+# zbus = { git = "https://gitlab.freedesktop.org/dbus/zbus.git" }
+# zvariant = { git = "https://gitlab.freedesktop.org/dbus/zbus.git" }
+zbus = { version = "2.0", features = ["tokio"]}
+zvariant = "3.0"
 
 # TODO: remove
 color_space = "0.5"
@@ -96,7 +96,6 @@ features = ["clock", "unstable-locales"]
 [dependencies.chrono-tz]
 version = "0.5"
 features = ["serde"]
-
 
 [dependencies.signal-hook-tokio]
 version = "0.3"

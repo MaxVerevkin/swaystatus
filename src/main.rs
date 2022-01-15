@@ -331,20 +331,7 @@ impl BarState {
                         let _ = tx.send(Ok(conn.clone()));
                     }
                     None => {
-                        let conn = zbus::ConnectionBuilder::session()
-                            .unwrap()
-                            .internal_executor(false)
-                            .build()
-                            .await
-                            .error("Failed to open DBus connection")?;
-                        {
-                            let conn = conn.clone();
-                            tokio::spawn(async move {
-                                loop {
-                                    conn.executor().tick().await;
-                                }
-                            });
-                        }
+                        let conn = util::new_dbus_connection().await?;
                         conn.request_name(self.cli_args.dbus_name.as_str())
                             .await
                             .error("Failed to reuqest DBus name")?;
@@ -357,20 +344,7 @@ impl BarState {
                         let _ = tx.send(Ok(conn.clone()));
                     }
                     None => {
-                        let conn = zbus::ConnectionBuilder::system()
-                            .unwrap()
-                            .internal_executor(false)
-                            .build()
-                            .await
-                            .error("Failed to open DBus connection")?;
-                        {
-                            let conn = conn.clone();
-                            tokio::spawn(async move {
-                                loop {
-                                    conn.executor().tick().await;
-                                }
-                            });
-                        }
+                        let conn = util::new_system_dbus_connection().await?;
                         self.system_dbus_connection = Some(conn.clone());
                         let _ = tx.send(Ok(conn));
                     }

@@ -68,12 +68,16 @@ pub fn find_file(file: &str, subdir: Option<&str>, extension: Option<&str>) -> O
 }
 
 pub async fn new_dbus_connection() -> Result<zbus::Connection> {
-    let conn = zbus::ConnectionBuilder::session()
-        .unwrap()
+    let stream = match zbus::Address::session().unwrap() {
+        zbus::Address::Unix(s) => tokio::net::UnixStream::connect(s)
+            .await
+            .error("Failed to connet to DBus session socket")?,
+    };
+    let conn = zbus::ConnectionBuilder::socket(stream)
         .internal_executor(false)
         .build()
         .await
-        .error("Failed to open DBus connection")?;
+        .error("Failed to open DBus session connection")?;
     {
         let conn = conn.clone();
         tokio::spawn(async move {
@@ -86,12 +90,16 @@ pub async fn new_dbus_connection() -> Result<zbus::Connection> {
 }
 
 pub async fn new_system_dbus_connection() -> Result<zbus::Connection> {
-    let conn = zbus::ConnectionBuilder::system()
-        .unwrap()
+    let stream = match zbus::Address::system().unwrap() {
+        zbus::Address::Unix(s) => tokio::net::UnixStream::connect(s)
+            .await
+            .error("Failed to connet to DBus system socket")?,
+    };
+    let conn = zbus::ConnectionBuilder::socket(stream)
         .internal_executor(false)
         .build()
         .await
-        .error("Failed to open DBus connection")?;
+        .error("Failed to open DBus system connection")?;
     {
         let conn = conn.clone();
         tokio::spawn(async move {
