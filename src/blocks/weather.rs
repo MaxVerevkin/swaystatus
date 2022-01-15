@@ -278,17 +278,13 @@ impl WeatherService {
     }
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, PartialEq)]
+#[derive(Derivative, Copy, Clone, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
+#[derivative(Default)]
 enum UnitSystem {
+    #[derivative(Default)]
     Metric,
     Imperial,
-}
-
-impl Default for UnitSystem {
-    fn default() -> Self {
-        Self::Metric
-    }
 }
 
 // TODO: might be good to allow for different geolocation services to be used, similar to how we have `service` for the weather API

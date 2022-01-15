@@ -8,6 +8,12 @@ pub enum OnceDuration {
     Duration(Seconds),
 }
 
+impl From<u64> for OnceDuration {
+    fn from(v: u64) -> Self {
+        Self::Duration(v.into())
+    }
+}
+
 impl<'de> Deserialize<'de> for OnceDuration {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -57,6 +63,12 @@ impl<'de> Deserialize<'de> for OnceDuration {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Seconds(pub Duration);
 
+impl From<u64> for Seconds {
+    fn from(v: u64) -> Self {
+        Self::new(v)
+    }
+}
+
 impl Seconds {
     pub fn new(value: u64) -> Self {
         Self(Duration::from_secs(value))
@@ -104,6 +116,15 @@ impl<'de> Deserialize<'de> for Seconds {
 
 #[derive(Debug, Clone)]
 pub struct ShellString(pub Cow<'static, str>);
+
+impl<T> From<T> for ShellString
+where
+    T: Into<Cow<'static, str>>,
+{
+    fn from(v: T) -> Self {
+        Self(v.into())
+    }
+}
 
 impl<'de> Deserialize<'de> for ShellString {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>

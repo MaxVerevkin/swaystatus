@@ -61,9 +61,11 @@ use std::collections::HashMap;
 
 use super::prelude::*;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Derivative)]
 #[serde(deny_unknown_fields, default)]
+#[derivative(Default)]
 struct GithubConfig {
+    #[derivative(Default(value = "60.into()"))]
     interval: Seconds,
     format: FormatConfig,
     token: Option<StdString>,
@@ -72,21 +74,6 @@ struct GithubConfig {
     info: Option<Vec<String>>,
     warning: Option<Vec<String>>,
     critical: Option<Vec<String>>,
-}
-
-impl Default for GithubConfig {
-    fn default() -> Self {
-        Self {
-            interval: Seconds::new(60),
-            format: Default::default(),
-            token: None,
-            hide_if_total_is_zero: false,
-            good: None,
-            info: None,
-            warning: None,
-            critical: None,
-        }
-    }
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {

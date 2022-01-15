@@ -105,9 +105,11 @@ use tokio::process::Command;
 use super::prelude::*;
 use crate::util::has_command;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Derivative)]
 #[serde(deny_unknown_fields, default)]
+#[derivative(Default)]
 struct PacmanConfig {
+    #[derivative(Default(value = "600.into()"))]
     interval: Seconds,
     format: FormatConfig,
     format_singular: FormatConfig,
@@ -116,21 +118,6 @@ struct PacmanConfig {
     critical_updates_regex: Option<String>,
     aur_command: Option<String>,
     hide_when_uptodate: bool,
-}
-
-impl Default for PacmanConfig {
-    fn default() -> Self {
-        Self {
-            interval: Seconds::new(600),
-            format: Default::default(),
-            format_singular: Default::default(),
-            format_up_to_date: Default::default(),
-            warning_updates_regex: None,
-            critical_updates_regex: None,
-            aur_command: None,
-            hide_when_uptodate: true,
-        }
-    }
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {

@@ -82,47 +82,36 @@ const POWER_SUPPLY_DEVICES_PATH: &str = "/sys/class/power_supply";
 /// Ordered list of icons used to display battery charge
 const BATTERY_UNAVAILABLE_ICON: &str = "bat_not_available";
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Derivative)]
 #[serde(deny_unknown_fields, default)]
+#[derivative(Default)]
 struct BatteryConfig {
     device: Option<StdString>,
     driver: BatteryDriver,
+    #[derivative(Default(value = "10.into()"))]
     interval: Seconds,
     format: FormatConfig,
     full_format: FormatConfig,
     allow_missing: bool,
     hide_missing: bool,
     hide_full: bool,
+    #[derivative(Default(value = "60.0"))]
     info: f64,
+    #[derivative(Default(value = "60.0"))]
     good: f64,
+    #[derivative(Default(value = "30.0"))]
     warning: f64,
+    #[derivative(Default(value = "15.0"))]
     critical: f64,
+    #[derivative(Default(value = "100.0"))]
     full_threshold: f64,
 }
 
-impl Default for BatteryConfig {
-    fn default() -> Self {
-        Self {
-            device: None,
-            driver: BatteryDriver::Sysfs,
-            interval: Seconds::new(10),
-            format: Default::default(),
-            full_format: Default::default(),
-            allow_missing: false,
-            hide_missing: false,
-            hide_full: false,
-            info: 60.0,
-            good: 60.0,
-            warning: 30.0,
-            critical: 15.0,
-            full_threshold: 101.0,
-        }
-    }
-}
-
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Derivative)]
 #[serde(rename_all = "lowercase")]
+#[derivative(Default)]
 enum BatteryDriver {
+    #[derivative(Default)]
     Sysfs,
     Upower,
 }

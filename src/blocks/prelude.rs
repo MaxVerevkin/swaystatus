@@ -23,3 +23,5 @@ pub use tokio::time::sleep;
 pub use futures::{Stream, StreamExt};
 
 pub use once_cell::sync::Lazy;
+
+pub use derivative::Derivative;

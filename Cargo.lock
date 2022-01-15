@@ -1552,6 +1552,7 @@ dependencies = [
  "clap",
  "color_space",
  "crossbeam-channel",
+ "derivative",
  "futures",
  "hyper",
  "inotify",

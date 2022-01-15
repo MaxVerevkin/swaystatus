@@ -80,35 +80,27 @@ use zbus::dbus_proxy;
 
 use super::prelude::*;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Derivative)]
 #[serde(default, deny_unknown_fields)]
+#[derivative(Default)]
 struct KeyboardLayoutConfig {
     format: FormatConfig,
     driver: KeyboardLayoutDriver,
+    #[derivative(Default(value = "60.into()"))]
     interval: Seconds,
     sway_kb_identifier: Option<String>,
     mappings: Option<HashMap<StdString, String>>,
 }
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Deserialize, Debug, Derivative, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
+#[derivative(Default)]
 enum KeyboardLayoutDriver {
+    #[derivative(Default)]
     SetXkbMap,
     LocaleBus,
     KbddBus,
     Sway,
-}
-
-impl Default for KeyboardLayoutConfig {
-    fn default() -> Self {
-        Self {
-            format: Default::default(),
-            driver: KeyboardLayoutDriver::SetXkbMap,
-            interval: Seconds::new(60),
-            sway_kb_identifier: None,
-            mappings: None,
-        }
-    }
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {

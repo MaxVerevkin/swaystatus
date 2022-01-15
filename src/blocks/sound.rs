@@ -93,38 +93,22 @@ use super::prelude::*;
 
 const FILTER: &[char] = &['[', ']', '%'];
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Derivative)]
 #[serde(deny_unknown_fields, default)]
+#[derivative(Default)]
 struct SoundConfig {
     driver: SoundDriver,
     name: Option<String>,
     device: Option<String>,
     device_kind: DeviceKind,
     natural_mapping: bool,
+    #[derivative(Default(value = "5"))]
     step_width: u32,
     format: FormatConfig,
     headphones_indicator: bool,
     show_volume_when_muted: bool,
     mappings: Option<HashMap<String, String>>,
     max_vol: Option<u32>,
-}
-
-impl Default for SoundConfig {
-    fn default() -> Self {
-        Self {
-            driver: SoundDriver::Auto,
-            name: None,
-            device: None,
-            device_kind: DeviceKind::Sink,
-            natural_mapping: false,
-            step_width: 5,
-            format: FormatConfig::default(),
-            headphones_indicator: false,
-            show_volume_when_muted: false,
-            mappings: None,
-            max_vol: None,
-        }
-    }
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
@@ -244,17 +228,21 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, Copy)]
+#[derive(Deserialize, Debug, Derivative, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
+#[derivative(Default)]
 enum SoundDriver {
+    #[derivative(Default)]
     Auto,
     Alsa,
     PulseAudio,
 }
 
-#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Deserialize, Debug, Derivative, Clone, Copy, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
+#[derivative(Default)]
 enum DeviceKind {
+    #[derivative(Default)]
     Sink,
     Source,
 }

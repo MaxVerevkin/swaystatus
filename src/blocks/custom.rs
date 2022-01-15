@@ -91,32 +91,19 @@ use std::io;
 use tokio::{process::Command, time::Instant};
 use tokio_stream::wrappers::IntervalStream;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Derivative)]
 #[serde(deny_unknown_fields, default)]
+#[derivative(Default)]
 struct CustomConfig {
     command: Option<StdString>,
     cycle: Option<Vec<StdString>>,
+    #[derivative(Default(value = "10.into()"))]
     interval: OnceDuration,
     json: bool,
     hide_when_empty: bool,
     shell: Option<StdString>,
     signal: Option<i32>,
     watch_files: Vec<StdString>,
-}
-
-impl Default for CustomConfig {
-    fn default() -> Self {
-        Self {
-            command: None,
-            cycle: None,
-            interval: OnceDuration::Duration(Seconds::new(10)),
-            json: false,
-            hide_when_empty: false,
-            shell: None,
-            signal: None,
-            watch_files: Vec::new(),
-        }
-    }
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {

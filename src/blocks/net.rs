@@ -45,24 +45,15 @@ use crate::netlink::{default_interface, NetDevice};
 use crate::util;
 use std::time::Instant;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Derivative)]
 #[serde(deny_unknown_fields, default)]
+#[derivative(Default)]
 struct NetConfig {
+    #[derivative(Default(value = "2.into()"))]
+    interval: Seconds,
     format: FormatConfig,
     format_alt: Option<FormatConfig>,
     device: Option<String>,
-    interval: u64,
-}
-
-impl Default for NetConfig {
-    fn default() -> Self {
-        Self {
-            format: Default::default(),
-            format_alt: None,
-            device: None,
-            interval: 2,
-        }
-    }
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
@@ -76,8 +67,6 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         None => None,
     };
     api.set_format(format.clone());
-
-    let interval = Duration::from_secs(config.interval);
 
     // Stats
     let mut stats = None;
@@ -141,7 +130,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         api.flush().await?;
 
         tokio::select! {
-            _ = sleep(interval) =>(),
+            _ = sleep(config.interval.0) =>(),
             Some(BlockEvent::Click(click)) = events.recv() => {
                 if click.button == MouseButton::Left {
                     if let Some(ref mut format_alt) = format_alt {

@@ -106,32 +106,22 @@ const BACKLIGHT_ICONS: &[&str] = &[
     "backlight_full",
 ];
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Derivative)]
 #[serde(deny_unknown_fields, default)]
+#[derivative(Default)]
 struct BacklightConfig {
     device: Option<String>,
     format: FormatConfig,
+    #[derivative(Default(value = "5"))]
     step_width: u8,
+    #[derivative(Default(value = "1"))]
     minimum: u8,
+    #[derivative(Default(value = "100"))]
     maximum: u8,
     cycle: Option<Vec<u8>>,
+    #[derivative(Default(value = "1.0"))]
     root_scaling: f64,
     invert_icons: bool,
-}
-
-impl Default for BacklightConfig {
-    fn default() -> Self {
-        Self {
-            device: None,
-            format: Default::default(),
-            step_width: 5,
-            minimum: 1,
-            maximum: 100,
-            cycle: None,
-            root_scaling: 1f64,
-            invert_icons: false,
-        }
-    }
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {

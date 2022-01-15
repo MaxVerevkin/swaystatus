@@ -38,12 +38,10 @@ use zbus::PropertyStream;
 const ICON_ON: &str = "bell";
 const ICON_OFF: &str = "bell-slash";
 
-#[derive(Deserialize, Debug)]
-#[serde(deny_unknown_fields)]
+#[derive(Deserialize, Debug, Default)]
+#[serde(deny_unknown_fields, default)]
 struct NotifyConfig {
-    #[serde(default)]
     driver: DriverType,
-    #[serde(default)]
     format: FormatConfig,
 }
 

@@ -44,28 +44,19 @@ use crate::util::read_file;
 const CPU_BOOST_PATH: &str = "/sys/devices/system/cpu/cpufreq/boost";
 const CPU_NO_TURBO_PATH: &str = "/sys/devices/system/cpu/intel_pstate/no_turbo";
 
-#[derive(serde_derive::Deserialize, Debug)]
+#[derive(Deserialize, Debug, Derivative)]
 #[serde(deny_unknown_fields, default)]
-pub struct CpuConfig {
-    pub format: FormatConfig,
-    pub format_alt: Option<FormatConfig>,
-    pub interval: u64,
-}
-
-impl Default for CpuConfig {
-    fn default() -> Self {
-        Self {
-            format: Default::default(),
-            format_alt: None,
-            interval: 5,
-        }
-    }
+#[derivative(Default)]
+struct CpuConfig {
+    format: FormatConfig,
+    format_alt: Option<FormatConfig>,
+    #[derivative(Default(value = "5.into()"))]
+    interval: Seconds,
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
     let mut events = api.get_events().await?;
     let config = CpuConfig::deserialize(config).config_error()?;
-    let interval = Duration::from_secs(config.interval);
     let mut format = config.format.with_default("$utilization")?;
     let mut format_alt = match config.format_alt {
         Some(f) => Some(f.with_default("")?),
@@ -136,7 +127,7 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
         api.flush().await?;
 
         tokio::select! {
-            _ = sleep(interval) => (),
+            _ = sleep(config.interval.0) => (),
             Some(BlockEvent::Click(click)) = events.recv() => {
                 if click.button == MouseButton::Left {
                     if let Some(ref mut format_alt) = format_alt {

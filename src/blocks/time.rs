@@ -33,24 +33,15 @@ use chrono_tz::Tz;
 
 use super::prelude::*;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Derivative)]
 #[serde(deny_unknown_fields, default)]
+#[derivative(Default)]
 struct TimeConfig {
     format: FormatConfig,
+    #[derivative(Default(value = "Seconds::new(10)"))]
     interval: Seconds,
     timezone: Option<Tz>,
     locale: Option<String>,
-}
-
-impl Default for TimeConfig {
-    fn default() -> Self {
-        Self {
-            format: Default::default(),
-            interval: Seconds::new(10),
-            timezone: None,
-            locale: None,
-        }
-    }
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {

@@ -12,6 +12,7 @@ debug_borders = []
 [dependencies]
 # console-subscriber = { version = "*", optional = true }
 
+derivative = "2.2"
 signal-hook = "0.3"
 swayipc-async = "2.0"
 nix = "0.23"

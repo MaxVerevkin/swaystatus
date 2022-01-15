@@ -50,30 +50,22 @@ pub enum InfoType {
     Used,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Derivative)]
 #[serde(deny_unknown_fields, default)]
+#[derivative(Default)]
 struct DiskSpaceConfig {
+    #[derivative(Default(value = r#""/".into()"#))]
     path: String,
+    #[derivative(Default(value = "InfoType::Available"))]
     info_type: InfoType,
     format: FormatConfig,
     alert_unit: Option<String>,
+    #[derivative(Default(value = "20.into()"))]
     interval: Seconds,
+    #[derivative(Default(value = "20.0"))]
     warning: f64,
+    #[derivative(Default(value = "10.0"))]
     alert: f64,
-}
-
-impl Default for DiskSpaceConfig {
-    fn default() -> Self {
-        Self {
-            path: "/".into(),
-            info_type: InfoType::Available,
-            format: Default::default(),
-            alert_unit: None,
-            interval: Seconds::new(20),
-            warning: 20.,
-            alert: 10.,
-        }
-    }
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {

@@ -49,9 +49,11 @@ use tokio::process::Command;
 
 use super::prelude::*;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Derivative)]
 #[serde(deny_unknown_fields, default)]
+#[derivative(Default)]
 struct AptConfig {
+    #[derivative(Default(value = "600.into()"))]
     interval: Seconds,
     format: FormatConfig,
     format_singular: FormatConfig,
@@ -59,20 +61,6 @@ struct AptConfig {
     warning_updates_regex: Option<String>,
     critical_updates_regex: Option<String>,
     hide_when_uptodate: bool,
-}
-
-impl Default for AptConfig {
-    fn default() -> Self {
-        Self {
-            interval: Seconds::new(600),
-            format: Default::default(),
-            format_singular: Default::default(),
-            format_up_to_date: Default::default(),
-            warning_updates_regex: None,
-            critical_updates_regex: None,
-            hide_when_uptodate: false,
-        }
-    }
 }
 
 pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
