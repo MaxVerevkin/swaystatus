@@ -34,67 +34,54 @@ pub fn print_blocks(blocks: &[Vec<I3BarBlock>], config: &SharedConfig) -> Result
         }
 
         let mut rendered_widgets = widgets.clone();
+
+        // Apply tint for all widgets of every second block
+        // TODO: Allow for other non-additive tints
         if alt {
             for data in &mut rendered_widgets {
-                // Apply tint for all widgets of every second block
-                // TODO: Allow for other non-additive tints
                 data.background = data.background + config.theme.alternating_tint_bg;
                 data.color = data.color + config.theme.alternating_tint_fg;
             }
         }
-
         alt = !alt;
 
-        if config.theme.separator.is_none() {
-            // Re-add native separator on last widget for native theme
-            rendered_widgets.last_mut().unwrap().separator = None;
-            rendered_widgets.last_mut().unwrap().separator_block_width = None;
-        }
+        if let Some(separator) = &config.theme.separator {
+            // The first widget's BG is used to get the FG color for the current separator
+            let sep_fg = if config.theme.separator_fg == Color::Auto {
+                rendered_widgets.first().unwrap().background
+            } else {
+                config.theme.separator_fg
+            };
 
-        // Serialize and concatenate widgets
-        let mut block_str = rendered_widgets[0].render();
-        for x in rendered_widgets.iter().skip(1) {
-            block_str.push(',');
-            block_str.push_str(&x.render());
-        }
+            // The separator's BG is the last block's last widget's BG
+            let sep_bg = if config.theme.separator_bg == Color::Auto {
+                last_bg
+            } else {
+                config.theme.separator_bg
+            };
 
-        if config.theme.separator.is_none() {
-            // Skip separator block for native theme
-            rendered_blocks.push(block_str.to_string());
-            continue;
-        }
+            // The last widget's BG is used to get the BG color for the next separator
+            last_bg = rendered_widgets.last().unwrap().background;
 
-        // The first widget's BG is used to get the FG color for the current separator
-        let sep_fg = if config.theme.separator_fg == Color::Auto {
-            rendered_widgets.first().unwrap().background
-        } else {
-            config.theme.separator_fg
-        };
-
-        // The separator's BG is the last block's last widget's BG
-        let sep_bg = if config.theme.separator_bg == Color::Auto {
-            last_bg
-        } else {
-            config.theme.separator_bg
-        };
-
-        if let Some(ref separator) = config.theme.separator {
             let separator = I3BarBlock {
                 full_text: separator.clone().into(),
                 background: sep_bg,
                 color: sep_fg,
                 ..Default::default()
             };
-            rendered_blocks.push(format!("{},{}", separator.render(), block_str));
-        } else {
-            rendered_blocks.push(block_str);
-        }
 
-        // The last widget's BG is used to get the BG color for the next separator
-        last_bg = rendered_widgets.last().unwrap().background;
+            rendered_blocks.push(separator);
+            rendered_blocks.extend(rendered_widgets);
+        } else {
+            // Re-add native separator on last widget for native theme
+            rendered_widgets.last_mut().unwrap().separator = None;
+            rendered_widgets.last_mut().unwrap().separator_block_width = None;
+
+            rendered_blocks.extend(rendered_widgets);
+        }
     }
 
-    println!("[{}],", rendered_blocks.join(","));
+    println!("{},", serde_json::to_string(&rendered_blocks).unwrap());
 
     Ok(())
 }

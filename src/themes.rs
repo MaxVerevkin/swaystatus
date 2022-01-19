@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 use color_space::{Hsv, Rgb};
 use serde::de::{self, Deserialize, Deserializer, MapAccess, Visitor};
+use serde::{Serialize, Serializer};
 use serde_derive::Deserialize;
 use smartstring::alias::String;
 
@@ -22,20 +23,28 @@ pub enum Color {
     Hsva(Hsv, u8),
 }
 
-impl Color {
-    pub fn to_hex(self) -> Option<String> {
+impl Serialize for Color {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
         let format_rgb = |rgb: Rgb, a: u8| {
             format!(
                 "#{:02X}{:02X}{:02X}{:02X}",
                 rgb.r as u8, rgb.g as u8, rgb.b as u8, a
             )
-            .into()
         };
-        match self {
-            Color::Auto | Color::None => None,
-            Color::Rgba(rgb, a) => Some(format_rgb(rgb, a)),
-            Color::Hsva(hsv, a) => Some(format_rgb(hsv.into(), a)),
+        match *self {
+            Self::None | Self::Auto => serializer.serialize_none(),
+            Self::Rgba(rgb, a) => serializer.serialize_str(&format_rgb(rgb, a)),
+            Self::Hsva(hsv, a) => serializer.serialize_str(&format_rgb(hsv.into(), a)),
         }
+    }
+}
+
+impl Color {
+    pub fn skip_ser(&self) -> bool {
+        matches!(self, Self::None | Self::Auto)
     }
 }
 
