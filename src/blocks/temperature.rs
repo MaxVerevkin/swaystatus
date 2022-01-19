@@ -145,11 +145,15 @@ pub async fn run(config: toml::Value, mut api: CommonApi) -> Result<()> {
                     }
                     for subfeat in feat {
                         if *subfeat.subfeature_type() == SENSORS_SUBFEATURE_TEMP_INPUT {
-                            let value = subfeat.get_value().error("Failed to get input value")?;
-                            if (-100.0..=150.0).contains(&value) {
-                                vals.push(config.scale.from_celsius(value));
-                            } else {
-                                eprintln!("Temperature ({}) outside of range ([-100, 150])", value);
+                            if let Ok(value) = subfeat.get_value() {
+                                if (-100.0..=150.0).contains(&value) {
+                                    vals.push(config.scale.from_celsius(value));
+                                } else {
+                                    eprintln!(
+                                        "Temperature ({}) outside of range ([-100, 150])",
+                                        value
+                                    );
+                                }
                             }
                         }
                     }
