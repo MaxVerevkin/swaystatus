@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: Release name (tags will prefix it)
+        required: true
+      tags:
+        description: Version Tags
+        required: true
+
+jobs:
+  release:
+    name: Release version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Test
+        run: |
+          echo hello
+
+      # Do your stuff
+      # You can zip your code or anyway
+
+      # - name: Release
+      #   uses: softprops/action-gh-release@v0.1.7
+      #   with:
+      #     name: "${{ github.event.inputs.tags }}-${{ github.event.inputs.name }}"
+      #     tag_name: ${{ github.event.inputs.tags }}
+      #     files: <file to include>
